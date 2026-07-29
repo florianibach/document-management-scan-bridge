@@ -37,7 +37,7 @@ docker compose up --detach --build
 
 The image installs `sane-utils` and `sane-airscan` for both AMD64 and ARM64. Compose uses the Linux host network so multicast scanner discovery reaches the container; port `8080` is therefore opened directly by the application rather than published through Docker. The named volumes `bridge-data` and `bridge-temp` keep the selected scanner, generated SANE configuration, and temporary storage outside the container layer. Override `PAPERLESS_URL` and `PAPERLESS_TOKEN` through the environment; never commit the token.
 
-`SANE_CONFIG_DIR` contains both `/app/data/sane.d` and `/etc/sane.d`. The first directory supplies the generated `airscan.conf`; the second retains the package-managed `dll.conf` and `dll.d/airscan` registration that loads the sane-airscan backend. Do not replace this with only `/app/data/sane.d`: `scanimage -L` would then ignore a valid device entry because the backend is not loaded.
+The image keeps SANE's package-standard `/etc/sane.d` configuration directory. `/etc/sane.d/airscan.conf` is a symbolic link to the generated, persistent `/app/data/sane.d/airscan.conf`; the adjacent package-managed `dll.conf` and `dll.d/airscan` registration therefore remain available without relying on a custom configuration search path. `airscan-discover` still requires Avahi for automatic discovery, but it is not used for the statically validated device.
 
 Scanner discovery is implemented in .NET with DNS-SD queries for `_uscan._tcp.local.` and `_uscans._tcp.local.`. It does not execute `airscan-discover` and does not require an Avahi daemon. The Linux Docker host and scanner must be on the same network, with multicast DNS (UDP 5353) and the scanner's eSCL traffic permitted by the host firewall. Select a result in the web UI; the server validates `<advertised eSCL URL>/ScannerCapabilities`, stores only a validated selection in SQLite, and atomically writes `airscan.conf`. URLs submitted by the browser are never accepted.
 
@@ -96,6 +96,7 @@ The target HP Color Laser MFP 179fnw was verified to return HTTP 200 and a valid
 scanimage -L
 scanimage --help --device-name "$SCANNER_DEVICE_ID"
 SANE_DEBUG_DLL=255 scanimage -L 2>&1 | grep -i airscan
+readlink -f /etc/sane.d/airscan.conf
 ```
 
 This is the only outstanding hardware-dependent verification; discovery, parsing, error handling, UI behavior, and the real OS process boundary are covered locally with controlled doubles.

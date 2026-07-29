@@ -24,8 +24,10 @@ if re.search(r"^\s+ports:", compose_content, re.MULTILINE):
 
 dockerfile = ROOT / "Dockerfile"
 dockerfile_content = dockerfile.read_text(encoding="utf-8")
-if "SANE_CONFIG_DIR=/app/data/sane.d:/etc/sane.d" not in dockerfile_content:
-    error(dockerfile, "SANE_CONFIG_DIR must retain /etc/sane.d so the airscan backend registration is loaded")
+if "ln -sfn /app/data/sane.d/airscan.conf /etc/sane.d/airscan.conf" not in dockerfile_content:
+    error(dockerfile, "the package-standard airscan.conf path must link to the generated persistent configuration")
+if re.search(r"^ENV SANE_CONFIG_DIR=", dockerfile_content, re.MULTILINE):
+    error(dockerfile, "must use the package-standard SANE configuration directory")
 
 
 markdown_files = [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]
