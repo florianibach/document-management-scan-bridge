@@ -12,7 +12,7 @@ jobs:
     name: Documentation and planning
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Validate Markdown and repository skill
         run: python3 scripts/validate-repository.py
 
@@ -20,8 +20,8 @@ jobs:
     name: .NET build and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
       - name: Build and test when scaffolded
@@ -42,7 +42,9 @@ jobs:
     name: Container build and Compose validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Validate container setup when scaffolded
         shell: bash
         run: |
@@ -50,7 +52,7 @@ jobs:
             echo "No Dockerfile exists yet; US-001 is still pending."
             exit 0
           fi
-          docker build --tag paperless-scan-bridge:ci .
+          docker buildx build --load --tag paperless-scan-bridge:ci .
           compose_file=""
           for candidate in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
             [[ -f "$candidate" ]] && compose_file="$candidate" && break

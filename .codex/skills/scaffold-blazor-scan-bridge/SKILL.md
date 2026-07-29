@@ -24,6 +24,10 @@ description: Scaffold the paperless-scan-bridge ASP.NET Core Blazor Server solut
 
 ## Verify completion
 
+### Prepare the environment
+
+Do not skip a required verification merely because its executable is missing. Install missing packages such as the .NET SDK, Docker Engine, Docker Compose, `curl`, or other documented build prerequisites, then run the check. If the package installs but the environment cannot provide a required capability (for example, a container sandbox does not permit starting the Docker daemon), record the exact limitation and still run every check that does not require that capability.
+
 Run all repository-documented checks, including:
 
 ```bash
