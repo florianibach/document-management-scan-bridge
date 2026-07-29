@@ -8,6 +8,8 @@ services:
       TemporaryStorage__Path: /app/temp
       Paperless__BaseUrl: ${PAPERLESS_URL:-http://paperless:8000}
       Paperless__ApiToken: ${PAPERLESS_TOKEN:-}
+      Scanner__DeviceId: ${SCANNER_DEVICE_ID:-}
+      Scanner__TimeoutSeconds: ${SCANNER_TIMEOUT_SECONDS:-30}
     volumes:
       - bridge-data:/app/data
       - bridge-temp:/app/temp

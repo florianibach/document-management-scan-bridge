@@ -2,6 +2,8 @@ using PaperlessScanBridge.Web.Components;
 using Microsoft.EntityFrameworkCore;
 using PaperlessScanBridge.Application.Configuration;
 using PaperlessScanBridge.Infrastructure.Persistence;
+using PaperlessScanBridge.Application.Scanning;
+using PaperlessScanBridge.Infrastructure.Processes;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +14,9 @@ builder.Services.AddOptions<ScannerOptions>().BindConfiguration(ScannerOptions.S
 builder.Services.AddOptions<PaperlessOptions>().BindConfiguration(PaperlessOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddOptions<PersistenceOptions>().BindConfiguration(PersistenceOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddOptions<TemporaryStorageOptions>().BindConfiguration(TemporaryStorageOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
+builder.Services.AddSingleton<IProcessRunner, SystemProcessRunner>();
+builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ScannerOptions>>().Value);
+builder.Services.AddSingleton<IScanner, SaneScanner>();
 var persistence = builder.Configuration.GetSection(PersistenceOptions.SectionName).Get<PersistenceOptions>() ?? new();
 var databasePath = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(persistence.ConnectionString).DataSource;
 if (!string.IsNullOrWhiteSpace(Path.GetDirectoryName(databasePath))) Directory.CreateDirectory(Path.GetDirectoryName(databasePath)!);

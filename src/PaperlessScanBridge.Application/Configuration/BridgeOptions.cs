@@ -7,6 +7,7 @@ public sealed class ScannerOptions
     public const string SectionName = "Scanner";
     [Required] public string Command { get; init; } = "scanimage";
     [Range(1, 600)] public int TimeoutSeconds { get; init; } = 120;
+    public string? DeviceId { get; init; }
 }
 
 public sealed class PaperlessOptions
