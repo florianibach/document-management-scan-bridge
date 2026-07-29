@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scaffold Blazor Scan Bridge"
+  short_description: "Scaffold and verify the scan bridge foundation"
+  default_prompt: "Use $scaffold-blazor-scan-bridge to implement the project-scaffolding story without implementing later features."
