@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PaperlessScanBridge.Application/PaperlessScanBridge.Application.csproj" />
+    <Project Path="src/PaperlessScanBridge.Infrastructure/PaperlessScanBridge.Infrastructure.csproj" />
+    <Project Path="src/PaperlessScanBridge.Web/PaperlessScanBridge.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PaperlessScanBridge.ComponentTests/PaperlessScanBridge.ComponentTests.csproj" />
+    <Project Path="tests/PaperlessScanBridge.IntegrationTests/PaperlessScanBridge.IntegrationTests.csproj" />
+    <Project Path="tests/PaperlessScanBridge.UnitTests/PaperlessScanBridge.UnitTests.csproj" />
+  </Folder>
+</Solution>

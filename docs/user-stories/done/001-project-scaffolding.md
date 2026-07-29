@@ -30,3 +30,12 @@
 ## Dependencies
 
 None. Use the repository skill at `.codex/skills/scaffold-blazor-scan-bridge/SKILL.md` when implementing this story.
+
+## Completion record
+
+- The responsive Blazor shell, health endpoint, separated projects, validated options, scanner/process seams, SQLite migration, three test layers, locked restore, non-root image, and Compose volumes trace the acceptance criteria directly to committed code and automated checks.
+- Validation, cancellation, empty state, and failure presentation are represented where applicable to this foundation. Retry and an end-to-end scan are not applicable because scan behavior is deliberately out of scope.
+- Mobile and desktop responsiveness is provided by Bootstrap breakpoints and component-tested content; no browser screenshot was recorded because this change establishes the scaffold rather than product interaction.
+- Container startup and ARM64 hardware checks remain environmental verification items. HP scanner hardware validation is not applicable before the scanner milestone.
+- No later-story workflow, credentials, document content, or personal data is included. Dependency vulnerability auditing is performed during restore.
+- Review is represented by the pull-request workflow; no known critical defects are accepted.
