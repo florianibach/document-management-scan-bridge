@@ -22,6 +22,11 @@ if "network_mode: host" not in compose_content:
 if re.search(r"^\s+ports:", compose_content, re.MULTILINE):
     error(compose_file, "must not publish ports together with host networking")
 
+dockerfile = ROOT / "Dockerfile"
+dockerfile_content = dockerfile.read_text(encoding="utf-8")
+if "SANE_CONFIG_DIR=/app/data/sane.d:/etc/sane.d" not in dockerfile_content:
+    error(dockerfile, "SANE_CONFIG_DIR must retain /etc/sane.d so the airscan backend registration is loaded")
+
 
 markdown_files = [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]
 for path in markdown_files:

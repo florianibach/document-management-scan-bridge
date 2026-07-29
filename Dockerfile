@@ -15,12 +15,13 @@ RUN apt-get update \
  && apt-get install --yes --no-install-recommends sane-utils sane-airscan \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /app/data /app/temp \
- && cp -a /etc/sane.d /app/sane-defaults \
  && chown -R "$APP_UID:$APP_UID" /app
 COPY --from=build --chown=$APP_UID:$APP_UID /app .
 USER $APP_UID
 ENV ASPNETCORE_URLS=http://+:8080
-ENV SANE_CONFIG_DIR=/app/data/sane.d
+# Keep the generated configuration first, but retain the package directory so
+# SANE can load /etc/sane.d/dll.d/airscan and the installed backend.
+ENV SANE_CONFIG_DIR=/app/data/sane.d:/etc/sane.d
 ENV Build__Commit=$GIT_COMMIT
 LABEL org.opencontainers.image.revision=$GIT_COMMIT
 EXPOSE 8080

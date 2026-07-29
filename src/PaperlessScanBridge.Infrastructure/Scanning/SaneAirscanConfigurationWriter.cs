@@ -11,12 +11,6 @@ public sealed class SaneAirscanConfigurationWriter(IOptions<ScannerDiscoveryOpti
     {
         var directory = options.Value.SaneConfigurationDirectory;
         Directory.CreateDirectory(directory);
-        if (!string.IsNullOrWhiteSpace(options.Value.SaneDefaultsDirectory) && Directory.Exists(options.Value.SaneDefaultsDirectory))
-            foreach (var source in Directory.EnumerateFiles(options.Value.SaneDefaultsDirectory))
-            {
-                var destination = Path.Combine(directory, Path.GetFileName(source));
-                if (!File.Exists(destination)) File.Copy(source, destination);
-            }
         var path = Path.Combine(directory, "airscan.conf");
         var temporary = path + ".tmp";
         var safeName = scanner.DisplayName.Replace("\"", "'", StringComparison.Ordinal).Replace("\r", " ").Replace("\n", " ");
