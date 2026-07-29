@@ -18,5 +18,17 @@ partial class BridgeDbContextModelSnapshot : ModelSnapshot
             b.HasKey("Id");
             b.ToTable("SchemaMarkers");
         });
+        modelBuilder.Entity("PaperlessScanBridge.Infrastructure.Persistence.SelectedScannerEntity", b =>
+        {
+            b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+            b.Property<string>("DisplayName").IsRequired().HasColumnType("TEXT");
+            b.Property<string>("EsclUrl").IsRequired().HasColumnType("TEXT");
+            b.Property<string>("IpAddress").IsRequired().HasColumnType("TEXT");
+            b.Property<int>("Port").HasColumnType("INTEGER");
+            b.Property<string>("Protocol").IsRequired().HasColumnType("TEXT");
+            b.Property<DateTimeOffset>("ValidatedAt").HasColumnType("TEXT");
+            b.HasKey("Id");
+            b.ToTable("SelectedScanners");
+        });
     }
 }

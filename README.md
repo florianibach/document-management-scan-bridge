@@ -4,7 +4,7 @@
 
 The guided workflow will support simplex scans and manual duplex scans, put pages into reading order, offer lightweight preview and editing, create a PDF, and upload it with metadata. The application is intended to run in Docker on a Raspberry Pi or another always-on host.
 
-The project can discover and inspect a SANE-compatible network scanner. Starting a scan remains intentionally unavailable until US-003.
+The project discovers eSCL/AirScan scanners directly with DNS-SD/mDNS, validates a selected device through its `ScannerCapabilities` endpoint, and then exposes it to the existing SANE adapter. Starting a scan remains intentionally unavailable until US-003.
 
 ## Local development
 
@@ -28,9 +28,11 @@ docker compose logs scan-bridge
 docker compose down
 ```
 
-The image installs `sane-utils` and `sane-airscan` for both AMD64 and ARM64. Compose uses the Linux host network so multicast scanner discovery reaches the container; port `8080` is therefore opened directly by the application rather than published through Docker. The named volumes `bridge-data` and `bridge-temp` keep persistent application data and writable temporary storage outside the container layer. Override `PAPERLESS_URL` and `PAPERLESS_TOKEN` through the environment; never commit the token.
+The image installs `sane-utils` and `sane-airscan` for both AMD64 and ARM64. Compose uses the Linux host network so multicast scanner discovery reaches the container; port `8080` is therefore opened directly by the application rather than published through Docker. The named volumes `bridge-data` and `bridge-temp` keep the selected scanner, generated SANE configuration, and temporary storage outside the container layer. Override `PAPERLESS_URL` and `PAPERLESS_TOKEN` through the environment; never commit the token.
 
-Scanner discovery uses mDNS and WSD. The Linux Docker host and scanner must be on the same network, with multicast DNS (UDP 5353) and the scanner's eSCL/WSD traffic permitted by the host firewall. This is why the service must not use Docker's default bridge network: a host desktop application can see multicast devices even while a bridge-networked container cannot. After restarting the stack, compare `scanimage -L` on the host with `docker compose exec scan-bridge scanimage -L`; both should list the HP device. Configure the exact identifier returned inside the container through `SCANNER_DEVICE_ID` only when multiple devices are found; never add it to source code.
+Scanner discovery is implemented in .NET with DNS-SD queries for `_uscan._tcp.local.` and `_uscans._tcp.local.`. It does not execute `airscan-discover` and does not require an Avahi daemon. The Linux Docker host and scanner must be on the same network, with multicast DNS (UDP 5353) and the scanner's eSCL traffic permitted by the host firewall. Select a result in the web UI; the server validates `<advertised eSCL URL>/ScannerCapabilities`, stores only a validated selection in SQLite, and atomically writes `airscan.conf`. URLs submitted by the browser are never accepted.
+
+Discovery and selection are also exposed for operational diagnostics through `GET /api/scanners`, `POST /api/scanners/{discoveryId}/select`, and `GET /api/scanners/selected`. A discovery ID expires after five minutes. Duplicate HTTP and HTTPS advertisements are combined with HTTPS preferred, and the UI reports multicast timeouts, empty results, validation errors, and duplicate advertisements.
 
 Host networking is supported by the intended Linux/Raspberry Pi deployment. On Docker Desktop, enable host networking in Docker Desktop settings or run the application directly with `dotnet run` for scanner discovery.
 
@@ -39,6 +41,7 @@ Configuration uses standard ASP.NET Core keys:
 | Section | Purpose | Container override example |
 | --- | --- | --- |
 | `Scanner` | Executable, timeout, and optional selected device | `SCANNER_DEVICE_ID=airscan:e0:...` |
+| `ScannerDiscovery` | mDNS/validation timeouts and managed SANE configuration | `ScannerDiscovery__TimeoutSeconds=5` |
 | `Paperless` | Future service URL and secret token | `Paperless__ApiToken=...` |
 | `Persistence` | SQLite connection | `Persistence__ConnectionString=Data Source=/app/data/bridge.db` |
 | `TemporaryStorage` | Writable working directory | `TemporaryStorage__Path=/app/temp` |

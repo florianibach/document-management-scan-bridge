@@ -1,5 +1,6 @@
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Components;
 using PaperlessScanBridge.Application.Scanning;
 using PaperlessScanBridge.Web.Components.Pages;
 
@@ -10,31 +11,34 @@ public sealed class HomePageTests : BunitContext
     [Fact]
     public void ShowsInitialEmptyState()
     {
-        Services.AddSingleton<IScanner>(new StubScanner(new([], null, null)));
+        AddServices(new DiscoveryStub(new([], [])));
         Assert.Contains("Noch keine Suche", Render<Home>().Markup);
     }
 
     [Fact]
-    public async Task ShowsCapabilitiesAfterDiscovery()
+    public async Task DisplaysAllDevicesAndRequiresExplicitSelection()
     {
-        var result = new ScannerDiscoveryResult([new("airscan:test", "HP Test")], new("airscan:test", "HP Test"), new(["ADF"], ["Color"], [300], ["A4"]));
-        Services.AddSingleton<IScanner>(new StubScanner(result));
+        var devices = new[] { new DiscoveredScanner("one", "HP One", "10.0.0.1", 80, "http", "http://10.0.0.1/eSCL"),
+            new DiscoveredScanner("two", "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL") };
+        AddServices(new DiscoveryStub(new(devices, [])));
         var page = Render<Home>();
         await page.Find("button").ClickAsync(new());
-        Assert.Contains("HP Test", page.Markup);
-        Assert.Contains("300 dpi", page.Markup);
-        Assert.Contains("A4", page.Markup);
+        Assert.Contains("HP One", page.Markup); Assert.Contains("HP Two", page.Markup);
+        Assert.True(page.FindAll("button")[1].HasAttribute("disabled"));
+        await page.Find("input[value=two]").ChangeAsync(new ChangeEventArgs { Value = "two" });
+        await page.FindAll("button")[1].ClickAsync(new());
+        Assert.Contains("geprüft und gespeichert", page.Markup);
     }
 
-    [Fact]
-    public async Task ShowsActionableFailure()
+    private void AddServices(DiscoveryStub discovery)
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(new SaneStub()); }
+    private sealed class DiscoveryStub(ScannerNetworkDiscoveryResult result) : IScannerDiscoveryService
     {
-        Services.AddSingleton<IScanner>(new StubScanner(new([], null, null, "No scanners were discovered.")));
-        var page = Render<Home>();
-        await page.Find("button").ClickAsync(new());
-        Assert.Contains("No scanners", page.Find("[role=alert]").TextContent);
+        public Task<ScannerNetworkDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken) => Task.FromResult(result);
+        public Task<SelectedScanner?> GetSelectedAsync(CancellationToken cancellationToken) => Task.FromResult<SelectedScanner?>(null);
+        public Task<ScannerSelectionResult> SelectAsync(string discoveryId, CancellationToken cancellationToken) =>
+            Task.FromResult(new ScannerSelectionResult(true, new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow)));
     }
-
-    private sealed class StubScanner(ScannerDiscoveryResult result) : IScanner
-    { public Task<ScannerDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken) => Task.FromResult(result); }
+    private sealed class SaneStub : IScanner
+    { public Task<ScannerDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken) => Task.FromResult(new ScannerDiscoveryResult([], null, null, "Not available in test")); }
 }

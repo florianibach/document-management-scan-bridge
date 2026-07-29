@@ -97,6 +97,19 @@
           "SQLitePCLRaw.core": "2.1.12"
         }
       },
+      "System.Reactive": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "erBZjkQHWL9jpasCE/0qKAryzVBJFxGHVBAvgRN1bzM0q2s1S4oYREEEL0Vb+1kA/6BKb5FjUZMp5VXmy+gzkQ=="
+      },
+      "Zeroconf": {
+        "type": "Transitive",
+        "resolved": "3.7.16",
+        "contentHash": "7NrPhT8r6a76TYVIuT0jSjLrWdwFNY0GaX1VWB6WVtI+4s3E+5Skd4IASjtEG6HFxWM4dbwPA5CpUCSFWmoYUg==",
+        "dependencies": {
+          "System.Reactive": "5.0.0"
+        }
+      },
       "paperlessscanbridge.application": {
         "type": "Project"
       },
@@ -105,7 +118,8 @@
         "dependencies": {
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.2, )",
           "PaperlessScanBridge.Application": "[1.0.0, )",
-          "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )"
+          "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
+          "Zeroconf": "[3.7.16, )"
         }
       }
     }

@@ -18,5 +18,6 @@ public sealed class SqlitePersistenceTests
 
         Assert.True(await context.Database.CanConnectAsync());
         Assert.Empty(await context.SchemaMarkers.ToListAsync());
+        Assert.Empty(await context.SelectedScanners.ToListAsync());
     }
 }

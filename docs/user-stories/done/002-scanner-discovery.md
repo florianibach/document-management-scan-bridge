@@ -7,7 +7,7 @@
 ## Acceptance criteria
 
 - The container includes SANE, `sane-airscan`, and `scanimage` on each supported target platform.
-- Scanner discovery is executed through the scanner adapter's process boundary, not directly from UI code.
+- Scanner discovery is executed through a backend discovery boundary, not directly from UI code or an external discovery executable.
 - The application can report discovered devices and the selected device's supported sources, formats, resolutions, and paper sizes.
 - Configuration allows selecting the target device without embedding a device-specific identifier in code.
 - Timeouts, missing executables, no-device results, and non-zero command exits produce actionable diagnostics without exposing secrets.
@@ -24,10 +24,10 @@
 
 ## Completion record
 
-- Device discovery and capability inspection run exclusively through `IScanner` and `IProcessRunner`; parser, orchestration, process-boundary, and component tests cover the acceptance behavior.
-- The runtime image installs `sane-utils` and `sane-airscan`; Compose uses Linux host networking so mDNS/WSD discovery reaches the container and exposes device selection and a bounded timeout without a source-coded identifier.
+- DNS-SD discovery runs through `IScannerDiscoveryService` and a .NET Zeroconf adapter for `_uscan` and `_uscans`; the existing `IScanner`/`scanimage` adapter remains responsible for SANE capability inspection.
+- The runtime image installs `sane-utils` and `sane-airscan`; Compose retains Linux host networking. The UI displays every discovered physical scanner after duplicate advertisements are merged, requires explicit selection, validates eSCL `ScannerCapabilities`, and never accepts a browser-supplied URL.
 - Missing commands, timeouts, no devices, ambiguous/configured devices, and non-zero exits have distinct diagnostics that omit backend stderr.
 - Local Release restore/build/test, image build, Compose configuration/start/health, repository validation, and skill validation are required completion checks.
-- No scan acquisition or later workflow was introduced. Persistence, cleanup, and recovery are not applicable because discovery creates no files or database records. Retry is user-initiated through the discovery button.
+- The validated selection is persisted in SQLite and regenerates an atomic, data-volume-backed `airscan.conf` at selection and startup. No scan acquisition or later workflow was introduced; retry is user-initiated through the discovery button.
 - Mobile and desktop layout use Bootstrap's `col-12 col-md-6` breakpoints and were visually verified with Playwright. Generated screenshots remain local because the review platform does not support binary files.
 - Physical HP model/firmware verification is hardware-dependent and remains explicitly required before milestone acceptance; commands and expected fixture-backed option categories are documented in `README.md`.

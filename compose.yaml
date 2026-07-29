@@ -11,6 +11,8 @@ services:
       Paperless__ApiToken: ${PAPERLESS_TOKEN:-}
       Scanner__DeviceId: ${SCANNER_DEVICE_ID:-}
       Scanner__TimeoutSeconds: ${SCANNER_TIMEOUT_SECONDS:-30}
+      ScannerDiscovery__SaneConfigurationDirectory: /app/data/sane.d
+      ScannerDiscovery__SaneDefaultsDirectory: /app/sane-defaults
     volumes:
       - bridge-data:/app/data
       - bridge-temp:/app/temp

@@ -10,6 +10,15 @@ public sealed class ScannerOptions
     public string? DeviceId { get; init; }
 }
 
+public sealed class ScannerDiscoveryOptions
+{
+    public const string SectionName = "ScannerDiscovery";
+    [Range(1, 60)] public int TimeoutSeconds { get; init; } = 5;
+    [Range(1, 60)] public int ValidationTimeoutSeconds { get; init; } = 10;
+    [Required] public string SaneConfigurationDirectory { get; init; } = "data/sane.d";
+    public string? SaneDefaultsDirectory { get; init; }
+}
+
 public sealed class PaperlessOptions
 {
     public const string SectionName = "Paperless";
