@@ -1,8 +1,9 @@
 services:
   scan-bridge:
     build: .
-    ports:
-      - "8080:8080"
+    # SANE discovery uses multicast/broadcast packets that Docker's default
+    # bridge network does not forward. The supported deployment target is Linux.
+    network_mode: host
     environment:
       Persistence__ConnectionString: Data Source=/app/data/bridge.db
       TemporaryStorage__Path: /app/temp

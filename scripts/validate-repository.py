@@ -15,6 +15,14 @@ def error(path: Path, message: str) -> None:
     errors.append(f"{path.relative_to(ROOT)}: {message}")
 
 
+compose_file = ROOT / "compose.yaml"
+compose_content = compose_file.read_text(encoding="utf-8")
+if "network_mode: host" not in compose_content:
+    error(compose_file, "scanner discovery service must use host networking for mDNS/WSD")
+if re.search(r"^\s+ports:", compose_content, re.MULTILINE):
+    error(compose_file, "must not publish ports together with host networking")
+
+
 markdown_files = [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]
 for path in markdown_files:
     content = path.read_text(encoding="utf-8")

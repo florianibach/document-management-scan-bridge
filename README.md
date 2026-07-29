@@ -28,9 +28,11 @@ docker compose logs scan-bridge
 docker compose down
 ```
 
-The image installs `sane-utils` and `sane-airscan` for both AMD64 and ARM64. The named volumes `bridge-data` and `bridge-temp` keep persistent application data and writable temporary storage outside the container layer. Override `PAPERLESS_URL` and `PAPERLESS_TOKEN` through the environment; never commit the token.
+The image installs `sane-utils` and `sane-airscan` for both AMD64 and ARM64. Compose uses the Linux host network so multicast scanner discovery reaches the container; port `8080` is therefore opened directly by the application rather than published through Docker. The named volumes `bridge-data` and `bridge-temp` keep persistent application data and writable temporary storage outside the container layer. Override `PAPERLESS_URL` and `PAPERLESS_TOKEN` through the environment; never commit the token.
 
-Scanner discovery uses mDNS and WSD. The Docker host and scanner must be on a network where multicast DNS (UDP 5353) and the scanner's eSCL/WSD traffic are reachable. If bridge networking blocks multicast, configure the exact identifier returned by `scanimage -L` through `SCANNER_DEVICE_ID`; never add it to source code. Run `docker compose exec scan-bridge scanimage -L` to diagnose discovery.
+Scanner discovery uses mDNS and WSD. The Linux Docker host and scanner must be on the same network, with multicast DNS (UDP 5353) and the scanner's eSCL/WSD traffic permitted by the host firewall. This is why the service must not use Docker's default bridge network: a host desktop application can see multicast devices even while a bridge-networked container cannot. After restarting the stack, compare `scanimage -L` on the host with `docker compose exec scan-bridge scanimage -L`; both should list the HP device. Configure the exact identifier returned inside the container through `SCANNER_DEVICE_ID` only when multiple devices are found; never add it to source code.
+
+Host networking is supported by the intended Linux/Raspberry Pi deployment. On Docker Desktop, enable host networking in Docker Desktop settings or run the application directly with `dotnet run` for scanner discovery.
 
 Configuration uses standard ASP.NET Core keys:
 

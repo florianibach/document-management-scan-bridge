@@ -25,7 +25,7 @@
 ## Completion record
 
 - Device discovery and capability inspection run exclusively through `IScanner` and `IProcessRunner`; parser, orchestration, process-boundary, and component tests cover the acceptance behavior.
-- The runtime image installs `sane-utils` and `sane-airscan`; Compose exposes device selection and a bounded timeout without a source-coded identifier.
+- The runtime image installs `sane-utils` and `sane-airscan`; Compose uses Linux host networking so mDNS/WSD discovery reaches the container and exposes device selection and a bounded timeout without a source-coded identifier.
 - Missing commands, timeouts, no devices, ambiguous/configured devices, and non-zero exits have distinct diagnostics that omit backend stderr.
 - Local Release restore/build/test, image build, Compose configuration/start/health, repository validation, and skill validation are required completion checks.
 - No scan acquisition or later workflow was introduced. Persistence, cleanup, and recovery are not applicable because discovery creates no files or database records. Retry is user-initiated through the discovery button.
