@@ -1,9 +1,28 @@
+x-scan-bridge-image: &scan-bridge-image
+  image: paperless-scan-bridge:local
+  build:
+    context: .
+    args:
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+
 services:
+  scan-bridge-permissions:
+    <<: *scan-bridge-image
+    user: root
+    entrypoint:
+      - /bin/sh
+      - -c
+      - chown -R "$${APP_UID}:$${APP_UID}" /app/data /app/temp
+    volumes:
+      - ./app/data:/app/data
+      - ./app/temp:/app/temp
+    restart: "no"
+
   scan-bridge:
-    build:
-      context: .
-      args:
-        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    <<: *scan-bridge-image
+    depends_on:
+      scan-bridge-permissions:
+        condition: service_completed_successfully
     # SANE discovery uses multicast/broadcast packets that Docker's default
     # bridge network does not forward. The supported deployment target is Linux.
     network_mode: host
@@ -17,10 +36,6 @@ services:
       Scanner__TimeoutSeconds: ${SCANNER_TIMEOUT_SECONDS:-30}
       ScannerDiscovery__SaneConfigurationDirectory: /app/data/sane.d
     volumes:
-      - bridge-data:/app/data
-      - bridge-temp:/app/temp
+      - ./app/data:/app/data
+      - ./app/temp:/app/temp
     restart: unless-stopped
-
-volumes:
-  bridge-data:
-  bridge-temp:
