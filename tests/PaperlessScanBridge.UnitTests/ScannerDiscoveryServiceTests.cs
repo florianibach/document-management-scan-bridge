@@ -1,4 +1,5 @@
 using PaperlessScanBridge.Application.Scanning;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace PaperlessScanBridge.UnitTests;
 
@@ -41,7 +42,7 @@ public sealed class ScannerDiscoveryServiceTests
     }
 
     private static ScannerDiscoveryService CreateService(Browser browser, Validator? validator = null) =>
-        new(browser, validator ?? new(true), new Repository(), new Writer(), new() { TimeoutSeconds = 1 });
+        new(browser, validator ?? new(true), new Repository(), new Writer(), new() { TimeoutSeconds = 1 }, NullLogger<ScannerDiscoveryService>.Instance);
 
     private sealed class Browser(IReadOnlyList<ZeroconfAdvertisement> advertisements) : IZeroconfBrowser
     {

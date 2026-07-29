@@ -5,17 +5,26 @@ using PaperlessScanBridge.Infrastructure.Persistence;
 using PaperlessScanBridge.Application.Scanning;
 using PaperlessScanBridge.Infrastructure.Processes;
 using PaperlessScanBridge.Infrastructure.Scanning;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddAntiforgery(options => options.Cookie.Name = ".PaperlessScanBridge.Antiforgery.v2");
 builder.Services.AddOptions<ScannerOptions>().BindConfiguration(ScannerOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddOptions<PaperlessOptions>().BindConfiguration(PaperlessOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddOptions<PersistenceOptions>().BindConfiguration(PersistenceOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddOptions<TemporaryStorageOptions>().BindConfiguration(TemporaryStorageOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddOptions<ScannerDiscoveryOptions>().BindConfiguration(ScannerDiscoveryOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
+builder.Services.AddOptions<DataProtectionStorageOptions>().BindConfiguration(DataProtectionStorageOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
+var dataProtectionStorage = builder.Configuration.GetSection(DataProtectionStorageOptions.SectionName).Get<DataProtectionStorageOptions>() ?? new();
+Directory.CreateDirectory(dataProtectionStorage.Path);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionStorage.Path))
+    .SetApplicationName("PaperlessScanBridge");
+builder.Services.AddSingleton(new BuildInformation(builder.Configuration["Build:Commit"] ?? "unknown"));
 builder.Services.AddSingleton<IProcessRunner, SystemProcessRunner>();
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ScannerOptions>>().Value);
 builder.Services.AddSingleton<IScanner, SaneScanner>();
@@ -69,3 +78,5 @@ app.MapPost("/api/scanners/{discoveryId}/select", async (string discoveryId, ISc
 });
 
 app.Run();
+
+public sealed record BuildInformation(string Commit);

@@ -3,11 +3,21 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Components;
 using PaperlessScanBridge.Application.Scanning;
 using PaperlessScanBridge.Web.Components.Pages;
+using PaperlessScanBridge.Web.Components.Layout;
+using PaperlessScanBridge.Web;
 
 namespace PaperlessScanBridge.ComponentTests;
 
 public sealed class HomePageTests : BunitContext
 {
+    [Fact]
+    public void ShowsBuildCommitInLayout()
+    {
+        Services.AddSingleton(new BuildInformation("abc1234"));
+        var layout = Render<MainLayout>(parameters => parameters.Add(value => value.Body, _ => { }));
+        Assert.Contains("abc1234", layout.Markup);
+    }
+
     [Fact]
     public void ShowsInitialEmptyState()
     {

@@ -1,12 +1,16 @@
 services:
   scan-bridge:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
     # SANE discovery uses multicast/broadcast packets that Docker's default
     # bridge network does not forward. The supported deployment target is Linux.
     network_mode: host
     environment:
       Persistence__ConnectionString: Data Source=/app/data/bridge.db
       TemporaryStorage__Path: /app/temp
+      DataProtectionStorage__Path: /app/data/dataprotection-keys
       Paperless__BaseUrl: ${PAPERLESS_URL:-http://paperless:8000}
       Paperless__ApiToken: ${PAPERLESS_TOKEN:-}
       Scanner__DeviceId: ${SCANNER_DEVICE_ID:-}

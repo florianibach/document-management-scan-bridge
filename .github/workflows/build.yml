@@ -52,7 +52,7 @@ jobs:
             echo "No Dockerfile exists yet; US-001 is still pending."
             exit 0
           fi
-          docker buildx build --load --tag paperless-scan-bridge:ci .
+          docker buildx build --load --build-arg GIT_COMMIT="${GITHUB_SHA}" --tag paperless-scan-bridge:ci .
           compose_file=""
           for candidate in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
             [[ -f "$candidate" ]] && compose_file="$candidate" && break

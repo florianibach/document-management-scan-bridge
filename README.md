@@ -28,11 +28,22 @@ docker compose logs scan-bridge
 docker compose down
 ```
 
+For a local image, pass the current commit so the running version is visible in the page header and OCI image metadata:
+
+```bash
+export GIT_COMMIT="$(git rev-parse --short HEAD)"
+docker compose up --detach --build
+```
+
 The image installs `sane-utils` and `sane-airscan` for both AMD64 and ARM64. Compose uses the Linux host network so multicast scanner discovery reaches the container; port `8080` is therefore opened directly by the application rather than published through Docker. The named volumes `bridge-data` and `bridge-temp` keep the selected scanner, generated SANE configuration, and temporary storage outside the container layer. Override `PAPERLESS_URL` and `PAPERLESS_TOKEN` through the environment; never commit the token.
 
 Scanner discovery is implemented in .NET with DNS-SD queries for `_uscan._tcp.local.` and `_uscans._tcp.local.`. It does not execute `airscan-discover` and does not require an Avahi daemon. The Linux Docker host and scanner must be on the same network, with multicast DNS (UDP 5353) and the scanner's eSCL traffic permitted by the host firewall. Select a result in the web UI; the server validates `<advertised eSCL URL>/ScannerCapabilities`, stores only a validated selection in SQLite, and atomically writes `airscan.conf`. URLs submitted by the browser are never accepted.
 
 Discovery and selection are also exposed for operational diagnostics through `GET /api/scanners`, `POST /api/scanners/{discoveryId}/select`, and `GET /api/scanners/selected`. A discovery ID expires after five minutes. Duplicate HTTP and HTTPS advertisements are combined with HTTPS preferred, and the UI reports multicast timeouts, empty results, validation errors, and duplicate advertisements.
+
+`docker compose logs --follow scan-bridge` reports when the .NET Zeroconf backend starts, which DNS-SD service types it queries, advertisement and unique-scanner counts, eSCL validation, persistence, generated sane-airscan configuration, and later `scanimage` discovery/capability inspection. Scanner document data and API tokens are never logged.
+
+ASP.NET Core data-protection keys are persisted under `/app/data/dataprotection-keys` in the existing data volume. This prevents antiforgery cookies from becoming unreadable after ordinary container recreation. The cookie name was also versioned so a token created by an older image is ignored once during this upgrade instead of producing repeated decryption errors.
 
 Host networking is supported by the intended Linux/Raspberry Pi deployment. On Docker Desktop, enable host networking in Docker Desktop settings or run the application directly with `dotnet run` for scanner discovery.
 
@@ -45,6 +56,8 @@ Configuration uses standard ASP.NET Core keys:
 | `Paperless` | Future service URL and secret token | `Paperless__ApiToken=...` |
 | `Persistence` | SQLite connection | `Persistence__ConnectionString=Data Source=/app/data/bridge.db` |
 | `TemporaryStorage` | Writable working directory | `TemporaryStorage__Path=/app/temp` |
+| `DataProtectionStorage` | Persistent ASP.NET Core encryption keys | `DataProtectionStorage__Path=/app/data/dataprotection-keys` |
+| `Build` | Visible source revision | `Build__Commit=abc1234` |
 
 ## Product documentation
 

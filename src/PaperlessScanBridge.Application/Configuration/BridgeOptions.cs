@@ -37,3 +37,9 @@ public sealed class TemporaryStorageOptions
     public const string SectionName = "TemporaryStorage";
     [Required] public string Path { get; init; } = "temp";
 }
+
+public sealed class DataProtectionStorageOptions
+{
+    public const string SectionName = "DataProtectionStorage";
+    [Required] public string Path { get; init; } = "data/dataprotection-keys";
+}
