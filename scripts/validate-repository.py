@@ -29,6 +29,10 @@ if "ln -sfn /app/data/sane.d/airscan.conf /etc/sane.d/airscan.conf" not in docke
 if re.search(r"^ENV SANE_CONFIG_DIR=", dockerfile_content, re.MULTILINE):
     error(dockerfile, "must use the package-standard SANE configuration directory")
 
+writer = ROOT / "src/PaperlessScanBridge.Infrastructure/Scanning/SaneAirscanConfigurationWriter.cs"
+if "discovery = disable" not in writer.read_text(encoding="utf-8"):
+    error(writer, "generated sane-airscan configuration must disable its unused Avahi/WSD discovery")
+
 
 markdown_files = [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]
 for path in markdown_files:
