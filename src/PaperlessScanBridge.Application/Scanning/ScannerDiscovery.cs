@@ -28,7 +28,21 @@ public interface IScannerEndpointValidator
     Task<ScannerEndpointValidationResult> ValidateAsync(DiscoveredScanner scanner, CancellationToken cancellationToken);
 }
 
-public sealed record ScannerEndpointValidationResult(bool Succeeded, string? Diagnostic = null);
+public enum ScannerEndpointFailure
+{
+    None,
+    TlsCertificate,
+    Timeout,
+    Connection,
+    HttpStatus,
+    InvalidXml,
+    InvalidCapabilities
+}
+
+public sealed record ScannerEndpointValidationResult(
+    bool Succeeded,
+    ScannerEndpointFailure Failure = ScannerEndpointFailure.None,
+    string? Diagnostic = null);
 
 public interface ISelectedScannerRepository
 {

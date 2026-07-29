@@ -41,6 +41,8 @@ Scanner discovery is implemented in .NET with DNS-SD queries for `_uscan._tcp.lo
 
 Discovery and selection are also exposed for operational diagnostics through `GET /api/scanners`, `POST /api/scanners/{discoveryId}/select`, and `GET /api/scanners/selected`. A discovery ID expires after five minutes. Duplicate HTTP and HTTPS advertisements are combined with HTTPS preferred, and the UI reports multicast timeouts, empty results, validation errors, and duplicate advertisements.
 
+When one physical scanner advertises both protocols, HTTPS is validated first. If—and only if—HTTPS fails because the device certificate is untrusted or does not match its IP address, the server validates the matching DNS-SD-advertised HTTP endpoint. It never disables certificate validation and never accepts a fallback URL from the browser. Timeouts, invalid XML, invalid capabilities, and other failures do not trigger a downgrade.
+
 `docker compose logs --follow scan-bridge` reports when the .NET Zeroconf backend starts, which DNS-SD service types it queries, advertisement and unique-scanner counts, eSCL validation, persistence, generated sane-airscan configuration, and later `scanimage` discovery/capability inspection. Scanner document data and API tokens are never logged.
 
 ASP.NET Core data-protection keys are persisted under `/app/data/dataprotection-keys` in the existing data volume. This prevents antiforgery cookies from becoming unreadable after ordinary container recreation. The cookie name was also versioned so a token created by an older image is ignored once during this upgrade instead of producing repeated decryption errors.
@@ -86,7 +88,7 @@ The MVP deliberately excludes multi-tenant authentication, custom OCR tuning, an
 
 ## Scanner hardware verification
 
-The controlled fixtures verify the option shapes emitted by an HP OfficeJet through `sane-airscan`: Flatbed/ADF sources, Color/Gray modes, 75–600 dpi, and A4/Letter/Legal geometry. The physical target printer's exact model and firmware were not available in this development environment and must be recorded before milestone acceptance. On that printer, record the model/firmware from its status page and retain the output of:
+The target HP Color Laser MFP 179fnw was verified to return HTTP 200 and a valid eSCL `ScannerCapabilities` document from `/eSCL/ScannerCapabilities`. It reports platen and simplex ADF inputs, black-and-white/grayscale/RGB modes, 100/200/300 dpi profiles, and a maximum optical resolution of 600 dpi. Its HTTPS advertisement uses a certificate that is not trusted for its IP address, while its matching HTTP advertisement is usable; this is handled by the controlled fallback described above. Serial numbers and device UUIDs are intentionally not retained. Record the firmware from its status page before milestone acceptance and retain the output of:
 
 ```bash
 scanimage -L

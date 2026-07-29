@@ -29,5 +29,6 @@
 - Missing commands, timeouts, no devices, ambiguous/configured devices, and non-zero exits have distinct diagnostics that omit backend stderr.
 - Local Release restore/build/test, image build, Compose configuration/start/health, repository validation, and skill validation are required completion checks.
 - The validated selection is persisted in SQLite and regenerates an atomic, data-volume-backed `airscan.conf` at selection and startup. No scan acquisition or later workflow was introduced; retry is user-initiated through the discovery button.
+- Duplicate HTTPS/HTTP advertisements remain linked internally: HTTPS is tried first, and a certificate-specific failure may fall back only to the matching DNS-SD-advertised HTTP endpoint after validating its eSCL capabilities. TLS validation is never disabled.
 - Mobile and desktop layout use Bootstrap's `col-12 col-md-6` breakpoints and were visually verified with Playwright. Generated screenshots remain local because the review platform does not support binary files.
-- Physical HP model/firmware verification is hardware-dependent and remains explicitly required before milestone acceptance; commands and expected fixture-backed option categories are documented in `README.md`.
+- The HP Color Laser MFP 179fnw returned valid eSCL capabilities over its advertised HTTP endpoint; model capabilities and the certificate-specific HTTPS fallback are documented without retaining its serial number or UUID. Firmware recording remains required before milestone acceptance.

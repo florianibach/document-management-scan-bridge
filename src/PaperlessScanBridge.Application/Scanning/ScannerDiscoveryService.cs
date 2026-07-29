@@ -42,14 +42,15 @@ public sealed class ScannerDiscoveryService(
             }
         }
 
-        var candidates = advertisements.SelectMany(item => Normalize(item.Type, item.Value))
+        var groups = advertisements.SelectMany(item => Normalize(item.Type, item.Value))
             .GroupBy(DeviceKey, StringComparer.OrdinalIgnoreCase)
-            .Select(group => PreferSecure(group.ToArray(), diagnostics))
-            .OrderBy(device => device.DisplayName, StringComparer.OrdinalIgnoreCase).ToArray();
+            .Select(group => CreateCandidate(group.ToArray(), diagnostics))
+            .OrderBy(candidate => candidate.Display.DisplayName, StringComparer.OrdinalIgnoreCase).ToArray();
+        var candidates = groups.Select(candidate => candidate.Display).ToArray();
 
         snapshot.Clear();
         var expiresAt = DateTimeOffset.UtcNow.AddMinutes(5);
-        foreach (var candidate in candidates) snapshot[candidate.DiscoveryId] = new(candidate, expiresAt);
+        foreach (var candidate in groups) snapshot[candidate.Display.DiscoveryId] = new(candidate.Endpoints, expiresAt);
         if (candidates.Length == 0 && diagnostics.Count == 0)
             diagnostics.Add("No eSCL/AirScan multicast advertisements were received. Check UDP 5353, host networking and the scanner's network connection.");
         logger.LogInformation("Scanner discovery completed with {ScannerCount} unique scanner(s) and {DiagnosticCount} diagnostic(s)", candidates.Length, diagnostics.Count);
@@ -63,17 +64,31 @@ public sealed class ScannerDiscoveryService(
             logger.LogWarning("Scanner selection rejected because discovery id {DiscoveryId} is unknown or expired", discoveryId);
             return new(false, null, "The discovery result is unknown or expired. Search for scanners again.");
         }
-        logger.LogInformation("Validating discovered scanner {DisplayName} at {Protocol}://{Address}:{Port}", entry.Scanner.DisplayName, entry.Scanner.Protocol, entry.Scanner.IpAddress, entry.Scanner.Port);
-        var validation = await validator.ValidateAsync(entry.Scanner, cancellationToken);
+        var endpoint = entry.Endpoints[0];
+        logger.LogInformation("Validating discovered scanner {DisplayName} at {Protocol}://{Address}:{Port}", endpoint.DisplayName, endpoint.Protocol, endpoint.IpAddress, endpoint.Port);
+        var validation = await validator.ValidateAsync(endpoint, cancellationToken);
+        string? successDiagnostic = null;
+        if (!validation.Succeeded && validation.Failure == ScannerEndpointFailure.TlsCertificate && endpoint.Protocol == "https")
+        {
+            var httpEndpoint = entry.Endpoints.FirstOrDefault(candidate => candidate.Protocol == "http");
+            if (httpEndpoint is not null)
+            {
+                logger.LogWarning("HTTPS validation for scanner {DisplayName} failed because its certificate is not trusted; validating its matching DNS-SD advertised HTTP endpoint", endpoint.DisplayName);
+                endpoint = httpEndpoint;
+                validation = await validator.ValidateAsync(endpoint, cancellationToken);
+                if (validation.Succeeded)
+                    successDiagnostic = "Der Scanner bietet HTTPS nur mit einem nicht vertrauenswürdigen Gerätezertifikat an. Der ebenfalls angekündigte und erfolgreich validierte HTTP-eSCL-Endpunkt wird verwendet.";
+            }
+        }
         if (!validation.Succeeded)
         {
-            logger.LogWarning("Validation failed for scanner {DisplayName}: {Diagnostic}", entry.Scanner.DisplayName, validation.Diagnostic);
+            logger.LogWarning("Validation failed for scanner {DisplayName}: {Diagnostic}", endpoint.DisplayName, validation.Diagnostic);
             return new(false, null, validation.Diagnostic);
         }
-        var selected = await repository.SaveAsync(entry.Scanner, DateTimeOffset.UtcNow, cancellationToken);
+        var selected = await repository.SaveAsync(endpoint, DateTimeOffset.UtcNow, cancellationToken);
         await configurationWriter.WriteAsync(selected, cancellationToken);
         logger.LogInformation("Validated scanner {DisplayName} was persisted and the sane-airscan configuration was updated", selected.DisplayName);
-        return new(true, selected);
+        return new(true, selected, successDiagnostic);
     }
 
     public Task<SelectedScanner?> GetSelectedAsync(CancellationToken cancellationToken) => repository.GetAsync(cancellationToken);
@@ -96,12 +111,17 @@ public sealed class ScannerDiscoveryService(
     }
 
     private static string DeviceKey(DiscoveredScanner value) => $"{value.DisplayName}|{value.IpAddress}|{new Uri(value.EsclUrl).AbsolutePath}";
-    private static DiscoveredScanner PreferSecure(IReadOnlyList<DiscoveredScanner> values, List<string> diagnostics)
+    private static CandidateGroup CreateCandidate(IReadOnlyList<DiscoveredScanner> values, List<string> diagnostics)
     {
         if (values.Select(value => value.Protocol).Distinct().Count() > 1)
-            diagnostics.Add($"{values[0].DisplayName} advertised both HTTP and HTTPS; the HTTPS endpoint was preferred.");
-        return values.OrderByDescending(value => value.Protocol == "https").ThenBy(value => value.Port).First();
+            diagnostics.Add($"{values[0].DisplayName} advertised both HTTP and HTTPS; HTTPS will be validated first.");
+        var endpoints = values.OrderByDescending(value => value.Protocol == "https").ThenBy(value => value.Port).ToArray();
+        var preferred = endpoints[0];
+        var groupId = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(DeviceKey(preferred))))[..24];
+        var display = preferred with { DiscoveryId = groupId };
+        return new(display, endpoints);
     }
 
-    private sealed record SnapshotEntry(DiscoveredScanner Scanner, DateTimeOffset ExpiresAt);
+    private sealed record CandidateGroup(DiscoveredScanner Display, IReadOnlyList<DiscoveredScanner> Endpoints);
+    private sealed record SnapshotEntry(IReadOnlyList<DiscoveredScanner> Endpoints, DateTimeOffset ExpiresAt);
 }

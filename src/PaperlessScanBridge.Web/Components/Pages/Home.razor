@@ -76,7 +76,7 @@
         {
             var selection = await Discovery.SelectAsync(selectedId!, CancellationToken.None);
             error = !selection.Succeeded;
-            message = selection.Succeeded ? $"{selection.Scanner!.DisplayName} wurde geprüft und gespeichert." : selection.Diagnostic;
+            message = selection.Succeeded ? selection.Diagnostic ?? $"{selection.Scanner!.DisplayName} wurde geprüft und gespeichert." : selection.Diagnostic;
             if (selection.Succeeded) saneResult = await Scanner.DiscoverAsync(CancellationToken.None);
         }
         finally { loading = false; }
