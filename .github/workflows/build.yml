@@ -1,0 +1,62 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  documentation:
+    name: Documentation and planning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Markdown and repository skill
+        run: python3 scripts/validate-repository.py
+
+  dotnet:
+    name: .NET build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build and test when scaffolded
+        shell: bash
+        run: |
+          mapfile -t solutions < <(find . -maxdepth 2 -type f \( -name '*.sln' -o -name '*.slnx' \) -print)
+          if (( ${#solutions[@]} == 0 )); then
+            echo "No .NET solution exists yet; US-001 is still pending."
+            exit 0
+          fi
+          for solution in "${solutions[@]}"; do
+            dotnet restore "$solution" --locked-mode
+            dotnet build "$solution" --configuration Release --no-restore
+            dotnet test "$solution" --configuration Release --no-build
+          done
+
+  container:
+    name: Container build and Compose validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate container setup when scaffolded
+        shell: bash
+        run: |
+          if [[ ! -f Dockerfile ]]; then
+            echo "No Dockerfile exists yet; US-001 is still pending."
+            exit 0
+          fi
+          docker build --tag paperless-scan-bridge:ci .
+          compose_file=""
+          for candidate in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
+            [[ -f "$candidate" ]] && compose_file="$candidate" && break
+          done
+          if [[ -z "$compose_file" ]]; then
+            echo "Dockerfile exists but no Compose file was found." >&2
+            exit 1
+          fi
+          docker compose --file "$compose_file" config --quiet

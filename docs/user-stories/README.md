@@ -1,0 +1,17 @@
+# User stories
+
+The stories below form the planned MVP roadmap. Implement them in order unless new findings require the dependencies or scope to be revised.
+
+| ID | Story | Outcome |
+| --- | --- | --- |
+| [US-001](001-project-scaffolding.md) | Project scaffolding | A runnable, testable, containerized foundation |
+| [US-002](002-scanner-discovery.md) | Scanner discovery | Validated communication with the target scanner |
+| [US-003](003-simplex-scanning.md) | Simplex scanning | One-sided documents can be scanned from the UI |
+| [US-004](004-manual-duplex.md) | Manual duplex | Two passes become correctly ordered pages |
+| [US-005](005-preview-and-editing.md) | Preview and editing | Users can inspect, rotate, and remove pages |
+| [US-006](006-pdf-creation.md) | PDF creation | Ordered pages become a final PDF |
+| [US-007](007-paperless-upload.md) | Paperless-ngx upload | PDFs and metadata can be submitted |
+| [US-008](008-profiles-and-defaults.md) | Profiles and defaults | Reused settings persist locally |
+| [US-009](009-deployment-hardening.md) | Deployment hardening | Self-hosting is reliable and documented |
+
+Every story is subject to the shared [Definition of Done](../definition-of-done.md). Explicitly deferred items are not implied by an acceptance criterion.
