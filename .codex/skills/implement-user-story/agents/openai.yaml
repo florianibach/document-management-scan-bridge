@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement User Story"
+  short_description: "Implement any story through its Definition of Done"
+  default_prompt: "Use $implement-user-story to implement the selected paperless-scan-bridge user story, verify every acceptance criterion, and satisfy the Definition of Done."

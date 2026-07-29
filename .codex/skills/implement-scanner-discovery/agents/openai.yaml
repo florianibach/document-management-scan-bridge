@@ -1,4 +1,0 @@
-interface:
-  display_name: "Implement Scanner Discovery"
-  short_description: "Implement and verify SANE scanner discovery"
-  default_prompt: "Use $implement-scanner-discovery to implement US-002 scanner discovery through the process boundary and satisfy its Definition of Done."
