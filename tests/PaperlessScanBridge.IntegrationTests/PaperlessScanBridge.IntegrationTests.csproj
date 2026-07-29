@@ -24,4 +24,8 @@
     <ProjectReference Include="..\..\src\PaperlessScanBridge.Infrastructure\PaperlessScanBridge.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
 </Project>

@@ -1,14 +1,84 @@
 ﻿@page "/"
+@using PaperlessScanBridge.Application.Scanning
+@inject IScannerDiscoveryService Discovery
+@inject IScanner Scanner
+@rendermode InteractiveServer
 
-<PageTitle>Scan Bridge</PageTitle>
-
+<PageTitle>Scanner auswählen</PageTitle>
 <div class="container-fluid px-0">
     <div class="p-4 p-md-5 mb-4 rounded-3 bg-body-tertiary">
-        <span class="badge text-bg-primary mb-3">Projektgrundlage bereit</span>
-        <h1 class="display-6 fw-bold">Dokumente scannen</h1>
-        <p class="lead mb-0">Der Scan-Workflow wird in den nächsten Stories ergänzt.</p>
+        <span class="badge text-bg-primary mb-3">Scannerkonfiguration</span>
+        <h1 class="display-6 fw-bold">Netzwerkscanner auswählen</h1>
+        <p class="lead">Sucht eSCL/AirScan-Geräte direkt per mDNS und prüft den ausgewählten Scanner.</p>
+        <button class="btn btn-primary btn-lg w-100 w-md-auto" @onclick="DiscoverAsync" disabled="@loading">
+            @(loading ? "Suche läuft …" : "Scanner suchen")
+        </button>
     </div>
-    <div class="alert alert-info" role="status">
-        <strong>Status:</strong> Anwendung und lokaler Datenspeicher sind betriebsbereit.
-    </div>
+
+    @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert @(error ? "alert-warning" : "alert-success")" role="alert">@message</div> }
+    @if (result is null) { <div class="alert alert-info" role="status">Noch keine Suche ausgeführt.</div> }
+    else if (result.Devices.Count == 0) { <div class="alert alert-warning" role="alert">@string.Join(" ", result.Diagnostics)</div> }
+    else
+    {
+        @foreach (var diagnostic in result.Diagnostics) { <div class="alert alert-info" role="status">@diagnostic</div> }
+        <fieldset class="row g-3 mb-3">
+            <legend class="h4">Gefundene Scanner</legend>
+            @foreach (var device in result.Devices)
+            {
+                <div class="col-12 col-md-6">
+                    <label class="card h-100 scanner-choice @(selectedId == device.DiscoveryId ? "border-primary" : "")">
+                        <div class="card-body">
+                            <input type="radio" name="scanner" value="@device.DiscoveryId" checked="@(selectedId == device.DiscoveryId)" @onchange="() => selectedId = device.DiscoveryId" />
+                            <strong class="ms-2">@device.DisplayName</strong>
+                            <div class="mt-2"><span class="badge text-bg-secondary">@device.Protocol.ToUpperInvariant()</span> @device.IpAddress:@device.Port</div>
+                        </div>
+                    </label>
+                </div>
+            }
+        </fieldset>
+        <button class="btn btn-success btn-lg w-100" disabled="@(loading || selectedId is null)" @onclick="SelectAsync">Scanner auswählen</button>
+    }
+
+    @if (saneResult?.Succeeded == true)
+    {
+        <section class="card mt-4"><div class="card-body">
+            <h2 class="h4">@saneResult.SelectedDevice!.DisplayName</h2>
+            <div class="row g-3">
+                <Capability Title="Einzugsquellen" Values="saneResult.Capabilities!.Sources" />
+                <Capability Title="Formate" Values="saneResult.Capabilities.Formats" />
+                <Capability Title="Auflösungen" Values="ResolutionLabels" />
+                <Capability Title="Papiergrößen" Values="saneResult.Capabilities.PaperSizes" />
+            </div>
+        </div></section>
+    }
 </div>
+
+@code {
+    private ScannerNetworkDiscoveryResult? result;
+    private ScannerDiscoveryResult? saneResult;
+    private string? selectedId;
+    private string? message;
+    private bool error;
+    private bool loading;
+    private IReadOnlyList<string> ResolutionLabels => saneResult?.Capabilities?.Resolutions.Select(value => $"{value} dpi").ToArray() ?? [];
+
+    private async Task DiscoverAsync()
+    {
+        loading = true; message = null; selectedId = null;
+        try { result = await Discovery.DiscoverAsync(CancellationToken.None); }
+        finally { loading = false; }
+    }
+
+    private async Task SelectAsync()
+    {
+        loading = true; message = null;
+        try
+        {
+            var selection = await Discovery.SelectAsync(selectedId!, CancellationToken.None);
+            error = !selection.Succeeded;
+            message = selection.Succeeded ? selection.Diagnostic ?? $"{selection.Scanner!.DisplayName} wurde geprüft und gespeichert." : selection.Diagnostic;
+            if (selection.Succeeded) saneResult = await Scanner.DiscoverAsync(CancellationToken.None);
+        }
+        finally { loading = false; }
+    }
+}

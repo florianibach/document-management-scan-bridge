@@ -7,12 +7,31 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parent.parent
-SKILL = ROOT / ".codex/skills/scaffold-blazor-scan-bridge"
+SKILLS = sorted((ROOT / ".codex/skills").iterdir())
 errors: list[str] = []
 
 
 def error(path: Path, message: str) -> None:
     errors.append(f"{path.relative_to(ROOT)}: {message}")
+
+
+compose_file = ROOT / "compose.yaml"
+compose_content = compose_file.read_text(encoding="utf-8")
+if "network_mode: host" not in compose_content:
+    error(compose_file, "scanner discovery service must use host networking for mDNS/WSD")
+if re.search(r"^\s+ports:", compose_content, re.MULTILINE):
+    error(compose_file, "must not publish ports together with host networking")
+
+dockerfile = ROOT / "Dockerfile"
+dockerfile_content = dockerfile.read_text(encoding="utf-8")
+if "ln -sfn /app/data/sane.d/airscan.conf /etc/sane.d/airscan.conf" not in dockerfile_content:
+    error(dockerfile, "the package-standard airscan.conf path must link to the generated persistent configuration")
+if re.search(r"^ENV SANE_CONFIG_DIR=", dockerfile_content, re.MULTILINE):
+    error(dockerfile, "must use the package-standard SANE configuration directory")
+
+writer = ROOT / "src/PaperlessScanBridge.Infrastructure/Scanning/SaneAirscanConfigurationWriter.cs"
+if "discovery = disable" not in writer.read_text(encoding="utf-8"):
+    error(writer, "generated sane-airscan configuration must disable its unused Avahi/WSD discovery")
 
 
 markdown_files = [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]
@@ -30,12 +49,13 @@ for path in markdown_files:
         if not resolved.exists():
             error(path, f"contains a broken local link: {target}")
 
-skill_file = SKILL / "SKILL.md"
-skill_content = skill_file.read_text(encoding="utf-8")
-frontmatter = re.match(r"^---\n(?P<body>.*?)\n---\n", skill_content, re.DOTALL)
-if frontmatter is None:
-    error(skill_file, "must begin with YAML frontmatter")
-else:
+for skill in SKILLS:
+    skill_file = skill / "SKILL.md"
+    skill_content = skill_file.read_text(encoding="utf-8")
+    frontmatter = re.match(r"^---\n(?P<body>.*?)\n---\n", skill_content, re.DOTALL)
+    if frontmatter is None:
+        error(skill_file, "must begin with YAML frontmatter")
+        continue
     fields = {}
     for line in frontmatter.group("body").splitlines():
         key, separator, value = line.partition(":")
@@ -45,17 +65,16 @@ else:
         fields[key.strip()] = value.strip()
     if set(fields) != {"name", "description"}:
         error(skill_file, "frontmatter must contain only name and description")
-    if fields.get("name") != SKILL.name:
-        error(skill_file, f"name must be {SKILL.name}")
+    if fields.get("name") != skill.name:
+        error(skill_file, f"name must be {skill.name}")
     if not fields.get("description"):
         error(skill_file, "description must not be empty")
-
-agent_metadata = SKILL / "agents/openai.yaml"
-if "$scaffold-blazor-scan-bridge" not in agent_metadata.read_text(encoding="utf-8"):
-    error(agent_metadata, "default prompt must reference the skill name")
+    agent_metadata = skill / "agents/openai.yaml"
+    if f"${skill.name}" not in agent_metadata.read_text(encoding="utf-8"):
+        error(agent_metadata, "default prompt must reference the skill name")
 
 if errors:
     print("\n".join(errors), file=sys.stderr)
     raise SystemExit(1)
 
-print(f"Validated {len(markdown_files)} Markdown files and {SKILL.relative_to(ROOT)}")
+print(f"Validated {len(markdown_files)} Markdown files and {len(SKILLS)} repository skills")

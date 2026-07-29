@@ -7,6 +7,15 @@ public sealed class ScannerOptions
     public const string SectionName = "Scanner";
     [Required] public string Command { get; init; } = "scanimage";
     [Range(1, 600)] public int TimeoutSeconds { get; init; } = 120;
+    public string? DeviceId { get; init; }
+}
+
+public sealed class ScannerDiscoveryOptions
+{
+    public const string SectionName = "ScannerDiscovery";
+    [Range(1, 60)] public int TimeoutSeconds { get; init; } = 5;
+    [Range(1, 60)] public int ValidationTimeoutSeconds { get; init; } = 10;
+    [Required] public string SaneConfigurationDirectory { get; init; } = "data/sane.d";
 }
 
 public sealed class PaperlessOptions
@@ -26,4 +35,10 @@ public sealed class TemporaryStorageOptions
 {
     public const string SectionName = "TemporaryStorage";
     [Required] public string Path { get; init; } = "temp";
+}
+
+public sealed class DataProtectionStorageOptions
+{
+    public const string SectionName = "DataProtectionStorage";
+    [Required] public string Path { get; init; } = "data/dataprotection-keys";
 }

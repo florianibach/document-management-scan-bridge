@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@inject BuildInformation Build
 
 <div class="page">
     <div class="sidebar">
@@ -7,7 +8,7 @@
 
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            <span class="text-body-secondary small" title="Git commit">Version <code>@Build.Commit</code></span>
         </div>
 
         <article class="content px-4">
