@@ -64,6 +64,22 @@ public sealed class ManualDuplexWorkflowTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(storage, id.ToString("N"))));
     }
 
+    [Fact]
+    public async Task CancellationWhileWaitingForFlipCompletesImmediatelyAndCleansSession()
+    {
+        var adapter = new PassAdapter(2);
+        var workflow = Create(adapter);
+        await workflow.StartAsync(Settings());
+        await WaitFor(workflow, ManualDuplexState.AwaitingFlipConfirmation);
+        var id = workflow.Current!.SessionId;
+
+        await workflow.CancelAsync().WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(ManualDuplexState.Cancelled, workflow.Current!.State);
+        Assert.Equal(1, adapter.Calls);
+        Assert.False(Directory.Exists(Path.Combine(storage, id.ToString("N"))));
+    }
+
     private ManualDuplexWorkflow Create(ISimplexScannerAdapter adapter) => new(adapter, new TemporaryStorageOptions { Path = storage });
     private static SimplexScanSettings Settings() => new("device", "ADF Simplex", ScanColorMode.Color, 300);
     private static async Task WaitFor(IManualDuplexWorkflow workflow, ManualDuplexState state)

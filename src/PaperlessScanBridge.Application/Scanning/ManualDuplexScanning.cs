@@ -105,9 +105,22 @@ public sealed class ManualDuplexWorkflow(
     public async Task CancelAsync()
     {
         CancellationTokenSource? source;
-        lock (gate) source = Current?.IsActive == true ? cancellation : null;
+        Guid? waitingSession = null;
+        lock (gate)
+        {
+            source = Current?.IsActive == true ? cancellation : null;
+            // No adapter call is running while the user is looking at the flip or mismatch
+            // screen. Cancelling the token alone cannot produce a state transition there.
+            if (Current?.State is ManualDuplexState.AwaitingFlipConfirmation or ManualDuplexState.PageCountMismatch)
+                waitingSession = Current.SessionId;
+        }
         if (source is null) return;
         source.Cancel();
+        if (waitingSession is { } sessionId)
+        {
+            Cancelled(sessionId);
+            return;
+        }
         while (Current?.IsActive == true) await Task.Delay(20);
     }
 

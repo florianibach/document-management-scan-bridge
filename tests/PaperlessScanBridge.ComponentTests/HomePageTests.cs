@@ -64,6 +64,21 @@ public sealed class HomePageTests : BunitContext
     }
 
     [Fact]
+    public async Task InitialVisibleSourceIsForwardedWithoutAChangeEvent()
+    {
+        var workflow = new WorkflowStub();
+        AddServices(new DiscoveryStub(new([], [])), workflow: workflow);
+        var page = Render<Home>();
+
+        Assert.Contains("Automatischer Einzug (ADF Simplex)", page.Find("#source").TextContent);
+        await page.Find("button.btn-primary.w-100.mt-4").ClickAsync(new());
+
+        Assert.Equal("ADF Simplex", workflow.ReceivedSettings!.Source);
+        Assert.Equal(ScanColorMode.Color, workflow.ReceivedSettings.ColorMode);
+        Assert.Equal(300, workflow.ReceivedSettings.ResolutionDpi);
+    }
+
+    [Fact]
     public async Task ShowsSavedScannerAndExactSaneSourcesAfterExplicitSelection()
     {
         AddServices(new DiscoveryStub(new([], [])));
@@ -157,10 +172,11 @@ public sealed class HomePageTests : BunitContext
     }
     private sealed class WorkflowStub : ISimplexScanWorkflow
     {
+        public SimplexScanSettings? ReceivedSettings { get; private set; }
         public ScanJobSnapshot? Current { get; private set; }
         public event Action? Changed;
         public Task<ScanJobSnapshot> StartAsync(SimplexScanSettings settings, CancellationToken cancellationToken = default)
-        { Current = new(Guid.NewGuid(), ScanJobState.Completed, 1, "Scan abgeschlossen: 1 Seite(n).", DateTimeOffset.UtcNow); Changed?.Invoke(); return Task.FromResult(Current); }
+        { ReceivedSettings = settings; Current = new(Guid.NewGuid(), ScanJobState.Completed, 1, "Scan abgeschlossen: 1 Seite(n).", DateTimeOffset.UtcNow); Changed?.Invoke(); return Task.FromResult(Current); }
         public Task CancelAsync() => Task.CompletedTask;
         public Task ContinueAsync() => Task.CompletedTask;
         public void SetState(ScanJobState state, string message)

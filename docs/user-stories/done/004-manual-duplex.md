@@ -30,6 +30,7 @@
 - The coordinator is an application singleton because this is a deliberately single-user appliance. Consequently a Blazor reconnect or full refresh observes the existing state and cannot re-submit either pass.
 - User and operational behavior, temporary ordered output, restart semantics, and the verified feeder orientation are documented in `README.md`.
 - A component regression test verifies that duplex selects the cached ADF source independently of the simplex source selector and forwards the currently selected color mode and resolution unchanged.
+- Regression coverage verifies that the initially displayed cached source is forwarded without requiring a change event and that cancellation while waiting for the stack flip finishes immediately and removes the session.
 
 ## Definition of Done record
 
