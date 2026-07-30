@@ -3,6 +3,7 @@
 @inject IScannerDiscoveryService Discovery
 @inject IScanner Scanner
 @inject ISimplexScanWorkflow ScanWorkflow
+@inject IManualDuplexWorkflow DuplexWorkflow
 @implements IDisposable
 @rendermode InteractiveServer
 
@@ -26,12 +27,12 @@
   {
   <button class="btn btn-outline-secondary w-100 mb-3" @onclick="RefreshSaneAsync" disabled="@(IsScanning || scannerLoading)">Scannerwerte aktualisieren</button>
   <div class="row g-3">
-   <div class="col-12 col-md-4"><label class="form-label" for="source">Quelle</label><select id="source" class="form-select form-select-lg" @bind="scanSource" disabled="@(IsScanning || availableSources.Count == 0)">@foreach (var source in availableSources) { <option value="@source">@SourceLabel(source)</option> }</select></div>
-   <div class="col-12 col-md-4"><label class="form-label" for="color">Farbmodus</label><select id="color" class="form-select form-select-lg" @bind="colorMode" disabled="@IsScanning"><option value="Color">Farbe</option><option value="Grayscale">Graustufen</option><option value="BlackAndWhite">Schwarzweiß</option></select></div>
-   <div class="col-12 col-md-4"><label class="form-label" for="resolution">Auflösung</label><select id="resolution" class="form-select form-select-lg" @bind="resolution" disabled="@IsScanning"><option value="100">100 dpi</option><option value="200">200 dpi</option><option value="300">300 dpi</option><option value="600">600 dpi</option></select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="source">Quelle</label><select id="source" class="form-select form-select-lg" value="@scanSource" @onchange="ChangeSource" disabled="@(IsScanning || availableSources.Count == 0)">@foreach (var source in availableSources) { <option value="@source" selected="@(source == scanSource)">@SourceLabel(source)</option> }</select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="color">Farbmodus</label><select id="color" class="form-select form-select-lg" value="@colorMode" @onchange="ChangeColorMode" disabled="@IsScanning"><option value="Color" selected="@(colorMode == ScanColorMode.Color)">Farbe</option><option value="Grayscale" selected="@(colorMode == ScanColorMode.Grayscale)">Graustufen</option><option value="BlackAndWhite" selected="@(colorMode == ScanColorMode.BlackAndWhite)">Schwarzweiß</option></select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="resolution">Auflösung</label><select id="resolution" class="form-select form-select-lg" value="@resolution" @onchange="ChangeResolution" disabled="@IsScanning"><option value="100" selected="@(resolution == 100)">100 dpi</option><option value="200" selected="@(resolution == 200)">200 dpi</option><option value="300" selected="@(resolution == 300)">300 dpi</option><option value="600" selected="@(resolution == 600)">600 dpi</option></select></div>
   </div>
   }
-  <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="StartScanAsync" disabled="@(IsScanning || string.IsNullOrWhiteSpace(activeDeviceId) || string.IsNullOrWhiteSpace(scanSource))">@(IsScanning ? "Scan läuft …" : "Simplex-Scan starten")</button>
+  <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="StartScanAsync" disabled="@(IsScanning || DuplexWorkflow.Current?.IsActive == true || string.IsNullOrWhiteSpace(activeDeviceId) || string.IsNullOrWhiteSpace(scanSource))">@(IsScanning ? "Scan läuft …" : "Simplex-Scan starten")</button>
   @if (ScanWorkflow.Current?.State == ScanJobState.AwaitingUserDecision)
   {
    <button class="btn btn-success btn-lg w-100 mt-2" @onclick="ContinueScanAsync">Scanner arbeitet noch – weiter warten</button>
@@ -39,6 +40,40 @@
   }
   else if (IsScanning) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan abbrechen</button> }
   @if (ScanWorkflow.Current is { } job) { <div class="alert @StatusClass mt-3 mb-0" role="status" aria-live="polite"><strong>@StatusLabel:</strong> @job.Message</div> }
+ </div>
+</section>
+
+<section class="card mt-4 scan-panel duplex-panel">
+ <div class="card-body">
+  <span class="badge text-bg-success mb-2">Manueller Duplex</span>
+  <h2 class="h3">Beidseitiges Dokument scannen</h2>
+  <p>Zwei kontrollierte Einzugsdurchläufe werden anschließend automatisch in Lesereihenfolge gebracht.</p>
+  @if (!HasAdf)
+  {
+   <div class="alert alert-warning">Für manuellen Duplex bitte einen Scanner mit automatischem Einzug auswählen.</div>
+  }
+  else
+  {
+   <div class="alert alert-info mb-3"><strong>Verwendete Einstellungen:</strong> Automatischer Einzug (@DuplexSource), @ColorModeLabel, @resolution dpi. Die oben gewählten Farb- und Auflösungswerte gelten für beide Durchläufe.</div>
+  }
+  @if (HasAdf && DuplexWorkflow.Current?.State == ManualDuplexState.AwaitingFlipConfirmation)
+  {
+   <div class="flip-instruction" role="status" aria-live="polite">
+    <div class="flip-icon" aria-hidden="true">↶</div>
+    <h3 class="h4">Stapel jetzt wenden</h3>
+    <ol><li>Den vollständigen Stapel aus dem Ausgabefach nehmen.</li><li>Den Stapel geschlossen wenden – Reihenfolge nicht verändern.</li><li>Mit der ungescannten Seite in derselben Einzugsrichtung wieder einlegen.</li></ol>
+   </div>
+   <div class="form-check my-3"><input id="blank-back" class="form-check-input" type="checkbox" @bind="finalBackIsBlank"><label class="form-check-label" for="blank-back">Die allerletzte Rückseite des Dokuments ist leer</label></div>
+   <button class="btn btn-success btn-lg w-100" @onclick="ConfirmFlipAsync">Stapel liegt richtig – Rückseiten scannen</button>
+   <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelDuplexAsync">Duplex-Scan abbrechen</button>
+  }
+  else if (HasAdf)
+  {
+   <button class="btn btn-success btn-lg w-100" @onclick="StartDuplexAsync" disabled="@(!HasAdf || IsScanning || DuplexWorkflow.Current?.IsActive == true)">@(DuplexWorkflow.Current?.IsActive == true ? "Duplex-Scan läuft …" : "Manuellen Duplex-Scan starten")</button>
+   @if (DuplexWorkflow.Current?.State is ManualDuplexState.ScanningFronts or ManualDuplexState.ScanningBacks) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelDuplexAsync">Duplex-Scan abbrechen</button> }
+   @if (DuplexWorkflow.Current?.State == ManualDuplexState.PageCountMismatch) { <button class="btn btn-warning btn-lg w-100 mt-2" @onclick="RestartDuplexAsync">Stapel prüfen und neu starten</button> }
+  }
+  @if (DuplexWorkflow.Current is { } duplex) { <div class="alert @DuplexStatusClass mt-3 mb-0" role="status" aria-live="polite"><strong>@DuplexStatusLabel:</strong> @duplex.Message</div> }
  </div>
 </section>
 
@@ -106,12 +141,19 @@
     private ScanColorMode colorMode = ScanColorMode.Color;
     private int resolution = 300;
     private bool IsScanning => ScanWorkflow.Current?.IsActive == true;
+    private bool finalBackIsBlank;
+    private string? DuplexSource => availableSources.FirstOrDefault(IsFeederSource);
+    private bool HasAdf => !string.IsNullOrWhiteSpace(activeDeviceId) && DuplexSource is not null;
+    private string ColorModeLabel => colorMode switch { ScanColorMode.Color => "Farbe", ScanColorMode.Grayscale => "Graustufen", _ => "Schwarzweiß" };
+    private string DuplexStatusLabel => DuplexWorkflow.Current?.State switch { ManualDuplexState.AwaitingFlipConfirmation => "Stapel wenden", ManualDuplexState.PageCountMismatch => "Seitenzahlen stimmen nicht", ManualDuplexState.Completed => "Abgeschlossen", ManualDuplexState.Cancelled => "Abgebrochen", ManualDuplexState.Failed => "Fehlgeschlagen", _ => "Läuft" };
+    private string DuplexStatusClass => DuplexWorkflow.Current?.State switch { ManualDuplexState.Completed => "alert-success", ManualDuplexState.PageCountMismatch or ManualDuplexState.Cancelled => "alert-warning", ManualDuplexState.Failed => "alert-danger", _ => "alert-info" };
     private string StatusLabel => ScanWorkflow.Current?.State switch { ScanJobState.Queued => "Eingereiht", ScanJobState.Running => "Läuft", ScanJobState.AwaitingUserDecision => "Rückfrage", ScanJobState.Completed => "Abgeschlossen", ScanJobState.Cancelled => "Abgebrochen", _ => "Fehlgeschlagen" };
     private string StatusClass => ScanWorkflow.Current?.State switch { ScanJobState.Completed => "alert-success", ScanJobState.Failed => "alert-danger", ScanJobState.Cancelled or ScanJobState.AwaitingUserDecision => "alert-warning", _ => "alert-info" };
 
     protected override async Task OnInitializedAsync()
     {
         ScanWorkflow.Changed += OnScanChanged;
+        DuplexWorkflow.Changed += OnScanChanged;
         savedScanners = await Discovery.GetSavedAsync(CancellationToken.None);
         if (savedScanners is [{ SaneDeviceId: not null } cached] && cached.Sources?.Count > 0)
             await ActivateScannerAsync(cached.Id);
@@ -120,8 +162,16 @@
     private async Task StartScanAsync() => await ScanWorkflow.StartAsync(new(activeDeviceId!, scanSource, colorMode, resolution));
     private Task CancelScanAsync() => ScanWorkflow.CancelAsync();
     private Task ContinueScanAsync() => ScanWorkflow.ContinueAsync();
-    public void Dispose() => ScanWorkflow.Changed -= OnScanChanged;
+    private Task StartDuplexAsync() => DuplexWorkflow.StartAsync(new(activeDeviceId!, DuplexSource!, colorMode, resolution));
+    private Task ConfirmFlipAsync() => DuplexWorkflow.ConfirmFlipAsync(finalBackIsBlank);
+    private Task CancelDuplexAsync() => DuplexWorkflow.CancelAsync();
+    private Task RestartDuplexAsync() => DuplexWorkflow.RestartAsync();
+    public void Dispose() { ScanWorkflow.Changed -= OnScanChanged; DuplexWorkflow.Changed -= OnScanChanged; }
+    private void ChangeSource(ChangeEventArgs args) => scanSource = args.Value?.ToString() ?? "";
+    private void ChangeColorMode(ChangeEventArgs args) { if (Enum.TryParse<ScanColorMode>(args.Value?.ToString(), out var value)) colorMode = value; }
+    private void ChangeResolution(ChangeEventArgs args) { if (int.TryParse(args.Value?.ToString(), out var value)) resolution = value; }
     private static string SourceLabel(string source) => source.Contains("ADF", StringComparison.OrdinalIgnoreCase) || source.Contains("Feeder", StringComparison.OrdinalIgnoreCase) ? $"Automatischer Einzug ({source})" : $"Vorlagenglas ({source})";
+    private static bool IsFeederSource(string source) => source.Contains("ADF", StringComparison.OrdinalIgnoreCase) || source.Contains("Feeder", StringComparison.OrdinalIgnoreCase);
 
     private async Task ActivateSelectedScannerAsync()
     { if (activeScannerId is { } id) await ActivateScannerAsync(id); }

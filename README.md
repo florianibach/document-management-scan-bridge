@@ -73,9 +73,19 @@ Scanning is the primary action and therefore appears first on the start page. Th
 
 A platen job captures one page; an ADF job continues until the feeder is empty. The page reports queued, running, completed, cancelled, and failed states and disables duplicate submission while a scan is active. Scanner discovery and capability inspection display an activity indicator while `scanimage` is running. Cancellation terminates the underlying process when supported.
 
+The source, color mode, and resolution are rendered with an explicit selected option during the initial server response. Consequently the value visible immediately after an application start is the value submitted to `scanimage`; selecting ADF captures the complete feeder batch without requiring the source to be toggled once first.
+
 `Scanner:TimeoutSeconds` limits short discovery/capability commands. `Scanner:ScanTimeoutSeconds` is instead a 1,800-second (30-minute) user-confirmation interval: when it expires, the still-running process is left intact and the UI asks whether the scanner is still working. “Weiter warten” resets that interval; “Scan jetzt abbrechen” cancels the process and cleans the session. `Scanner:MaximumScanDurationSeconds` remains a final 14,400-second (four-hour) safety boundary for abandoned jobs. Compose exposes these as `SCANNER_SCAN_TIMEOUT_SECONDS` and `SCANNER_MAXIMUM_SCAN_DURATION_SECONDS`.
 
 The application stores complete PNG pages under `<TemporaryStorage:Path>/<session-id>/`. A cancelled, timed-out, failed, or empty scan removes its entire session, including partial files. Session identifiers and page counts may appear in logs, but scanner output, document content, command stderr, and file names are not logged. These files are deliberately not exposed over HTTP and are consumed only by the later preview/PDF stories.
+
+## Manual duplex scanning
+
+For a two-sided document in a simplex ADF, choose **Manuellen Duplex-Scan starten**. Duplex always uses the scanner's available ADF source, even when the simplex source selector currently shows the platen; the selected color mode and resolution are applied unchanged to both passes and are summarized above the start button. The application first captures every front, then stops and displays a touch-friendly, numbered stack-flip instruction. It cannot start the second pass until **Stapel liegt richtig – Rückseiten scannen** is pressed. Keep the stack together and do not change its order while flipping it.
+
+The HP Color Laser MFP 179fnw's verified feeder behavior returns the flipped back-side pass in reverse reading order. The workflow reverses that pass and alternates it with the fronts. If the physical document has an odd number of printed pages, select **Die allerletzte Rückseite des Dokuments ist leer** before confirming. A scanner-returned blank first image is then omitted; scanners that suppress that blank are supported as well. Other unequal pass counts stop at a resolution screen instead of guessing: check the stack and restart both passes.
+
+The active two-pass coordinator lives for the application lifetime on this deliberately single-user appliance. A browser refresh or temporary Blazor reconnect therefore shows the existing stage and never submits another pass. Cancelling or restarting removes all partial session data. Ordered PNG pages remain private under `<TemporaryStorage:Path>/<session-id>/ordered/`; preview, editing, and PDF output remain deferred to later stories.
 
 ## Product documentation
 
