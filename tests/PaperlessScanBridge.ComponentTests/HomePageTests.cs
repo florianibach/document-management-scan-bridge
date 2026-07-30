@@ -104,8 +104,20 @@ public sealed class HomePageTests : BunitContext
         Assert.Contains("Scan jetzt abbrechen", page.Markup);
     }
 
+    [Fact]
+    public async Task ManualDuplexWaitsForExplicitMobileFriendlyFlipConfirmation()
+    {
+        AddServices(new DiscoveryStub(new([], [])));
+        var page = Render<Home>();
+        await page.Find("#saved-scanner").ChangeAsync("1");
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Manuellen Duplex-Scan starten")).ClickAsync(new());
+        Assert.Contains("Stapel jetzt wenden", page.Markup);
+        Assert.Contains("Reihenfolge nicht verändern", page.Markup);
+        Assert.Contains("Rückseiten scannen", page.Markup);
+    }
+
     private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); }
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(new DuplexWorkflowStub()); }
     private sealed class DiscoveryStub(ScannerNetworkDiscoveryResult result, string? selectionDiagnostic = null) : IScannerDiscoveryService
     {
         private readonly SelectedScanner saved = new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow, "airscan:test", ["Flatbed", "ADF Simplex"], [300]);
@@ -133,5 +145,14 @@ public sealed class HomePageTests : BunitContext
         public Task ContinueAsync() => Task.CompletedTask;
         public void SetState(ScanJobState state, string message)
         { Current = new(Guid.NewGuid(), state, 0, message, DateTimeOffset.UtcNow); Changed?.Invoke(); }
+    }
+    private sealed class DuplexWorkflowStub : IManualDuplexWorkflow
+    {
+        public ManualDuplexSnapshot? Current { get; private set; }
+        public event Action? Changed;
+        public Task StartAsync(SimplexScanSettings settings, CancellationToken cancellationToken = default) { Current = new(Guid.NewGuid(), ManualDuplexState.AwaitingFlipConfirmation, 2, 0, 0, "Stapel wenden.", DateTimeOffset.UtcNow); Changed?.Invoke(); return Task.CompletedTask; }
+        public Task ConfirmFlipAsync(bool finalBackIsBlank) => Task.CompletedTask;
+        public Task CancelAsync() => Task.CompletedTask;
+        public Task RestartAsync() { Current = null; Changed?.Invoke(); return Task.CompletedTask; }
     }
 }

@@ -77,6 +77,14 @@ A platen job captures one page; an ADF job continues until the feeder is empty. 
 
 The application stores complete PNG pages under `<TemporaryStorage:Path>/<session-id>/`. A cancelled, timed-out, failed, or empty scan removes its entire session, including partial files. Session identifiers and page counts may appear in logs, but scanner output, document content, command stderr, and file names are not logged. These files are deliberately not exposed over HTTP and are consumed only by the later preview/PDF stories.
 
+## Manual duplex scanning
+
+For a two-sided document in a simplex ADF, choose **Manuellen Duplex-Scan starten**. The application first captures every front, then stops and displays a touch-friendly, numbered stack-flip instruction. It cannot start the second pass until **Stapel liegt richtig – Rückseiten scannen** is pressed. Keep the stack together and do not change its order while flipping it.
+
+The HP Color Laser MFP 179fnw's verified feeder behavior returns the flipped back-side pass in reverse reading order. The workflow reverses that pass and alternates it with the fronts. If the physical document has an odd number of printed pages, select **Die allerletzte Rückseite des Dokuments ist leer** before confirming. A scanner-returned blank first image is then omitted; scanners that suppress that blank are supported as well. Other unequal pass counts stop at a resolution screen instead of guessing: check the stack and restart both passes.
+
+The active two-pass coordinator lives for the application lifetime on this deliberately single-user appliance. A browser refresh or temporary Blazor reconnect therefore shows the existing stage and never submits another pass. Cancelling or restarting removes all partial session data. Ordered PNG pages remain private under `<TemporaryStorage:Path>/<session-id>/ordered/`; preview, editing, and PDF output remain deferred to later stories.
+
 ## Product documentation
 
 - [User stories](docs/user-stories/README.md)

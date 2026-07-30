@@ -2,6 +2,16 @@ html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
+.flip-instruction {
+    border: 3px solid var(--bs-success);
+    border-radius: 1rem;
+    padding: 1rem;
+    background: var(--bs-success-bg-subtle);
+}
+
+.flip-icon { font-size: 3.5rem; line-height: 1; text-align: center; font-weight: 700; }
+.flip-instruction li + li { margin-top: .65rem; }
+
 a, .btn-link {
     color: #006bb7;
 }
