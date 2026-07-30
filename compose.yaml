@@ -17,10 +17,6 @@ services:
       Scanner__TimeoutSeconds: ${SCANNER_TIMEOUT_SECONDS:-30}
       ScannerDiscovery__SaneConfigurationDirectory: /app/data/sane.d
     volumes:
-      - bridge-data:/app/data
-      - bridge-temp:/app/temp
+      - ./app/data:/app/data
+      - ./app/temp:/app/temp
     restart: unless-stopped
-
-volumes:
-  bridge-data:
-  bridge-temp:
