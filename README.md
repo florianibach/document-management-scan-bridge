@@ -79,7 +79,7 @@ The application stores complete PNG pages under `<TemporaryStorage:Path>/<sessio
 
 ## Manual duplex scanning
 
-For a two-sided document in a simplex ADF, choose **Manuellen Duplex-Scan starten**. The application first captures every front, then stops and displays a touch-friendly, numbered stack-flip instruction. It cannot start the second pass until **Stapel liegt richtig – Rückseiten scannen** is pressed. Keep the stack together and do not change its order while flipping it.
+For a two-sided document in a simplex ADF, choose **Manuellen Duplex-Scan starten**. Duplex always uses the scanner's available ADF source, even when the simplex source selector currently shows the platen; the selected color mode and resolution are applied unchanged to both passes and are summarized above the start button. The application first captures every front, then stops and displays a touch-friendly, numbered stack-flip instruction. It cannot start the second pass until **Stapel liegt richtig – Rückseiten scannen** is pressed. Keep the stack together and do not change its order while flipping it.
 
 The HP Color Laser MFP 179fnw's verified feeder behavior returns the flipped back-side pass in reverse reading order. The workflow reverses that pass and alternates it with the fronts. If the physical document has an odd number of printed pages, select **Die allerletzte Rückseite des Dokuments ist leer** before confirming. A scanner-returned blank first image is then omitted; scanners that suppress that blank are supported as well. Other unequal pass counts stop at a resolution screen instead of guessing: check the stack and restart both passes.
 

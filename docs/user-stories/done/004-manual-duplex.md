@@ -29,6 +29,7 @@
 - Unit tests cover even and odd ordering, the reversed second pass, explicit confirmation, a returned final blank, cancellation, and mismatched counts. Component tests cover the mobile flip instruction and confirmation control.
 - The coordinator is an application singleton because this is a deliberately single-user appliance. Consequently a Blazor reconnect or full refresh observes the existing state and cannot re-submit either pass.
 - User and operational behavior, temporary ordered output, restart semantics, and the verified feeder orientation are documented in `README.md`.
+- A component regression test verifies that duplex selects the cached ADF source independently of the simplex source selector and forwards the currently selected color mode and resolution unchanged.
 
 ## Definition of Done record
 

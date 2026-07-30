@@ -116,8 +116,28 @@ public sealed class HomePageTests : BunitContext
         Assert.Contains("Rückseiten scannen", page.Markup);
     }
 
-    private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(new DuplexWorkflowStub()); }
+    [Fact]
+    public async Task ManualDuplexAlwaysUsesAdfAndSelectedColorSettings()
+    {
+        var duplex = new DuplexWorkflowStub();
+        AddServices(new DiscoveryStub(new([], [])), duplex: duplex);
+        var page = Render<Home>();
+        await page.Find("#saved-scanner").ChangeAsync("1");
+        await page.Find("#source").ChangeAsync("Flatbed");
+        await page.Find("#color").ChangeAsync("Grayscale");
+        await page.Find("#resolution").ChangeAsync("200");
+
+        var start = page.FindAll("button").Single(button => button.TextContent.Contains("Manuellen Duplex-Scan starten"));
+        Assert.False(start.HasAttribute("disabled"));
+        await start.ClickAsync(new());
+
+        Assert.Equal("ADF Simplex", duplex.ReceivedSettings!.Source);
+        Assert.Equal(ScanColorMode.Grayscale, duplex.ReceivedSettings.ColorMode);
+        Assert.Equal(200, duplex.ReceivedSettings.ResolutionDpi);
+    }
+
+    private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null)
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); }
     private sealed class DiscoveryStub(ScannerNetworkDiscoveryResult result, string? selectionDiagnostic = null) : IScannerDiscoveryService
     {
         private readonly SelectedScanner saved = new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow, "airscan:test", ["Flatbed", "ADF Simplex"], [300]);
@@ -148,9 +168,10 @@ public sealed class HomePageTests : BunitContext
     }
     private sealed class DuplexWorkflowStub : IManualDuplexWorkflow
     {
+        public SimplexScanSettings? ReceivedSettings { get; private set; }
         public ManualDuplexSnapshot? Current { get; private set; }
         public event Action? Changed;
-        public Task StartAsync(SimplexScanSettings settings, CancellationToken cancellationToken = default) { Current = new(Guid.NewGuid(), ManualDuplexState.AwaitingFlipConfirmation, 2, 0, 0, "Stapel wenden.", DateTimeOffset.UtcNow); Changed?.Invoke(); return Task.CompletedTask; }
+        public Task StartAsync(SimplexScanSettings settings, CancellationToken cancellationToken = default) { ReceivedSettings = settings; Current = new(Guid.NewGuid(), ManualDuplexState.AwaitingFlipConfirmation, 2, 0, 0, "Stapel wenden.", DateTimeOffset.UtcNow); Changed?.Invoke(); return Task.CompletedTask; }
         public Task ConfirmFlipAsync(bool finalBackIsBlank) => Task.CompletedTask;
         public Task CancelAsync() => Task.CompletedTask;
         public Task RestartAsync() { Current = null; Changed?.Invoke(); return Task.CompletedTask; }
