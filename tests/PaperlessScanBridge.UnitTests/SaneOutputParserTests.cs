@@ -29,4 +29,13 @@ public sealed class SaneOutputParserTests
         Assert.Contains("A4", result.PaperSizes);
         Assert.Contains("Legal", result.PaperSizes);
     }
+
+    [Fact]
+    public void ParsesUnbracketedSaneChoiceListsInsteadOfOnlyTheDefault()
+    {
+        const string output = "  --source Flatbed|'ADF Simplex' [Flatbed]\n  --mode Color|Gray [Color]\n  --resolution 100|200|300dpi [300]";
+        var result = SaneOutputParser.ParseCapabilities(output);
+        Assert.Equal(["Flatbed", "ADF Simplex"], result.Sources);
+        Assert.Equal([100, 200, 300], result.Resolutions);
+    }
 }

@@ -4,7 +4,7 @@
 
 The guided workflow will support simplex scans and manual duplex scans, put pages into reading order, offer lightweight preview and editing, create a PDF, and upload it with metadata. The application is intended to run in Docker on a Raspberry Pi or another always-on host.
 
-The project discovers eSCL/AirScan scanners directly with DNS-SD/mDNS, validates a selected device through its `ScannerCapabilities` endpoint, and then exposes it to the existing SANE adapter. Starting a scan remains intentionally unavailable until US-003.
+The project discovers eSCL/AirScan scanners directly with DNS-SD/mDNS, validates a selected device through its `ScannerCapabilities` endpoint, and then exposes it to the SANE adapter. The selected scanner can capture simplex documents from a touch-friendly screen using the platen or automatic document feeder. Each job is written to its own temporary session directory; later stories add preview, editing, PDF creation, and upload.
 
 ## Local development
 
@@ -59,13 +59,23 @@ Configuration uses standard ASP.NET Core keys:
 
 | Section | Purpose | Container override example |
 | --- | --- | --- |
-| `Scanner` | Executable, timeout, and optional selected device | `SCANNER_DEVICE_ID=airscan:e0:...` |
+| `Scanner` | Executable, short discovery timeout, long scan-job timeout, and optional selected device | `SCANNER_SCAN_TIMEOUT_SECONDS=1800` |
 | `ScannerDiscovery` | mDNS/validation timeouts and managed SANE configuration | `ScannerDiscovery__TimeoutSeconds=5` |
 | `Paperless` | Future service URL and secret token | `Paperless__ApiToken=...` |
 | `Persistence` | SQLite connection | `Persistence__ConnectionString=Data Source=/app/data/bridge.db` |
 | `TemporaryStorage` | Writable working directory | `TemporaryStorage__Path=/app/temp` |
 | `DataProtectionStorage` | Persistent ASP.NET Core encryption keys | `DataProtectionStorage__Path=/app/data/dataprotection-keys` |
 | `Build` | Visible source revision | `Build__Commit=abc1234` |
+
+## Simplex scanning
+
+Scanning is the primary action and therefore appears first on the start page. The application caches the last successfully inspected SANE device identifier, input sources, and resolutions in SQLite. Selecting a known scanner uses this cache immediately and does not run `scanimage -L`. Use **Scannerwerte aktualisieren** when the device, network, container, or SANE configuration changed; that explicit refresh shows an activity indicator, discovers the live device, and replaces the cached values. A newly discovered scanner is inspected once to populate its cache.
+
+A platen job captures one page; an ADF job continues until the feeder is empty. The page reports queued, running, completed, cancelled, and failed states and disables duplicate submission while a scan is active. Scanner discovery and capability inspection display an activity indicator while `scanimage` is running. Cancellation terminates the underlying process when supported.
+
+`Scanner:TimeoutSeconds` limits short discovery/capability commands. `Scanner:ScanTimeoutSeconds` is instead a 1,800-second (30-minute) user-confirmation interval: when it expires, the still-running process is left intact and the UI asks whether the scanner is still working. “Weiter warten” resets that interval; “Scan jetzt abbrechen” cancels the process and cleans the session. `Scanner:MaximumScanDurationSeconds` remains a final 14,400-second (four-hour) safety boundary for abandoned jobs. Compose exposes these as `SCANNER_SCAN_TIMEOUT_SECONDS` and `SCANNER_MAXIMUM_SCAN_DURATION_SECONDS`.
+
+The application stores complete PNG pages under `<TemporaryStorage:Path>/<session-id>/`. A cancelled, timed-out, failed, or empty scan removes its entire session, including partial files. Session identifiers and page counts may appear in logs, but scanner output, document content, command stderr, and file names are not logged. These files are deliberately not exposed over HTTP and are consumed only by the later preview/PDF stories.
 
 ## Product documentation
 

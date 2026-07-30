@@ -6,7 +6,7 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | --- | --- | --- |
 | [US-001](done/001-project-scaffolding.md) | Project scaffolding (done) | A runnable, testable, containerized foundation |
 | [US-002](done/002-scanner-discovery.md) | Scanner discovery (done) | Validated communication with the target scanner |
-| [US-003](003-simplex-scanning.md) | Simplex scanning | One-sided documents can be scanned from the UI |
+| [US-003](done/003-simplex-scanning.md) | Simplex scanning (done) | One-sided documents can be scanned from the UI |
 | [US-004](004-manual-duplex.md) | Manual duplex | Two passes become correctly ordered pages |
 | [US-005](005-preview-and-editing.md) | Preview and editing | Users can inspect, rotate, and remove pages |
 | [US-006](006-pdf-creation.md) | PDF creation | Ordered pages become a final PDF |

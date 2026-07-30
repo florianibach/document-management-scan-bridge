@@ -7,6 +7,8 @@ public sealed class ScannerOptions
     public const string SectionName = "Scanner";
     [Required] public string Command { get; init; } = "scanimage";
     [Range(1, 600)] public int TimeoutSeconds { get; init; } = 120;
+    [Range(60, 7200)] public int ScanTimeoutSeconds { get; init; } = 1800;
+    [Range(300, 86400)] public int MaximumScanDurationSeconds { get; init; } = 14400;
     public string? DeviceId { get; init; }
 }
 

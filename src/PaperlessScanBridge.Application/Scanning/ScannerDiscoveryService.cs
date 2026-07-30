@@ -93,6 +93,20 @@ public sealed class ScannerDiscoveryService(
 
     public Task<SelectedScanner?> GetSelectedAsync(CancellationToken cancellationToken) => repository.GetAsync(cancellationToken);
 
+    public Task<IReadOnlyList<SelectedScanner>> GetSavedAsync(CancellationToken cancellationToken) => repository.ListAsync(cancellationToken);
+
+    public async Task<ScannerSelectionResult> ActivateSavedAsync(long scannerId, CancellationToken cancellationToken)
+    {
+        var scanner = await repository.GetByIdAsync(scannerId, cancellationToken);
+        if (scanner is null) return new(false, null, "Der gespeicherte Scanner wurde nicht gefunden.");
+        await configurationWriter.WriteAsync(scanner, cancellationToken);
+        logger.LogInformation("Saved scanner {DisplayName} was activated", scanner.DisplayName);
+        return new(true, scanner);
+    }
+
+    public Task<SelectedScanner> SaveSaneProfileAsync(long scannerId, ScannerDevice device, ScannerCapabilities capabilities, CancellationToken cancellationToken) =>
+        repository.SaveSaneProfileAsync(scannerId, device, capabilities, cancellationToken);
+
     internal static IReadOnlyList<DiscoveredScanner> Normalize(string serviceType, ZeroconfAdvertisement advertisement)
     {
         var protocol = serviceType.StartsWith("_uscans", StringComparison.OrdinalIgnoreCase) ? "https" : "http";
