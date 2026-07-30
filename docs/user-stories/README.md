@@ -13,5 +13,6 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-007](007-paperless-upload.md) | Paperless-ngx upload | PDFs and metadata can be submitted |
 | [US-008](008-profiles-and-defaults.md) | Profiles and defaults | Reused settings persist locally |
 | [US-009](009-deployment-hardening.md) | Deployment hardening | Self-hosting is reliable and documented |
+| [US-010](done/010-browser-notifications-and-isolation.md) | Browser notifications and isolation (done) | Scan events are announced without global browser state |
 
 Every story is subject to the shared [Definition of Done](../definition-of-done.md). Explicitly deferred items are not implied by an acceptance criterion.

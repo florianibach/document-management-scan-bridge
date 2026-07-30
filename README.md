@@ -85,7 +85,13 @@ For a two-sided document in a simplex ADF, choose **Manuellen Duplex-Scan starte
 
 The HP Color Laser MFP 179fnw's verified feeder behavior returns the flipped back-side pass in reverse reading order. The workflow reverses that pass and alternates it with the fronts. If the physical document has an odd number of printed pages, select **Die allerletzte Rückseite des Dokuments ist leer** before confirming. A scanner-returned blank first image is then omitted; scanners that suppress that blank are supported as well. Other unequal pass counts stop at a resolution screen instead of guessing: check the stack and restart both passes.
 
-The active two-pass coordinator lives for the application lifetime on this deliberately single-user appliance. A browser refresh or temporary Blazor reconnect therefore shows the existing stage and never submits another pass. Cancelling or restarting removes all partial session data. Ordered PNG pages remain private under `<TemporaryStorage:Path>/<session-id>/ordered/`; preview, editing, and PDF output remain deferred to later stories.
+The active two-pass coordinator belongs to the current Blazor browser circuit rather than to an application-wide singleton. Independently connected browsers therefore have separate status, flip confirmation, and cancellation controls. A temporary SignalR reconnect retains the circuit; a full reload intentionally starts a new browser circuit and cancels its abandoned in-process scan. Temporary pages and the scanner process remain server-side because a browser cannot safely execute or own `scanimage`. In a multi-node deployment, keep standard Blazor circuit affinity for the duration of an active scan; a running physical scanner process cannot migrate between hosts.
+
+## Browser notifications
+
+Use **Benachrichtigungen aktivieren** on the start page to opt in. The browser then reports when a simplex scan needs a timeout decision, duplex fronts are ready to flip, pass counts differ, or a scan completes or fails. Permission is never requested during page load. A denied or unsupported permission is explained in the page.
+
+The opt-in and delivered-event keys are kept in the browser tab's `sessionStorage`. Reconnects and repeated state events therefore do not repeat an already delivered notification, and no application singleton stores notification state. Notifications work while the page is open, including in a background tab; this release does not implement Web Push for a fully closed browser.
 
 ## Product documentation
 

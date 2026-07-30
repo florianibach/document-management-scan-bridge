@@ -27,7 +27,7 @@
 
 - The application-layer `ManualDuplexWorkflow` owns both passes, requires an explicit flip confirmation, reverses the target feeder's back pass, interleaves pages, handles a declared blank final back, rejects incompatible counts, and cleans cancelled/failed sessions.
 - Unit tests cover even and odd ordering, the reversed second pass, explicit confirmation, a returned final blank, cancellation, and mismatched counts. Component tests cover the mobile flip instruction and confirmation control.
-- The coordinator is an application singleton because this is a deliberately single-user appliance. Consequently a Blazor reconnect or full refresh observes the existing state and cannot re-submit either pass.
+- The original application-wide singleton was replaced by the browser-circuit isolation in US-010. A temporary Blazor reconnect retains its circuit, while independently connected browsers cannot observe or control each other's pass.
 - User and operational behavior, temporary ordered output, restart semantics, and the verified feeder orientation are documented in `README.md`.
 - A component regression test verifies that duplex selects the cached ADF source independently of the simplex source selector and forwards the currently selected color mode and resolution unchanged.
 - Regression coverage verifies that the initially displayed cached source is forwarded without requiring a change event and that cancellation while waiting for the stack flip finishes immediately and removes the session.
