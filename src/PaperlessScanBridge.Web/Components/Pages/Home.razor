@@ -2,6 +2,8 @@
 @using PaperlessScanBridge.Application.Scanning
 @inject IScannerDiscoveryService Discovery
 @inject IScanner Scanner
+@inject ISimplexScanWorkflow ScanWorkflow
+@implements IDisposable
 @rendermode InteractiveServer
 
 <PageTitle>Scanner auswählen</PageTitle>
@@ -53,6 +55,22 @@
     }
 </div>
 
+<section class="card mt-4 scan-panel">
+ <div class="card-body">
+  <span class="badge text-bg-primary mb-2">Simplex</span>
+  <h2 class="h3">Dokument scannen</h2>
+  <p>Eine Seite vom Vorlagenglas oder mehrere einseitige Seiten über den Einzug erfassen.</p>
+  <div class="row g-3">
+   <div class="col-12 col-md-4"><label class="form-label" for="source">Quelle</label><select id="source" class="form-select form-select-lg" @bind="scanSource" disabled="@IsScanning"><option value="Flatbed">Vorlagenglas</option><option value="Adf">Automatischer Einzug</option></select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="color">Farbmodus</label><select id="color" class="form-select form-select-lg" @bind="colorMode" disabled="@IsScanning"><option value="Color">Farbe</option><option value="Grayscale">Graustufen</option><option value="BlackAndWhite">Schwarzweiß</option></select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="resolution">Auflösung</label><select id="resolution" class="form-select form-select-lg" @bind="resolution" disabled="@IsScanning"><option value="100">100 dpi</option><option value="200">200 dpi</option><option value="300">300 dpi</option><option value="600">600 dpi</option></select></div>
+  </div>
+  <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="StartScanAsync" disabled="@IsScanning">@(IsScanning ? "Scan läuft …" : "Simplex-Scan starten")</button>
+  @if (IsScanning) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan abbrechen</button> }
+  @if (ScanWorkflow.Current is { } job) { <div class="alert @StatusClass mt-3 mb-0" role="status" aria-live="polite"><strong>@StatusLabel:</strong> @job.Message</div> }
+ </div>
+</section>
+
 @code {
     private ScannerNetworkDiscoveryResult? result;
     private ScannerDiscoveryResult? saneResult;
@@ -60,6 +78,18 @@
     private string? message;
     private bool error;
     private bool loading;
+    private ScanSource scanSource = ScanSource.Flatbed;
+    private ScanColorMode colorMode = ScanColorMode.Color;
+    private int resolution = 300;
+    private bool IsScanning => ScanWorkflow.Current?.IsActive == true;
+    private string StatusLabel => ScanWorkflow.Current?.State switch { ScanJobState.Queued => "Eingereiht", ScanJobState.Running => "Läuft", ScanJobState.Completed => "Abgeschlossen", ScanJobState.Cancelled => "Abgebrochen", _ => "Fehlgeschlagen" };
+    private string StatusClass => ScanWorkflow.Current?.State switch { ScanJobState.Completed => "alert-success", ScanJobState.Failed => "alert-danger", ScanJobState.Cancelled => "alert-warning", _ => "alert-info" };
+
+    protected override void OnInitialized() => ScanWorkflow.Changed += OnScanChanged;
+    private void OnScanChanged() => _ = InvokeAsync(StateHasChanged);
+    private async Task StartScanAsync() => await ScanWorkflow.StartAsync(new(scanSource, colorMode, resolution));
+    private Task CancelScanAsync() => ScanWorkflow.CancelAsync();
+    public void Dispose() => ScanWorkflow.Changed -= OnScanChanged;
     private IReadOnlyList<string> ResolutionLabels => saneResult?.Capabilities?.Resolutions.Select(value => $"{value} dpi").ToArray() ?? [];
 
     private async Task DiscoverAsync()

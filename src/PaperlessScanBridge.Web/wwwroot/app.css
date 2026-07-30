@@ -50,6 +50,8 @@ h1:focus {
     border-color: #929292;
 }
 
+.scan-panel .form-select, .scan-panel .btn { min-height: 3.25rem; }
+
 .form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
     color: var(--bs-secondary-color);
     text-align: end;

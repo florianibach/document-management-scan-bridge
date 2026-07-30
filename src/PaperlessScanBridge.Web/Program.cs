@@ -28,6 +28,9 @@ builder.Services.AddSingleton(new BuildInformation(builder.Configuration["Build:
 builder.Services.AddSingleton<IProcessRunner, SystemProcessRunner>();
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ScannerOptions>>().Value);
 builder.Services.AddSingleton<IScanner, SaneScanner>();
+builder.Services.AddSingleton<ISimplexScannerAdapter, SaneSimplexScannerAdapter>();
+builder.Services.AddScoped<ISimplexScanWorkflow, SimplexScanWorkflow>();
+builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TemporaryStorageOptions>>().Value);
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ScannerDiscoveryOptions>>().Value);
 builder.Services.AddSingleton<IZeroconfBrowser, ZeroconfBrowser>();
 builder.Services.AddSingleton<IScannerDiscoveryService, ScannerDiscoveryService>();

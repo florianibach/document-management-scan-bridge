@@ -52,8 +52,18 @@ public sealed class HomePageTests : BunitContext
         Assert.Contains("HTTP-eSCL-Endpunkt", page.Find("[role=alert]").TextContent);
     }
 
+    [Fact]
+    public async Task StartsSimplexScanAndReportsCompletion()
+    {
+        AddServices(new DiscoveryStub(new([], [])));
+        var page = Render<Home>();
+        await page.Find("button.btn-primary.w-100.mt-4").ClickAsync(new());
+        Assert.Contains("Abgeschlossen", page.Find("[aria-live=polite]").TextContent);
+        Assert.Contains("1 Seite", page.Markup);
+    }
+
     private void AddServices(DiscoveryStub discovery)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(new SaneStub()); }
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(new WorkflowStub()); }
     private sealed class DiscoveryStub(ScannerNetworkDiscoveryResult result, string? selectionDiagnostic = null) : IScannerDiscoveryService
     {
         public Task<ScannerNetworkDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken) => Task.FromResult(result);
@@ -63,4 +73,12 @@ public sealed class HomePageTests : BunitContext
     }
     private sealed class SaneStub : IScanner
     { public Task<ScannerDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken) => Task.FromResult(new ScannerDiscoveryResult([], null, null, "Not available in test")); }
+    private sealed class WorkflowStub : ISimplexScanWorkflow
+    {
+        public ScanJobSnapshot? Current { get; private set; }
+        public event Action? Changed;
+        public Task<ScanJobSnapshot> StartAsync(SimplexScanSettings settings, CancellationToken cancellationToken = default)
+        { Current = new(Guid.NewGuid(), ScanJobState.Completed, 1, "Scan abgeschlossen: 1 Seite(n).", DateTimeOffset.UtcNow); Changed?.Invoke(); return Task.FromResult(Current); }
+        public Task CancelAsync() => Task.CompletedTask;
+    }
 }

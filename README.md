@@ -4,7 +4,7 @@
 
 The guided workflow will support simplex scans and manual duplex scans, put pages into reading order, offer lightweight preview and editing, create a PDF, and upload it with metadata. The application is intended to run in Docker on a Raspberry Pi or another always-on host.
 
-The project discovers eSCL/AirScan scanners directly with DNS-SD/mDNS, validates a selected device through its `ScannerCapabilities` endpoint, and then exposes it to the existing SANE adapter. Starting a scan remains intentionally unavailable until US-003.
+The project discovers eSCL/AirScan scanners directly with DNS-SD/mDNS, validates a selected device through its `ScannerCapabilities` endpoint, and then exposes it to the SANE adapter. The selected scanner can capture simplex documents from a touch-friendly screen using the platen or automatic document feeder. Each job is written to its own temporary session directory; later stories add preview, editing, PDF creation, and upload.
 
 ## Local development
 
@@ -66,6 +66,12 @@ Configuration uses standard ASP.NET Core keys:
 | `TemporaryStorage` | Writable working directory | `TemporaryStorage__Path=/app/temp` |
 | `DataProtectionStorage` | Persistent ASP.NET Core encryption keys | `DataProtectionStorage__Path=/app/data/dataprotection-keys` |
 | `Build` | Visible source revision | `Build__Commit=abc1234` |
+
+## Simplex scanning
+
+After selecting a scanner, choose platen or automatic feeder, color mode, and resolution on the start page. A platen job captures one page; an ADF job continues until the feeder is empty. The page reports queued, running, completed, cancelled, and failed states and disables duplicate submission while a scan is active. Cancellation terminates the underlying `scanimage` process when supported.
+
+The application stores complete PNM pages under `<TemporaryStorage:Path>/<session-id>/`. A cancelled, timed-out, failed, or empty scan removes its entire session, including partial files. Session identifiers and page counts may appear in logs, but scanner output, document content, command stderr, and file names are not logged. These files are deliberately not exposed over HTTP and are consumed only by the later preview/PDF stories.
 
 ## Product documentation
 
