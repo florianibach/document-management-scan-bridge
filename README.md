@@ -59,7 +59,7 @@ Configuration uses standard ASP.NET Core keys:
 
 | Section | Purpose | Container override example |
 | --- | --- | --- |
-| `Scanner` | Executable, timeout, and optional selected device | `SCANNER_DEVICE_ID=airscan:e0:...` |
+| `Scanner` | Executable, short discovery timeout, long scan-job timeout, and optional selected device | `SCANNER_SCAN_TIMEOUT_SECONDS=1800` |
 | `ScannerDiscovery` | mDNS/validation timeouts and managed SANE configuration | `ScannerDiscovery__TimeoutSeconds=5` |
 | `Paperless` | Future service URL and secret token | `Paperless__ApiToken=...` |
 | `Persistence` | SQLite connection | `Persistence__ConnectionString=Data Source=/app/data/bridge.db` |
@@ -69,7 +69,9 @@ Configuration uses standard ASP.NET Core keys:
 
 ## Simplex scanning
 
-Choose one of the previously validated, saved scanners first, then select one of the exact input sources reported by that scanner together with color mode and resolution. A platen job captures one page; an ADF job continues until the feeder is empty. The page reports queued, running, completed, cancelled, and failed states and disables duplicate submission while a scan is active. Cancellation terminates the underlying `scanimage` process when supported.
+Choose one of the previously validated, saved scanners first, then select one of the exact input sources reported by that scanner together with color mode and resolution. The initial page only reads the saved scanner list from SQLite; it does not execute SANE discovery. Selecting a scanner explicitly runs `scanimage -L` to resolve the current SANE device identifier and then inspects its live capabilities, because SQLite stores the validated eSCL endpoint rather than potentially stale SANE device and option data.
+
+A platen job captures one page; an ADF job continues until the feeder is empty. The page reports queued, running, completed, cancelled, and failed states and disables duplicate submission while a scan is active. Cancellation terminates the underlying `scanimage` process when supported. `Scanner:TimeoutSeconds` limits short discovery/capability commands, while `Scanner:ScanTimeoutSeconds` independently limits a complete scan job. The scan default is 1,800 seconds (30 minutes), sufficient for large batches on slower devices; set `SCANNER_SCAN_TIMEOUT_SECONDS` in Compose when a different upper bound is needed.
 
 The application stores complete PNG pages under `<TemporaryStorage:Path>/<session-id>/`. A cancelled, timed-out, failed, or empty scan removes its entire session, including partial files. Session identifiers and page counts may appear in logs, but scanner output, document content, command stderr, and file names are not logged. These files are deliberately not exposed over HTTP and are consumed only by the later preview/PDF stories.
 

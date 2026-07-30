@@ -18,7 +18,7 @@ public sealed class SaneSimplexScannerAdapter(IProcessRunner processRunner, Scan
         };
         if (!IsFeeder(settings.Source)) arguments.AddRange(["--batch-count", "1"]);
 
-        var result = await processRunner.RunAsync(new(options.Command, arguments, TimeSpan.FromSeconds(options.TimeoutSeconds)), cancellationToken);
+        var result = await processRunner.RunAsync(new(options.Command, arguments, TimeSpan.FromSeconds(options.ScanTimeoutSeconds)), cancellationToken);
         if (!result.Succeeded) throw new InvalidOperationException($"scanimage exited with code {result.ExitCode}.");
         return new(Directory.GetFiles(sessionDirectory, "page-*.png").Order(StringComparer.Ordinal).ToArray());
     }

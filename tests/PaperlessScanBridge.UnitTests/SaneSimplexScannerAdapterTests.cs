@@ -12,14 +12,14 @@ public sealed class SaneSimplexScannerAdapterTests : IDisposable
     {
         Directory.CreateDirectory(directory);
         var runner = new WritingRunner();
-        var adapter = new SaneSimplexScannerAdapter(runner, new ScannerOptions { DeviceId = "airscan:e0:HP", TimeoutSeconds = 17 });
+        var adapter = new SaneSimplexScannerAdapter(runner, new ScannerOptions { DeviceId = "airscan:e0:HP", TimeoutSeconds = 17, ScanTimeoutSeconds = 900 });
         var result = await adapter.CaptureAsync(directory, new("airscan:e0:HP", "ADF Simplex", ScanColorMode.Grayscale, 300), default);
         Assert.Equal(2, result.PageFiles.Count);
         Assert.Equal("--device-name", runner.Request!.Arguments[0]);
         Assert.Contains("airscan:e0:HP", runner.Request.Arguments);
         Assert.Contains("--batch=" + Path.Combine(directory, "page-%04d.png"), runner.Request.Arguments);
         Assert.DoesNotContain("--batch-count", runner.Request.Arguments);
-        Assert.Equal(TimeSpan.FromSeconds(17), runner.Request.Timeout);
+        Assert.Equal(TimeSpan.FromMinutes(15), runner.Request.Timeout);
     }
 
     [Fact]

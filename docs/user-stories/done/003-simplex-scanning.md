@@ -26,6 +26,7 @@
 
 - The application workflow tests cover isolated multi-page sessions, duplicate prevention, cancellation cleanup, partial-output cleanup, and safe failure diagnostics.
 - A regression review after target-device feedback verifies selection from all previously saved scanners, passes the exact SANE-reported source and device identifier to `scanimage`, and stores browser-compatible PNG pages instead of raw PNM output.
+- A second target-device feedback cycle separates the short SANE discovery timeout from a configurable 30-minute scan-job timeout and verifies that initial page rendering does not execute `scanimage -L`; live SANE inspection begins only after explicit scanner selection.
 - The process boundary is exercised through controlled adapter/process tests; the complete automated suite covers the Blazor screen and existing discovery integration.
 - The responsive Bootstrap layout was checked at 390 × 844 and 1440 × 900. Controls remain full-width and touch-sized on mobile, and form fields form three columns on desktop.
 - A controlled end-to-end run starts from the component, invokes the workflow adapter, writes two fixture pages into a unique session, and reaches the completed state.

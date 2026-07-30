@@ -57,22 +57,34 @@ public sealed class HomePageTests : BunitContext
     {
         AddServices(new DiscoveryStub(new([], [])));
         var page = Render<Home>();
+        await page.Find("#saved-scanner").ChangeAsync("1");
         await page.Find("button.btn-primary.w-100.mt-4").ClickAsync(new());
         Assert.Contains("Abgeschlossen", page.Find("[aria-live=polite]").TextContent);
         Assert.Contains("1 Seite", page.Markup);
     }
 
     [Fact]
-    public void ShowsSavedScannerAndExactSaneSources()
+    public async Task ShowsSavedScannerAndExactSaneSourcesAfterExplicitSelection()
     {
         AddServices(new DiscoveryStub(new([], [])));
         var page = Render<Home>();
         Assert.Contains("HP Two (10.0.0.2)", page.Find("#saved-scanner").TextContent);
+        Assert.Contains("aktuelle Einzugsquellen", page.Markup);
+        await page.Find("#saved-scanner").ChangeAsync("1");
         Assert.Contains("Automatischer Einzug (ADF Simplex)", page.Find("#source").TextContent);
     }
 
-    private void AddServices(DiscoveryStub discovery)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(new WorkflowStub()); }
+    [Fact]
+    public void InitialRenderDoesNotRunSaneDiscovery()
+    {
+        var scanner = new SaneStub();
+        AddServices(new DiscoveryStub(new([], [])), scanner);
+        Render<Home>();
+        Assert.Equal(0, scanner.Calls);
+    }
+
+    private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null)
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(new WorkflowStub()); }
     private sealed class DiscoveryStub(ScannerNetworkDiscoveryResult result, string? selectionDiagnostic = null) : IScannerDiscoveryService
     {
         private readonly SelectedScanner saved = new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow);
@@ -84,7 +96,11 @@ public sealed class HomePageTests : BunitContext
             Task.FromResult(new ScannerSelectionResult(true, new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow), selectionDiagnostic));
     }
     private sealed class SaneStub : IScanner
-    { public Task<ScannerDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken) => Task.FromResult(new ScannerDiscoveryResult([new("airscan:test", "HP Two")], new("airscan:test", "HP Two"), new(["Flatbed", "ADF Simplex"], ["Color", "Gray"], [300], ["A4"]))); }
+    {
+        public int Calls { get; private set; }
+        public Task<ScannerDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken)
+        { Calls++; return Task.FromResult(new ScannerDiscoveryResult([new("airscan:test", "HP Two")], new("airscan:test", "HP Two"), new(["Flatbed", "ADF Simplex"], ["Color", "Gray"], [300], ["A4"]))); }
+    }
     private sealed class WorkflowStub : ISimplexScanWorkflow
     {
         public ScanJobSnapshot? Current { get; private set; }

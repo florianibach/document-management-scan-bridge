@@ -67,6 +67,7 @@
   else
   {
    <div class="mb-3"><label class="form-label" for="saved-scanner">Gespeicherter Scanner</label><select id="saved-scanner" class="form-select form-select-lg" @bind="activeScannerId" @bind:after="ActivateSelectedScannerAsync" disabled="@IsScanning"><option value="">Scanner auswählen …</option>@foreach (var scanner in savedScanners) { <option value="@scanner.Id">@scanner.DisplayName (@scanner.IpAddress)</option> }</select></div>
+   @if (activeScannerId is null) { <div class="alert alert-info">Scanner auswählen, um dessen aktuelle Einzugsquellen und Scanoptionen abzufragen.</div> }
   }
   <div class="row g-3">
    <div class="col-12 col-md-4"><label class="form-label" for="source">Quelle</label><select id="source" class="form-select form-select-lg" @bind="scanSource" disabled="@(IsScanning || availableSources.Count == 0)">@foreach (var source in availableSources) { <option value="@source">@SourceLabel(source)</option> }</select></div>
@@ -101,7 +102,6 @@
     {
         ScanWorkflow.Changed += OnScanChanged;
         savedScanners = await Discovery.GetSavedAsync(CancellationToken.None);
-        if (savedScanners.Count == 1) await ActivateScannerAsync(savedScanners[0].Id);
     }
     private void OnScanChanged() => _ = InvokeAsync(StateHasChanged);
     private async Task StartScanAsync() => await ScanWorkflow.StartAsync(new(activeDeviceId!, scanSource, colorMode, resolution));
