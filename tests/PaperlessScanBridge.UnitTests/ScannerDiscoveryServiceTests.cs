@@ -103,6 +103,8 @@ public sealed class ScannerDiscoveryServiceTests
     {
         public DiscoveredScanner? Saved { get; private set; }
         public Task<SelectedScanner?> GetAsync(CancellationToken cancellationToken) => Task.FromResult<SelectedScanner?>(null);
+        public Task<IReadOnlyList<SelectedScanner>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<SelectedScanner>>([]);
+        public Task<SelectedScanner?> GetByIdAsync(long scannerId, CancellationToken cancellationToken) => Task.FromResult<SelectedScanner?>(null);
         public Task<SelectedScanner> SaveAsync(DiscoveredScanner scanner, DateTimeOffset validatedAt, CancellationToken cancellationToken)
         { Saved = scanner; return Task.FromResult(new SelectedScanner(1, scanner.DisplayName, scanner.IpAddress, scanner.Port, scanner.Protocol, scanner.EsclUrl, validatedAt)); }
     }

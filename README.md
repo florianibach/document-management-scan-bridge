@@ -69,9 +69,9 @@ Configuration uses standard ASP.NET Core keys:
 
 ## Simplex scanning
 
-After selecting a scanner, choose platen or automatic feeder, color mode, and resolution on the start page. A platen job captures one page; an ADF job continues until the feeder is empty. The page reports queued, running, completed, cancelled, and failed states and disables duplicate submission while a scan is active. Cancellation terminates the underlying `scanimage` process when supported.
+Choose one of the previously validated, saved scanners first, then select one of the exact input sources reported by that scanner together with color mode and resolution. A platen job captures one page; an ADF job continues until the feeder is empty. The page reports queued, running, completed, cancelled, and failed states and disables duplicate submission while a scan is active. Cancellation terminates the underlying `scanimage` process when supported.
 
-The application stores complete PNM pages under `<TemporaryStorage:Path>/<session-id>/`. A cancelled, timed-out, failed, or empty scan removes its entire session, including partial files. Session identifiers and page counts may appear in logs, but scanner output, document content, command stderr, and file names are not logged. These files are deliberately not exposed over HTTP and are consumed only by the later preview/PDF stories.
+The application stores complete PNG pages under `<TemporaryStorage:Path>/<session-id>/`. A cancelled, timed-out, failed, or empty scan removes its entire session, including partial files. Session identifiers and page counts may appear in logs, but scanner output, document content, command stderr, and file names are not logged. These files are deliberately not exposed over HTTP and are consumed only by the later preview/PDF stories.
 
 ## Product documentation
 

@@ -18,8 +18,8 @@ public sealed class SaneSimplexScannerAdapterIntegrationTests
         try
         {
             var adapter = new SaneSimplexScannerAdapter(new SystemProcessRunner(), new ScannerOptions { Command = command, TimeoutSeconds = 5 });
-            var result = await adapter.CaptureAsync(root, new(ScanSource.Adf, ScanColorMode.Color, 200), default);
-            Assert.Equal(["page-0001.pnm", "page-0002.pnm"], result.PageFiles.Select(Path.GetFileName));
+            var result = await adapter.CaptureAsync(root, new("device", "ADF Simplex", ScanColorMode.Color, 200), default);
+            Assert.Equal(["page-0001.png", "page-0002.png"], result.PageFiles.Select(Path.GetFileName));
         }
         finally { Directory.Delete(root, recursive: true); }
     }

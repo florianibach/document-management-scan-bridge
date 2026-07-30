@@ -4,11 +4,10 @@ using PaperlessScanBridge.Application.Configuration;
 
 namespace PaperlessScanBridge.Application.Scanning;
 
-public enum ScanSource { Flatbed, Adf }
 public enum ScanColorMode { Color, Grayscale, BlackAndWhite }
 public enum ScanJobState { Queued, Running, Completed, Cancelled, Failed }
 
-public sealed record SimplexScanSettings(ScanSource Source, ScanColorMode ColorMode, int ResolutionDpi);
+public sealed record SimplexScanSettings(string DeviceId, string Source, ScanColorMode ColorMode, int ResolutionDpi);
 public sealed record ScanCaptureResult(IReadOnlyList<string> PageFiles);
 
 public interface ISimplexScannerAdapter
@@ -45,6 +44,8 @@ public sealed class SimplexScanWorkflow(
     {
         if (!SupportedResolutions.Contains(settings.ResolutionDpi))
             throw new ArgumentOutOfRangeException(nameof(settings), "The selected resolution is not supported.");
+        if (string.IsNullOrWhiteSpace(settings.DeviceId) || string.IsNullOrWhiteSpace(settings.Source))
+            throw new ArgumentException("A scanner and one of its supported sources must be selected.", nameof(settings));
 
         CancellationTokenSource cancellation;
         ScanJobSnapshot queued;

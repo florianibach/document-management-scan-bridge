@@ -16,7 +16,7 @@ public static partial class SaneOutputParser
         var sources = ValuesFor(output, "--source");
         var formats = ValuesFor(output, "--mode");
         var resolutions = ValuesFor(output, "--resolution")
-            .Select(value => int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var dpi) ? dpi : 0)
+            .Select(value => int.TryParse(LeadingInteger().Match(value).Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var dpi) ? dpi : 0)
             .Where(value => value > 0).Distinct().Order().ToArray();
 
         var maxWidth = MaximumMillimetres(output, "-x");
@@ -32,9 +32,13 @@ public static partial class SaneOutputParser
     {
         var line = output.Split('\n').FirstOrDefault(value => value.TrimStart().StartsWith(option + " ", StringComparison.Ordinal));
         if (line is null) return [];
-        var values = BracketValues().Match(line).Groups["values"].Value;
+        var remainder = line.Trim()[(option.Length + 1)..].Trim();
+        var values = remainder.StartsWith('[')
+            ? BracketValues().Match(remainder).Groups["values"].Value
+            : remainder.Split(" [", 2, StringSplitOptions.TrimEntries)[0];
         if (string.IsNullOrWhiteSpace(values)) return [];
         return values.Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(value => value.Trim('"', '\''))
             .Where(value => !value.Contains("..", StringComparison.Ordinal)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
@@ -53,6 +57,8 @@ public static partial class SaneOutputParser
     private static partial Regex DeviceLine();
     [GeneratedRegex("\\[(?<values>[^]]+)\\]")]
     private static partial Regex BracketValues();
+    [GeneratedRegex("^\\d+")]
+    private static partial Regex LeadingInteger();
     [GeneratedRegex("(?<value>\\d+(?:\\.\\d+)?)mm")]
     private static partial Regex Millimetres();
 }

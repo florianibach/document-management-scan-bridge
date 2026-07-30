@@ -62,17 +62,29 @@ public sealed class HomePageTests : BunitContext
         Assert.Contains("1 Seite", page.Markup);
     }
 
+    [Fact]
+    public void ShowsSavedScannerAndExactSaneSources()
+    {
+        AddServices(new DiscoveryStub(new([], [])));
+        var page = Render<Home>();
+        Assert.Contains("HP Two (10.0.0.2)", page.Find("#saved-scanner").TextContent);
+        Assert.Contains("Automatischer Einzug (ADF Simplex)", page.Find("#source").TextContent);
+    }
+
     private void AddServices(DiscoveryStub discovery)
     { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(new WorkflowStub()); }
     private sealed class DiscoveryStub(ScannerNetworkDiscoveryResult result, string? selectionDiagnostic = null) : IScannerDiscoveryService
     {
+        private readonly SelectedScanner saved = new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow);
         public Task<ScannerNetworkDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken) => Task.FromResult(result);
-        public Task<SelectedScanner?> GetSelectedAsync(CancellationToken cancellationToken) => Task.FromResult<SelectedScanner?>(null);
+        public Task<SelectedScanner?> GetSelectedAsync(CancellationToken cancellationToken) => Task.FromResult<SelectedScanner?>(saved);
+        public Task<IReadOnlyList<SelectedScanner>> GetSavedAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<SelectedScanner>>([saved]);
+        public Task<ScannerSelectionResult> ActivateSavedAsync(long scannerId, CancellationToken cancellationToken) => Task.FromResult(new ScannerSelectionResult(true, saved));
         public Task<ScannerSelectionResult> SelectAsync(string discoveryId, CancellationToken cancellationToken) =>
             Task.FromResult(new ScannerSelectionResult(true, new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow), selectionDiagnostic));
     }
     private sealed class SaneStub : IScanner
-    { public Task<ScannerDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken) => Task.FromResult(new ScannerDiscoveryResult([], null, null, "Not available in test")); }
+    { public Task<ScannerDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken) => Task.FromResult(new ScannerDiscoveryResult([new("airscan:test", "HP Two")], new("airscan:test", "HP Two"), new(["Flatbed", "ADF Simplex"], ["Color", "Gray"], [300], ["A4"]))); }
     private sealed class WorkflowStub : ISimplexScanWorkflow
     {
         public ScanJobSnapshot? Current { get; private set; }

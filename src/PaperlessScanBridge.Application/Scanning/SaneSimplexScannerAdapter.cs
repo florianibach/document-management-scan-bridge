@@ -6,20 +6,23 @@ public sealed class SaneSimplexScannerAdapter(IProcessRunner processRunner, Scan
 {
     public async Task<ScanCaptureResult> CaptureAsync(string sessionDirectory, SimplexScanSettings settings, CancellationToken cancellationToken)
     {
-        var pattern = Path.Combine(sessionDirectory, "page-%04d.pnm");
+        var pattern = Path.Combine(sessionDirectory, "page-%04d.png");
         var arguments = new List<string>
         {
-            "--source", settings.Source == ScanSource.Adf ? "ADF" : "Flatbed",
+            "--device-name", settings.DeviceId,
+            "--source", settings.Source,
             "--mode", settings.ColorMode switch { ScanColorMode.Color => "Color", ScanColorMode.Grayscale => "Gray", _ => "Lineart" },
             "--resolution", settings.ResolutionDpi.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            "--format", "pnm",
+            "--format", "png",
             "--batch=" + pattern
         };
-        if (!string.IsNullOrWhiteSpace(options.DeviceId)) arguments.InsertRange(0, ["--device-name", options.DeviceId]);
-        if (settings.Source == ScanSource.Flatbed) arguments.AddRange(["--batch-count", "1"]);
+        if (!IsFeeder(settings.Source)) arguments.AddRange(["--batch-count", "1"]);
 
         var result = await processRunner.RunAsync(new(options.Command, arguments, TimeSpan.FromSeconds(options.TimeoutSeconds)), cancellationToken);
         if (!result.Succeeded) throw new InvalidOperationException($"scanimage exited with code {result.ExitCode}.");
-        return new(Directory.GetFiles(sessionDirectory, "page-*.pnm").Order(StringComparer.Ordinal).ToArray());
+        return new(Directory.GetFiles(sessionDirectory, "page-*.png").Order(StringComparer.Ordinal).ToArray());
     }
+
+    private static bool IsFeeder(string source) => source.Contains("ADF", StringComparison.OrdinalIgnoreCase)
+        || source.Contains("Feeder", StringComparison.OrdinalIgnoreCase);
 }

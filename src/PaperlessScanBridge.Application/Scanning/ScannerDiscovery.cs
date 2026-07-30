@@ -5,6 +5,8 @@ public interface IScannerDiscoveryService
     Task<ScannerNetworkDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken);
     Task<ScannerSelectionResult> SelectAsync(string discoveryId, CancellationToken cancellationToken);
     Task<SelectedScanner?> GetSelectedAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<SelectedScanner>> GetSavedAsync(CancellationToken cancellationToken);
+    Task<ScannerSelectionResult> ActivateSavedAsync(long scannerId, CancellationToken cancellationToken);
 }
 
 public interface IZeroconfBrowser
@@ -47,6 +49,8 @@ public sealed record ScannerEndpointValidationResult(
 public interface ISelectedScannerRepository
 {
     Task<SelectedScanner?> GetAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<SelectedScanner>> ListAsync(CancellationToken cancellationToken);
+    Task<SelectedScanner?> GetByIdAsync(long scannerId, CancellationToken cancellationToken);
     Task<SelectedScanner> SaveAsync(DiscoveredScanner scanner, DateTimeOffset validatedAt, CancellationToken cancellationToken);
 }
 
