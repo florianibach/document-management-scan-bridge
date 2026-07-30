@@ -35,7 +35,11 @@ export GIT_COMMIT="$(git rev-parse --short HEAD)"
 docker compose up --detach --build
 ```
 
-The image installs `sane-utils` and `sane-airscan` for both AMD64 and ARM64. Compose uses the Linux host network so multicast scanner discovery reaches the container; port `8080` is therefore opened directly by the application rather than published through Docker. The named volumes `bridge-data` and `bridge-temp` keep the selected scanner, generated SANE configuration, and temporary storage outside the container layer. Override `PAPERLESS_URL` and `PAPERLESS_TOKEN` through the environment; never commit the token.
+The image installs `sane-utils` and `sane-airscan` for both AMD64 and ARM64. Compose uses the Linux host network so multicast scanner discovery reaches the container; port `8080` is therefore opened directly by the application rather than published through Docker. The bind mounts `./app/data:/app/data` and `./app/temp:/app/temp` keep the selected scanner, generated SANE configuration, and temporary storage directly accessible on the host. Override `PAPERLESS_URL` and `PAPERLESS_TOKEN` through the environment; never commit the token.
+
+No UID or GID configuration and no manual directory creation are required. Like many third-party images, the container starts through a small entrypoint: it creates the mounted directories when necessary, gives the image's built-in unprivileged .NET user access, and then immediately drops root privileges before starting the application. `APP_UID` is an internal variable supplied by Microsoft's ASP.NET base image, not a setting that users need to provide in Compose.
+
+`/app/data/dataprotection-keys` is a directory created by the application at startup; it is expected not to exist on the first run. The entrypoint only prepares its parent bind mount so that the unprivileged application can create it.
 
 The image keeps SANE's package-standard `/etc/sane.d` configuration directory. `/etc/sane.d/airscan.conf` is a symbolic link to the generated, persistent `/app/data/sane.d/airscan.conf`; the adjacent package-managed `dll.conf` and `dll.d/airscan` registration therefore remain available without relying on a custom configuration search path. Because the application performs DNS-SD itself and writes a validated static device, the generated `[options]` section sets `discovery = disable`. This prevents sane-airscan from starting its separate Avahi/WSD discovery and makes it use only the configured endpoint. `airscan-discover` still requires Avahi, but it is not part of the application workflow.
 
