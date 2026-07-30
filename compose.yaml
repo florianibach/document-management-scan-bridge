@@ -15,7 +15,7 @@ services:
       Paperless__ApiToken: ${PAPERLESS_TOKEN:-}
       Scanner__DeviceId: ${SCANNER_DEVICE_ID:-}
       Scanner__TimeoutSeconds: ${SCANNER_TIMEOUT_SECONDS:-30}
-      Scanner__ScanTimeoutSeconds: ${SCANNER_SCAN_TIMEOUT_SECONDS:-1800}
+      Scanner__ScanTimeoutSeconds: ${SCANNER_SCAN_TIMEOUT_SECONDS:-120}
       Scanner__MaximumScanDurationSeconds: ${SCANNER_MAXIMUM_SCAN_DURATION_SECONDS:-14400}
       ScannerDiscovery__SaneConfigurationDirectory: /app/data/sane.d
     volumes:
