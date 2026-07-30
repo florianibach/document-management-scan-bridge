@@ -10,6 +10,17 @@ namespace PaperlessScanBridge.ComponentTests;
 
 public sealed class HomePageTests : BunitContext
 {
+    private readonly BunitJSModuleInterop notifications;
+
+    public HomePageTests()
+    {
+        notifications = JSInterop.SetupModule("./scanNotifications.js");
+        notifications.Setup<string>("getState").SetResult("disabled");
+        notifications.Setup<string>("enable").SetResult("enabled");
+        notifications.Setup<string>("disable").SetResult("disabled");
+        notifications.SetupVoid("show", _ => true);
+    }
+
     [Fact]
     public void ShowsBuildCommitInLayout()
     {
@@ -61,6 +72,29 @@ public sealed class HomePageTests : BunitContext
         await page.Find("button.btn-primary.w-100.mt-4").ClickAsync(new());
         Assert.Contains("Abgeschlossen", page.Find("[aria-live=polite]").TextContent);
         Assert.Contains("1 Seite", page.Markup);
+        Assert.Contains(notifications.Invocations, invocation => invocation.Identifier == "show"
+            && invocation.Arguments[0]?.ToString() == "Scan abgeschlossen");
+    }
+
+    [Fact]
+    public async Task NotificationPermissionIsRequestedOnlyAfterExplicitAction()
+    {
+        AddServices(new DiscoveryStub(new([], [])));
+        var page = Render<Home>();
+        Assert.DoesNotContain(notifications.Invocations, invocation => invocation.Identifier == "enable");
+
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Benachrichtigungen aktivieren")).ClickAsync(new());
+
+        Assert.Single(notifications.Invocations, invocation => invocation.Identifier == "enable");
+        Assert.Contains("Benachrichtigungen ausschalten", page.Markup);
+    }
+
+    [Fact]
+    public void ExplainsThatNotificationsWorkForAnOpenBackgroundTab()
+    {
+        AddServices(new DiscoveryStub(new([], [])));
+
+        Assert.Contains("offenen Tab im Hintergrund", Render<Home>().Markup);
     }
 
     [Fact]
