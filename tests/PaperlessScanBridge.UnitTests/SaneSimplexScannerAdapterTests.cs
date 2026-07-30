@@ -12,7 +12,7 @@ public sealed class SaneSimplexScannerAdapterTests : IDisposable
     {
         Directory.CreateDirectory(directory);
         var runner = new WritingRunner();
-        var adapter = new SaneSimplexScannerAdapter(runner, new ScannerOptions { DeviceId = "airscan:e0:HP", TimeoutSeconds = 17, ScanTimeoutSeconds = 900 });
+        var adapter = new SaneSimplexScannerAdapter(runner, new ScannerOptions { DeviceId = "airscan:e0:HP", TimeoutSeconds = 17, ScanTimeoutSeconds = 60, MaximumScanDurationSeconds = 900 });
         var result = await adapter.CaptureAsync(directory, new("airscan:e0:HP", "ADF Simplex", ScanColorMode.Grayscale, 300), default);
         Assert.Equal(2, result.PageFiles.Count);
         Assert.Equal("--device-name", runner.Request!.Arguments[0]);

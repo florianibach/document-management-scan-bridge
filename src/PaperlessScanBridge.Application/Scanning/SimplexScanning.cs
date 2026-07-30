@@ -5,7 +5,7 @@ using PaperlessScanBridge.Application.Configuration;
 namespace PaperlessScanBridge.Application.Scanning;
 
 public enum ScanColorMode { Color, Grayscale, BlackAndWhite }
-public enum ScanJobState { Queued, Running, Completed, Cancelled, Failed }
+public enum ScanJobState { Queued, Running, AwaitingUserDecision, Completed, Cancelled, Failed }
 
 public sealed record SimplexScanSettings(string DeviceId, string Source, ScanColorMode ColorMode, int ResolutionDpi);
 public sealed record ScanCaptureResult(IReadOnlyList<string> PageFiles);
@@ -17,7 +17,7 @@ public interface ISimplexScannerAdapter
 
 public sealed record ScanJobSnapshot(Guid SessionId, ScanJobState State, int PageCount, string Message, DateTimeOffset UpdatedAt)
 {
-    public bool IsActive => State is ScanJobState.Queued or ScanJobState.Running;
+    public bool IsActive => State is ScanJobState.Queued or ScanJobState.Running or ScanJobState.AwaitingUserDecision;
 }
 
 public interface ISimplexScanWorkflow
@@ -25,18 +25,21 @@ public interface ISimplexScanWorkflow
     ScanJobSnapshot? Current { get; }
     event Action? Changed;
     Task<ScanJobSnapshot> StartAsync(SimplexScanSettings settings, CancellationToken cancellationToken = default);
+    Task ContinueAsync();
     Task CancelAsync();
 }
 
 public sealed class SimplexScanWorkflow(
     ISimplexScannerAdapter adapter,
     TemporaryStorageOptions storage,
+    ScannerOptions scannerOptions,
     ILogger<SimplexScanWorkflow>? suppliedLogger = null) : ISimplexScanWorkflow, IDisposable
 {
     private static readonly int[] SupportedResolutions = [100, 200, 300, 600];
     private readonly ILogger<SimplexScanWorkflow> logger = suppliedLogger ?? NullLogger<SimplexScanWorkflow>.Instance;
     private readonly object gate = new();
     private CancellationTokenSource? activeCancellation;
+    private TaskCompletionSource<bool>? timeoutDecision;
     public ScanJobSnapshot? Current { get; private set; }
     public event Action? Changed;
 
@@ -70,6 +73,17 @@ public sealed class SimplexScanWorkflow(
         while (Current?.IsActive == true) await Task.Delay(20);
     }
 
+    public Task ContinueAsync()
+    {
+        lock (gate)
+        {
+            if (Current?.State != ScanJobState.AwaitingUserDecision || timeoutDecision is null)
+                throw new InvalidOperationException("The scan is not waiting for a timeout decision.");
+            timeoutDecision.TrySetResult(true);
+        }
+        return Task.CompletedTask;
+    }
+
     private async Task RunAsync(Guid sessionId, SimplexScanSettings settings, CancellationTokenSource cancellation)
     {
         var sessionDirectory = Path.Combine(Path.GetFullPath(storage.Path), sessionId.ToString("N"));
@@ -78,7 +92,25 @@ public sealed class SimplexScanWorkflow(
             Directory.CreateDirectory(sessionDirectory);
             Update(sessionId, ScanJobState.Running, 0, "Scanner erfasst Seiten …");
             logger.LogInformation("Simplex scan session {SessionId} started", sessionId);
-            var capture = await adapter.CaptureAsync(sessionDirectory, settings, cancellation.Token);
+            var captureTask = adapter.CaptureAsync(sessionDirectory, settings, cancellation.Token);
+            ScanCaptureResult capture;
+            while (true)
+            {
+                var warning = Task.Delay(TimeSpan.FromSeconds(scannerOptions.ScanTimeoutSeconds), cancellation.Token);
+                if (await Task.WhenAny(captureTask, warning) == captureTask)
+                {
+                    capture = await captureTask;
+                    break;
+                }
+
+                TaskCompletionSource<bool> decision;
+                lock (gate) timeoutDecision = decision = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                Update(sessionId, ScanJobState.AwaitingUserDecision, 0,
+                    "Das erwartete Zeitfenster ist abgelaufen. Läuft der Scanner noch, kann weiter gewartet werden.");
+                await decision.Task.WaitAsync(cancellation.Token);
+                lock (gate) timeoutDecision = null;
+                Update(sessionId, ScanJobState.Running, 0, "Scanner erfasst weiterhin Seiten …");
+            }
             var pages = capture.PageFiles.Where(path => IsInsideSession(path, sessionDirectory) && File.Exists(path)).ToArray();
             if (pages.Length == 0) throw new InvalidOperationException("The scanner returned no complete pages.");
             Update(sessionId, ScanJobState.Completed, pages.Length, $"Scan abgeschlossen: {pages.Length} Seite(n).");
@@ -108,6 +140,7 @@ public sealed class SimplexScanWorkflow(
             {
                 cancellation.Dispose();
                 if (ReferenceEquals(activeCancellation, cancellation)) activeCancellation = null;
+                timeoutDecision = null;
             }
         }
     }

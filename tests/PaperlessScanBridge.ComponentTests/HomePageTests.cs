@@ -83,8 +83,19 @@ public sealed class HomePageTests : BunitContext
         Assert.Equal(0, scanner.Calls);
     }
 
-    private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(new WorkflowStub()); }
+    [Fact]
+    public void TimeoutDecisionOffersContinueAndAbort()
+    {
+        var workflow = new WorkflowStub();
+        AddServices(new DiscoveryStub(new([], [])), workflow: workflow);
+        var page = Render<Home>();
+        workflow.SetState(ScanJobState.AwaitingUserDecision, "Scanner arbeitet möglicherweise noch.");
+        page.WaitForAssertion(() => Assert.Contains("weiter warten", page.Markup));
+        Assert.Contains("Scan jetzt abbrechen", page.Markup);
+    }
+
+    private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null)
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); }
     private sealed class DiscoveryStub(ScannerNetworkDiscoveryResult result, string? selectionDiagnostic = null) : IScannerDiscoveryService
     {
         private readonly SelectedScanner saved = new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow);
@@ -108,5 +119,8 @@ public sealed class HomePageTests : BunitContext
         public Task<ScanJobSnapshot> StartAsync(SimplexScanSettings settings, CancellationToken cancellationToken = default)
         { Current = new(Guid.NewGuid(), ScanJobState.Completed, 1, "Scan abgeschlossen: 1 Seite(n).", DateTimeOffset.UtcNow); Changed?.Invoke(); return Task.FromResult(Current); }
         public Task CancelAsync() => Task.CompletedTask;
+        public Task ContinueAsync() => Task.CompletedTask;
+        public void SetState(ScanJobState state, string message)
+        { Current = new(Guid.NewGuid(), state, 0, message, DateTimeOffset.UtcNow); Changed?.Invoke(); }
     }
 }

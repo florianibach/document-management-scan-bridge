@@ -17,7 +17,7 @@ public sealed class SaneSimplexScannerAdapterIntegrationTests
         File.SetUnixFileMode(command, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         try
         {
-            var adapter = new SaneSimplexScannerAdapter(new SystemProcessRunner(), new ScannerOptions { Command = command, ScanTimeoutSeconds = 60 });
+            var adapter = new SaneSimplexScannerAdapter(new SystemProcessRunner(), new ScannerOptions { Command = command, MaximumScanDurationSeconds = 300 });
             var result = await adapter.CaptureAsync(root, new("device", "ADF Simplex", ScanColorMode.Color, 200), default);
             Assert.Equal(["page-0001.png", "page-0002.png"], result.PageFiles.Select(Path.GetFileName));
         }
