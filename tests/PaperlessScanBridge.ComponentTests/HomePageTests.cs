@@ -70,7 +70,11 @@ public sealed class HomePageTests : BunitContext
         AddServices(new DiscoveryStub(new([], [])), workflow: workflow);
         var page = Render<Home>();
 
-        Assert.Contains("Automatischer Einzug (ADF Simplex)", page.Find("#source").TextContent);
+        var selectedSource = page.Find("#source option[selected]");
+        Assert.Equal("ADF Simplex", selectedSource.GetAttribute("value"));
+        Assert.Contains("Automatischer Einzug", selectedSource.TextContent);
+        Assert.Equal("Color", page.Find("#color option[selected]").GetAttribute("value"));
+        Assert.Equal("300", page.Find("#resolution option[selected]").GetAttribute("value"));
         await page.Find("button.btn-primary.w-100.mt-4").ClickAsync(new());
 
         Assert.Equal("ADF Simplex", workflow.ReceivedSettings!.Source);

@@ -27,9 +27,9 @@
   {
   <button class="btn btn-outline-secondary w-100 mb-3" @onclick="RefreshSaneAsync" disabled="@(IsScanning || scannerLoading)">Scannerwerte aktualisieren</button>
   <div class="row g-3">
-   <div class="col-12 col-md-4"><label class="form-label" for="source">Quelle</label><select id="source" class="form-select form-select-lg" @bind="scanSource" disabled="@(IsScanning || availableSources.Count == 0)">@foreach (var source in availableSources) { <option value="@source">@SourceLabel(source)</option> }</select></div>
-   <div class="col-12 col-md-4"><label class="form-label" for="color">Farbmodus</label><select id="color" class="form-select form-select-lg" @bind="colorMode" disabled="@IsScanning"><option value="Color">Farbe</option><option value="Grayscale">Graustufen</option><option value="BlackAndWhite">Schwarzweiß</option></select></div>
-   <div class="col-12 col-md-4"><label class="form-label" for="resolution">Auflösung</label><select id="resolution" class="form-select form-select-lg" @bind="resolution" disabled="@IsScanning"><option value="100">100 dpi</option><option value="200">200 dpi</option><option value="300">300 dpi</option><option value="600">600 dpi</option></select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="source">Quelle</label><select id="source" class="form-select form-select-lg" value="@scanSource" @onchange="ChangeSource" disabled="@(IsScanning || availableSources.Count == 0)">@foreach (var source in availableSources) { <option value="@source" selected="@(source == scanSource)">@SourceLabel(source)</option> }</select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="color">Farbmodus</label><select id="color" class="form-select form-select-lg" value="@colorMode" @onchange="ChangeColorMode" disabled="@IsScanning"><option value="Color" selected="@(colorMode == ScanColorMode.Color)">Farbe</option><option value="Grayscale" selected="@(colorMode == ScanColorMode.Grayscale)">Graustufen</option><option value="BlackAndWhite" selected="@(colorMode == ScanColorMode.BlackAndWhite)">Schwarzweiß</option></select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="resolution">Auflösung</label><select id="resolution" class="form-select form-select-lg" value="@resolution" @onchange="ChangeResolution" disabled="@IsScanning"><option value="100" selected="@(resolution == 100)">100 dpi</option><option value="200" selected="@(resolution == 200)">200 dpi</option><option value="300" selected="@(resolution == 300)">300 dpi</option><option value="600" selected="@(resolution == 600)">600 dpi</option></select></div>
   </div>
   }
   <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="StartScanAsync" disabled="@(IsScanning || DuplexWorkflow.Current?.IsActive == true || string.IsNullOrWhiteSpace(activeDeviceId) || string.IsNullOrWhiteSpace(scanSource))">@(IsScanning ? "Scan läuft …" : "Simplex-Scan starten")</button>
@@ -167,6 +167,9 @@
     private Task CancelDuplexAsync() => DuplexWorkflow.CancelAsync();
     private Task RestartDuplexAsync() => DuplexWorkflow.RestartAsync();
     public void Dispose() { ScanWorkflow.Changed -= OnScanChanged; DuplexWorkflow.Changed -= OnScanChanged; }
+    private void ChangeSource(ChangeEventArgs args) => scanSource = args.Value?.ToString() ?? "";
+    private void ChangeColorMode(ChangeEventArgs args) { if (Enum.TryParse<ScanColorMode>(args.Value?.ToString(), out var value)) colorMode = value; }
+    private void ChangeResolution(ChangeEventArgs args) { if (int.TryParse(args.Value?.ToString(), out var value)) resolution = value; }
     private static string SourceLabel(string source) => source.Contains("ADF", StringComparison.OrdinalIgnoreCase) || source.Contains("Feeder", StringComparison.OrdinalIgnoreCase) ? $"Automatischer Einzug ({source})" : $"Vorlagenglas ({source})";
     private static bool IsFeederSource(string source) => source.Contains("ADF", StringComparison.OrdinalIgnoreCase) || source.Contains("Feeder", StringComparison.OrdinalIgnoreCase);
 

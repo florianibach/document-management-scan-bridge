@@ -31,6 +31,7 @@
 - User and operational behavior, temporary ordered output, restart semantics, and the verified feeder orientation are documented in `README.md`.
 - A component regression test verifies that duplex selects the cached ADF source independently of the simplex source selector and forwards the currently selected color mode and resolution unchanged.
 - Regression coverage verifies that the initially displayed cached source is forwarded without requiring a change event and that cancellation while waiting for the stack flip finishes immediately and removes the session.
+- Source, color, and resolution options render their selected state explicitly, so browser HTML parsing before Blazor becomes interactive cannot show the first option while retaining a different backing value; component coverage verifies both the selected markup and submitted settings.
 
 ## Definition of Done record
 
