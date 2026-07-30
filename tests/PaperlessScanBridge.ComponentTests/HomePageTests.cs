@@ -32,11 +32,11 @@ public sealed class HomePageTests : BunitContext
             new DiscoveredScanner("two", "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL") };
         AddServices(new DiscoveryStub(new(devices, [])));
         var page = Render<Home>();
-        await page.Find("button").ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner suchen")).ClickAsync(new());
         Assert.Contains("HP One", page.Markup); Assert.Contains("HP Two", page.Markup);
-        Assert.True(page.FindAll("button")[1].HasAttribute("disabled"));
+        Assert.True(page.FindAll("button").Single(button => button.TextContent.Contains("Scanner auswählen") && !button.TextContent.Contains("gespeichert", StringComparison.OrdinalIgnoreCase)).HasAttribute("disabled"));
         await page.Find("input[value=two]").ChangeAsync(new ChangeEventArgs { Value = "two" });
-        await page.FindAll("button")[1].ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner auswählen")).ClickAsync(new());
         Assert.Contains("geprüft und gespeichert", page.Markup);
     }
 
@@ -46,9 +46,9 @@ public sealed class HomePageTests : BunitContext
         var device = new DiscoveredScanner("one", "HP", "10.0.0.1", 443, "https", "https://10.0.0.1/eSCL");
         AddServices(new DiscoveryStub(new([device], []), "HTTP-eSCL-Endpunkt wird verwendet."));
         var page = Render<Home>();
-        await page.Find("button").ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner suchen")).ClickAsync(new());
         await page.Find("input").ChangeAsync(new ChangeEventArgs { Value = "one" });
-        await page.FindAll("button")[1].ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner auswählen")).ClickAsync(new());
         Assert.Contains("HTTP-eSCL-Endpunkt", page.Find("[role=alert]").TextContent);
     }
 
@@ -69,7 +69,7 @@ public sealed class HomePageTests : BunitContext
         AddServices(new DiscoveryStub(new([], [])));
         var page = Render<Home>();
         Assert.Contains("HP Two (10.0.0.2)", page.Find("#saved-scanner").TextContent);
-        Assert.Contains("aktuelle Einzugsquellen", page.Markup);
+        Assert.Contains("ADF Simplex", page.Markup);
         await page.Find("#saved-scanner").ChangeAsync("1");
         Assert.Contains("Automatischer Einzug (ADF Simplex)", page.Find("#source").TextContent);
     }
@@ -81,6 +81,16 @@ public sealed class HomePageTests : BunitContext
         AddServices(new DiscoveryStub(new([], [])), scanner);
         Render<Home>();
         Assert.Equal(0, scanner.Calls);
+    }
+
+    [Fact]
+    public async Task RefreshButtonRunsLiveSaneDiscoveryOnDemand()
+    {
+        var scanner = new SaneStub();
+        AddServices(new DiscoveryStub(new([], [])), scanner);
+        var page = Render<Home>();
+        await page.Find("button.btn-outline-secondary").ClickAsync(new());
+        Assert.Equal(1, scanner.Calls);
     }
 
     [Fact]
@@ -98,11 +108,12 @@ public sealed class HomePageTests : BunitContext
     { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); }
     private sealed class DiscoveryStub(ScannerNetworkDiscoveryResult result, string? selectionDiagnostic = null) : IScannerDiscoveryService
     {
-        private readonly SelectedScanner saved = new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow);
+        private readonly SelectedScanner saved = new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow, "airscan:test", ["Flatbed", "ADF Simplex"], [300]);
         public Task<ScannerNetworkDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken) => Task.FromResult(result);
         public Task<SelectedScanner?> GetSelectedAsync(CancellationToken cancellationToken) => Task.FromResult<SelectedScanner?>(saved);
         public Task<IReadOnlyList<SelectedScanner>> GetSavedAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<SelectedScanner>>([saved]);
         public Task<ScannerSelectionResult> ActivateSavedAsync(long scannerId, CancellationToken cancellationToken) => Task.FromResult(new ScannerSelectionResult(true, saved));
+        public Task<SelectedScanner> SaveSaneProfileAsync(long scannerId, ScannerDevice device, ScannerCapabilities capabilities, CancellationToken cancellationToken) => Task.FromResult(saved);
         public Task<ScannerSelectionResult> SelectAsync(string discoveryId, CancellationToken cancellationToken) =>
             Task.FromResult(new ScannerSelectionResult(true, new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow), selectionDiagnostic));
     }

@@ -69,7 +69,7 @@ Configuration uses standard ASP.NET Core keys:
 
 ## Simplex scanning
 
-Choose one of the previously validated, saved scanners first, then select one of the exact input sources reported by that scanner together with color mode and resolution. The initial page only reads the saved scanner list from SQLite; it does not execute SANE discovery. Selecting a scanner explicitly runs `scanimage -L` to resolve the current SANE device identifier and then inspects its live capabilities, because SQLite stores the validated eSCL endpoint rather than potentially stale SANE device and option data.
+Scanning is the primary action and therefore appears first on the start page. The application caches the last successfully inspected SANE device identifier, input sources, and resolutions in SQLite. Selecting a known scanner uses this cache immediately and does not run `scanimage -L`. Use **Scannerwerte aktualisieren** when the device, network, container, or SANE configuration changed; that explicit refresh shows an activity indicator, discovers the live device, and replaces the cached values. A newly discovered scanner is inspected once to populate its cache.
 
 A platen job captures one page; an ADF job continues until the feeder is empty. The page reports queued, running, completed, cancelled, and failed states and disables duplicate submission while a scan is active. Scanner discovery and capability inspection display an activity indicator while `scanimage` is running. Cancellation terminates the underlying process when supported.
 

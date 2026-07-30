@@ -104,6 +104,9 @@ public sealed class ScannerDiscoveryService(
         return new(true, scanner);
     }
 
+    public Task<SelectedScanner> SaveSaneProfileAsync(long scannerId, ScannerDevice device, ScannerCapabilities capabilities, CancellationToken cancellationToken) =>
+        repository.SaveSaneProfileAsync(scannerId, device, capabilities, cancellationToken);
+
     internal static IReadOnlyList<DiscoveredScanner> Normalize(string serviceType, ZeroconfAdvertisement advertisement)
     {
         var protocol = serviceType.StartsWith("_uscans", StringComparison.OrdinalIgnoreCase) ? "https" : "http";

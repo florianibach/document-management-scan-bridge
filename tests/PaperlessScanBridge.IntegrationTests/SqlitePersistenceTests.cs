@@ -36,6 +36,11 @@ public sealed class SqlitePersistenceTests
             Assert.Equal(2, (await repository.ListAsync(default)).Count);
             Assert.Equal("Scanner Two", (await repository.GetByIdAsync(second.Id, default))!.DisplayName);
             Assert.Equal("Scanner Two", (await repository.GetAsync(default))!.DisplayName);
+            var profile = await repository.SaveSaneProfileAsync(second.Id, new("airscan:e0:two", "Scanner Two"),
+                new(["Flatbed", "ADF"], ["Color"], [200, 300], ["A4"]), default);
+            Assert.Equal("airscan:e0:two", profile.SaneDeviceId);
+            Assert.Equal(["Flatbed", "ADF"], profile.Sources);
+            Assert.Equal([200, 300], (await repository.GetByIdAsync(second.Id, default))!.Resolutions);
         }
         finally { if (File.Exists(file)) File.Delete(file); }
     }

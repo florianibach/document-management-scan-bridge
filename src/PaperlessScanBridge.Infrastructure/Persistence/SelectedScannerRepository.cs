@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PaperlessScanBridge.Application.Scanning;
+using System.Text.Json;
 
 namespace PaperlessScanBridge.Infrastructure.Persistence;
 
@@ -16,9 +17,8 @@ public sealed class SelectedScannerRepository(IDbContextFactory<BridgeDbContext>
     public async Task<IReadOnlyList<SelectedScanner>> ListAsync(CancellationToken cancellationToken)
     {
         await using var context = await factory.CreateDbContextAsync(cancellationToken);
-        return await context.SelectedScanners.AsNoTracking().OrderBy(value => value.DisplayName)
-            .Select(value => new SelectedScanner(value.Id, value.DisplayName, value.IpAddress, value.Port, value.Protocol, value.EsclUrl, value.ValidatedAt))
-            .ToArrayAsync(cancellationToken);
+        var entities = await context.SelectedScanners.AsNoTracking().OrderBy(value => value.DisplayName).ToArrayAsync(cancellationToken);
+        return entities.Select(Map).ToArray();
     }
 
     public async Task<SelectedScanner?> GetByIdAsync(long scannerId, CancellationToken cancellationToken)
@@ -43,6 +43,20 @@ public sealed class SelectedScannerRepository(IDbContextFactory<BridgeDbContext>
         return Map(entity);
     }
 
+    public async Task<SelectedScanner> SaveSaneProfileAsync(long scannerId, ScannerDevice device, ScannerCapabilities capabilities, CancellationToken cancellationToken)
+    {
+        await using var context = await factory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.SelectedScanners.SingleAsync(value => value.Id == scannerId, cancellationToken);
+        entity.SaneDeviceId = device.Identifier;
+        entity.SourcesJson = JsonSerializer.Serialize(capabilities.Sources);
+        entity.ResolutionsJson = JsonSerializer.Serialize(capabilities.Resolutions);
+        await context.SaveChangesAsync(cancellationToken);
+        return Map(entity);
+    }
+
     private static SelectedScanner Map(SelectedScannerEntity value) => new(value.Id, value.DisplayName, value.IpAddress,
-        value.Port, value.Protocol, value.EsclUrl, value.ValidatedAt);
+        value.Port, value.Protocol, value.EsclUrl, value.ValidatedAt, value.SaneDeviceId,
+        Deserialize<string>(value.SourcesJson), Deserialize<int>(value.ResolutionsJson));
+
+    private static IReadOnlyList<T> Deserialize<T>(string? json) => json is null ? [] : JsonSerializer.Deserialize<T[]>(json) ?? [];
 }

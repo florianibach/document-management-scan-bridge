@@ -26,6 +26,9 @@ partial class BridgeDbContextModelSnapshot : ModelSnapshot
             b.Property<string>("IpAddress").IsRequired().HasColumnType("TEXT");
             b.Property<int>("Port").HasColumnType("INTEGER");
             b.Property<string>("Protocol").IsRequired().HasColumnType("TEXT");
+            b.Property<string>("SaneDeviceId").HasColumnType("TEXT");
+            b.Property<string>("SourcesJson").HasColumnType("TEXT");
+            b.Property<string>("ResolutionsJson").HasColumnType("TEXT");
             b.Property<DateTimeOffset>("ValidatedAt").HasColumnType("TEXT");
             b.HasKey("Id");
             b.ToTable("SelectedScanners");

@@ -17,6 +17,9 @@ public sealed class SelectedScannerEntity
     public required string Protocol { get; set; }
     public required string EsclUrl { get; set; }
     public DateTimeOffset ValidatedAt { get; set; }
+    public string? SaneDeviceId { get; set; }
+    public string? SourcesJson { get; set; }
+    public string? ResolutionsJson { get; set; }
 }
 
 public sealed class SchemaMarker

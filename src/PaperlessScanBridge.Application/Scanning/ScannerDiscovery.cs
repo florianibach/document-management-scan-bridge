@@ -7,6 +7,7 @@ public interface IScannerDiscoveryService
     Task<SelectedScanner?> GetSelectedAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<SelectedScanner>> GetSavedAsync(CancellationToken cancellationToken);
     Task<ScannerSelectionResult> ActivateSavedAsync(long scannerId, CancellationToken cancellationToken);
+    Task<SelectedScanner> SaveSaneProfileAsync(long scannerId, ScannerDevice device, ScannerCapabilities capabilities, CancellationToken cancellationToken);
 }
 
 public interface IZeroconfBrowser
@@ -23,7 +24,8 @@ public sealed record DiscoveredScanner(string DiscoveryId, string DisplayName, s
 public sealed record ScannerNetworkDiscoveryResult(IReadOnlyList<DiscoveredScanner> Devices, IReadOnlyList<string> Diagnostics);
 public sealed record ScannerSelectionResult(bool Succeeded, SelectedScanner? Scanner, string? Diagnostic = null);
 public sealed record SelectedScanner(long Id, string DisplayName, string IpAddress, int Port, string Protocol,
-    string EsclUrl, DateTimeOffset ValidatedAt);
+    string EsclUrl, DateTimeOffset ValidatedAt, string? SaneDeviceId = null,
+    IReadOnlyList<string>? Sources = null, IReadOnlyList<int>? Resolutions = null);
 
 public interface IScannerEndpointValidator
 {
@@ -52,6 +54,7 @@ public interface ISelectedScannerRepository
     Task<IReadOnlyList<SelectedScanner>> ListAsync(CancellationToken cancellationToken);
     Task<SelectedScanner?> GetByIdAsync(long scannerId, CancellationToken cancellationToken);
     Task<SelectedScanner> SaveAsync(DiscoveredScanner scanner, DateTimeOffset validatedAt, CancellationToken cancellationToken);
+    Task<SelectedScanner> SaveSaneProfileAsync(long scannerId, ScannerDevice device, ScannerCapabilities capabilities, CancellationToken cancellationToken);
 }
 
 public interface ISaneAirscanConfigurationWriter

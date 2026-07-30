@@ -7,6 +7,41 @@
 @rendermode InteractiveServer
 
 <PageTitle>Scanner auswählen</PageTitle>
+<section class="card mt-4 scan-panel">
+ <div class="card-body">
+  <span class="badge text-bg-primary mb-2">Simplex</span>
+  <h2 class="h3">Dokument scannen</h2>
+  <p>Eine Seite vom Vorlagenglas oder mehrere einseitige Seiten über den Einzug erfassen.</p>
+  @if (savedScanners.Count == 0)
+  {
+   <div class="alert alert-warning">Noch kein gespeicherter Scanner vorhanden. Bitte zuerst oben einen Scanner suchen und auswählen.</div>
+  }
+  else
+  {
+   <div class="mb-3"><label class="form-label" for="saved-scanner">Gespeicherter Scanner</label><select id="saved-scanner" class="form-select form-select-lg" @bind="activeScannerId" @bind:after="ActivateSelectedScannerAsync" disabled="@(IsScanning || scannerLoading)"><option value="">Scanner auswählen …</option>@foreach (var scanner in savedScanners) { <option value="@scanner.Id">@scanner.DisplayName (@scanner.IpAddress)</option> }</select></div>
+   @if (activeScannerId is null) { <div class="alert alert-info">Scanner auswählen, um dessen aktuelle Einzugsquellen und Scanoptionen abzufragen.</div> }
+   @if (scannerLoading) { <div class="alert alert-info d-flex align-items-center gap-2" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>SANE sucht den Scanner und liest seine Optionen mit <code>scanimage</code> …</span></div> }
+  }
+  @if (!string.IsNullOrWhiteSpace(activeDeviceId))
+  {
+  <button class="btn btn-outline-secondary w-100 mb-3" @onclick="RefreshSaneAsync" disabled="@(IsScanning || scannerLoading)">Scannerwerte aktualisieren</button>
+  <div class="row g-3">
+   <div class="col-12 col-md-4"><label class="form-label" for="source">Quelle</label><select id="source" class="form-select form-select-lg" @bind="scanSource" disabled="@(IsScanning || availableSources.Count == 0)">@foreach (var source in availableSources) { <option value="@source">@SourceLabel(source)</option> }</select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="color">Farbmodus</label><select id="color" class="form-select form-select-lg" @bind="colorMode" disabled="@IsScanning"><option value="Color">Farbe</option><option value="Grayscale">Graustufen</option><option value="BlackAndWhite">Schwarzweiß</option></select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="resolution">Auflösung</label><select id="resolution" class="form-select form-select-lg" @bind="resolution" disabled="@IsScanning"><option value="100">100 dpi</option><option value="200">200 dpi</option><option value="300">300 dpi</option><option value="600">600 dpi</option></select></div>
+  </div>
+  }
+  <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="StartScanAsync" disabled="@(IsScanning || string.IsNullOrWhiteSpace(activeDeviceId) || string.IsNullOrWhiteSpace(scanSource))">@(IsScanning ? "Scan läuft …" : "Simplex-Scan starten")</button>
+  @if (ScanWorkflow.Current?.State == ScanJobState.AwaitingUserDecision)
+  {
+   <button class="btn btn-success btn-lg w-100 mt-2" @onclick="ContinueScanAsync">Scanner arbeitet noch – weiter warten</button>
+   <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan jetzt abbrechen</button>
+  }
+  else if (IsScanning) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan abbrechen</button> }
+  @if (ScanWorkflow.Current is { } job) { <div class="alert @StatusClass mt-3 mb-0" role="status" aria-live="polite"><strong>@StatusLabel:</strong> @job.Message</div> }
+ </div>
+</section>
+
 <div class="container-fluid px-0">
     <div class="p-4 p-md-5 mb-4 rounded-3 bg-body-tertiary">
         <span class="badge text-bg-primary mb-3">Scannerkonfiguration</span>
@@ -55,37 +90,6 @@
     }
 </div>
 
-<section class="card mt-4 scan-panel">
- <div class="card-body">
-  <span class="badge text-bg-primary mb-2">Simplex</span>
-  <h2 class="h3">Dokument scannen</h2>
-  <p>Eine Seite vom Vorlagenglas oder mehrere einseitige Seiten über den Einzug erfassen.</p>
-  @if (savedScanners.Count == 0)
-  {
-   <div class="alert alert-warning">Noch kein gespeicherter Scanner vorhanden. Bitte zuerst oben einen Scanner suchen und auswählen.</div>
-  }
-  else
-  {
-   <div class="mb-3"><label class="form-label" for="saved-scanner">Gespeicherter Scanner</label><select id="saved-scanner" class="form-select form-select-lg" @bind="activeScannerId" @bind:after="ActivateSelectedScannerAsync" disabled="@(IsScanning || scannerLoading)"><option value="">Scanner auswählen …</option>@foreach (var scanner in savedScanners) { <option value="@scanner.Id">@scanner.DisplayName (@scanner.IpAddress)</option> }</select></div>
-   @if (activeScannerId is null) { <div class="alert alert-info">Scanner auswählen, um dessen aktuelle Einzugsquellen und Scanoptionen abzufragen.</div> }
-   @if (scannerLoading) { <div class="alert alert-info d-flex align-items-center gap-2" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>SANE sucht den Scanner und liest seine Optionen mit <code>scanimage</code> …</span></div> }
-  }
-  <div class="row g-3">
-   <div class="col-12 col-md-4"><label class="form-label" for="source">Quelle</label><select id="source" class="form-select form-select-lg" @bind="scanSource" disabled="@(IsScanning || availableSources.Count == 0)">@foreach (var source in availableSources) { <option value="@source">@SourceLabel(source)</option> }</select></div>
-   <div class="col-12 col-md-4"><label class="form-label" for="color">Farbmodus</label><select id="color" class="form-select form-select-lg" @bind="colorMode" disabled="@IsScanning"><option value="Color">Farbe</option><option value="Grayscale">Graustufen</option><option value="BlackAndWhite">Schwarzweiß</option></select></div>
-   <div class="col-12 col-md-4"><label class="form-label" for="resolution">Auflösung</label><select id="resolution" class="form-select form-select-lg" @bind="resolution" disabled="@IsScanning"><option value="100">100 dpi</option><option value="200">200 dpi</option><option value="300">300 dpi</option><option value="600">600 dpi</option></select></div>
-  </div>
-  <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="StartScanAsync" disabled="@(IsScanning || string.IsNullOrWhiteSpace(activeDeviceId) || string.IsNullOrWhiteSpace(scanSource))">@(IsScanning ? "Scan läuft …" : "Simplex-Scan starten")</button>
-  @if (ScanWorkflow.Current?.State == ScanJobState.AwaitingUserDecision)
-  {
-   <button class="btn btn-success btn-lg w-100 mt-2" @onclick="ContinueScanAsync">Scanner arbeitet noch – weiter warten</button>
-   <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan jetzt abbrechen</button>
-  }
-  else if (IsScanning) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan abbrechen</button> }
-  @if (ScanWorkflow.Current is { } job) { <div class="alert @StatusClass mt-3 mb-0" role="status" aria-live="polite"><strong>@StatusLabel:</strong> @job.Message</div> }
- </div>
-</section>
-
 @code {
     private ScannerNetworkDiscoveryResult? result;
     private ScannerDiscoveryResult? saneResult;
@@ -109,6 +113,8 @@
     {
         ScanWorkflow.Changed += OnScanChanged;
         savedScanners = await Discovery.GetSavedAsync(CancellationToken.None);
+        if (savedScanners is [{ SaneDeviceId: not null } cached] && cached.Sources?.Count > 0)
+            await ActivateScannerAsync(cached.Id);
     }
     private void OnScanChanged() => _ = InvokeAsync(StateHasChanged);
     private async Task StartScanAsync() => await ScanWorkflow.StartAsync(new(activeDeviceId!, scanSource, colorMode, resolution));
@@ -128,17 +134,43 @@
             var activation = await Discovery.ActivateSavedAsync(id, CancellationToken.None);
             if (!activation.Succeeded) { error = true; message = activation.Diagnostic; return; }
             activeScannerId = id;
+            if (!string.IsNullOrWhiteSpace(activation.Scanner!.SaneDeviceId) && activation.Scanner.Sources?.Count > 0)
+            {
+                ApplyProfile(activation.Scanner);
+                error = false;
+                message = $"{activation.Scanner.DisplayName} ist mit gespeicherten Scannerwerten bereit.";
+                return;
+            }
+            await RefreshSaneAsync();
+        }
+        finally { scannerLoading = false; }
+    }
+
+    private async Task RefreshSaneAsync()
+    {
+        if (activeScannerId is not { } id) return;
+        scannerLoading = true;
+        try
+        {
             saneResult = await Scanner.DiscoverAsync(CancellationToken.None);
             if (!saneResult.Succeeded || saneResult.SelectedDevice is null || saneResult.Capabilities is null)
             { error = true; message = saneResult.Diagnostic; activeDeviceId = null; availableSources = []; return; }
-            activeDeviceId = saneResult.SelectedDevice.Identifier;
-            availableSources = saneResult.Capabilities.Sources;
-            scanSource = availableSources.FirstOrDefault(value => value.Contains("ADF", StringComparison.OrdinalIgnoreCase) || value.Contains("Feeder", StringComparison.OrdinalIgnoreCase))
-                ?? availableSources.FirstOrDefault() ?? "";
+            var profile = await Discovery.SaveSaneProfileAsync(id, saneResult.SelectedDevice, saneResult.Capabilities, CancellationToken.None);
+            savedScanners = savedScanners.Select(value => value.Id == id ? profile : value).ToArray();
+            ApplyProfile(profile);
             error = false;
-            message = $"{activation.Scanner!.DisplayName} ist für den Scan aktiviert.";
+            message = $"Scannerwerte für {profile.DisplayName} wurden aktualisiert.";
         }
         finally { scannerLoading = false; }
+    }
+
+    private void ApplyProfile(SelectedScanner scanner)
+    {
+        activeDeviceId = scanner.SaneDeviceId;
+        availableSources = scanner.Sources ?? [];
+        scanSource = availableSources.FirstOrDefault(value => value.Contains("ADF", StringComparison.OrdinalIgnoreCase) || value.Contains("Feeder", StringComparison.OrdinalIgnoreCase))
+            ?? availableSources.FirstOrDefault() ?? "";
+        if (scanner.Resolutions?.Contains(300) != true) resolution = scanner.Resolutions?.FirstOrDefault() ?? 300;
     }
     private IReadOnlyList<string> ResolutionLabels => saneResult?.Capabilities?.Resolutions.Select(value => $"{value} dpi").ToArray() ?? [];
 
