@@ -30,9 +30,9 @@ builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.O
 builder.Services.AddSingleton<IScanner, SaneScanner>();
 builder.Services.AddSingleton<ISimplexScannerAdapter, SaneSimplexScannerAdapter>();
 builder.Services.AddScoped<ISimplexScanWorkflow, SimplexScanWorkflow>();
-// The appliance is intentionally single-user. A singleton keeps the physical two-pass job stable
-// across Blazor reconnects and full page refreshes without ever re-submitting a scanner command.
-builder.Services.AddSingleton<IManualDuplexWorkflow, ManualDuplexWorkflow>();
+// A workflow belongs to one interactive browser circuit. It must never leak the flip decision,
+// status, or cancellation controls into another independently connected browser.
+builder.Services.AddScoped<IManualDuplexWorkflow, ManualDuplexWorkflow>();
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TemporaryStorageOptions>>().Value);
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ScannerDiscoveryOptions>>().Value);
 builder.Services.AddSingleton<IZeroconfBrowser, ZeroconfBrowser>();
