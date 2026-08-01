@@ -90,6 +90,14 @@ public sealed class HomePageTests : BunitContext
     }
 
     [Fact]
+    public void ExplainsThatNotificationsWorkForAnOpenBackgroundTab()
+    {
+        AddServices(new DiscoveryStub(new([], [])));
+
+        Assert.Contains("offenen Tab im Hintergrund", Render<Home>().Markup);
+    }
+
+    [Fact]
     public async Task InitialVisibleSourceIsForwardedWithoutAChangeEvent()
     {
         var workflow = new WorkflowStub();

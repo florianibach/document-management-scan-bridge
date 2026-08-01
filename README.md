@@ -91,7 +91,7 @@ The active two-pass coordinator belongs to the current Blazor browser circuit ra
 
 Use **Benachrichtigungen aktivieren** on the start page to opt in. The browser then reports when a simplex scan needs a timeout decision, duplex fronts are ready to flip, pass counts differ, or a scan completes or fails. Permission is never requested during page load. A denied or unsupported permission is explained in the page.
 
-The opt-in and delivered-event keys are kept in the browser tab's `sessionStorage`. Reconnects and repeated state events therefore do not repeat an already delivered notification, and no application singleton stores notification state. Notifications work while the page is open, including in a background tab; this release does not implement Web Push for a fully closed browser.
+The opt-in and delivered-event keys are kept in the browser tab's `sessionStorage`. Reconnects and repeated state events therefore do not repeat an already delivered notification, and no application singleton stores notification state. Delivery uses a service worker, so an open application tab also raises the operating-system notification while another tab or application has focus. Clicking it focuses the existing scan page. The Blazor page must remain open and connected so it can receive the scan transition; this release does not implement server-originated Web Push for a fully closed browser. Browsers require a secure HTTPS origin (or `localhost`) for notifications and service workers.
 
 ## Product documentation
 
