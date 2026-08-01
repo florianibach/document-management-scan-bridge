@@ -33,6 +33,7 @@ builder.Services.AddScoped<ISimplexScanWorkflow, SimplexScanWorkflow>();
 // A workflow belongs to one interactive browser circuit. It must never leak the flip decision,
 // status, or cancellation controls into another independently connected browser.
 builder.Services.AddScoped<IManualDuplexWorkflow, ManualDuplexWorkflow>();
+builder.Services.AddScoped<IPageEditingSession, PageEditingSession>();
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TemporaryStorageOptions>>().Value);
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ScannerDiscoveryOptions>>().Value);
 builder.Services.AddSingleton<IZeroconfBrowser, ZeroconfBrowser>();
@@ -81,6 +82,15 @@ app.MapPost("/api/scanners/{discoveryId}/select", async (string discoveryId, ISc
 {
     var result = await discovery.SelectAsync(discoveryId, cancellationToken);
     return result.Succeeded ? Results.Ok(result.Scanner) : Results.BadRequest(new { result.Diagnostic });
+});
+app.MapGet("/api/scan-sessions/{sessionId:guid}/pages/{fileName}", (Guid sessionId, string fileName, TemporaryStorageOptions storage) =>
+{
+    if (Path.GetFileName(fileName) != fileName || !fileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) return Results.BadRequest();
+    var root = Path.Combine(Path.GetFullPath(storage.Path), sessionId.ToString("N"));
+    var direct = Path.Combine(root, fileName);
+    var ordered = Path.Combine(root, "ordered", fileName);
+    var path = File.Exists(direct) ? direct : ordered;
+    return File.Exists(path) ? Results.File(path, "image/png", enableRangeProcessing: true) : Results.NotFound();
 });
 
 app.Run();
