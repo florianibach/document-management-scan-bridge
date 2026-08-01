@@ -1,9 +1,10 @@
-﻿@page "/"
+@page "/"
 @using PaperlessScanBridge.Application.Scanning
 @inject IScannerDiscoveryService Discovery
 @inject IScanner Scanner
 @inject ISimplexScanWorkflow ScanWorkflow
 @inject IManualDuplexWorkflow DuplexWorkflow
+@inject IPageEditingSession PageEditor
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 @rendermode InteractiveServer
@@ -87,6 +88,49 @@
  </div>
 </section>
 
+
+@if (PageEditor.Current is { } preview)
+{
+ <section class="card mt-4 preview-panel" aria-labelledby="preview-title">
+  <div class="card-body">
+   <h2 id="preview-title" class="h3">Seiten prüfen und bearbeiten</h2>
+   <p>Drehungen und Löschungen gelten nur für diese Sitzung; die unveränderten Quelldateien bleiben erhalten.</p>
+   @if (preview.Pages.Count == 0)
+   {
+    <div class="alert alert-warning" role="status">@preview.Message</div>
+   }
+   else
+   {
+    <div class="preview-grid">
+     @foreach (var scannedPage in preview.Pages)
+     {
+      <article class="preview-page" aria-label="@("Seite " + scannedPage.Number)">
+       <h3 class="h5">Seite @scannedPage.Number</h3>
+       @if (scannedPage.IsAvailable)
+       {
+        <div class="preview-image-frame"><img loading="lazy" src="@PageUrl(preview.SessionId, scannedPage.FileName)" alt="@("Vorschau von Seite " + scannedPage.Number)" style="transform: rotate(@(scannedPage.RotationDegrees)deg)" /></div>
+        <button class="btn btn-outline-primary w-100 mt-2" @onclick="() => PageEditor.Rotate(scannedPage.Id)" aria-label="@("Seite um 90 Grad drehen")">↻ 90° drehen</button>
+       }
+       else
+       {
+        <div class="alert alert-warning" role="alert">@scannedPage.Error</div>
+       }
+       @if (deleteCandidate == scannedPage.Id)
+       {
+        <div class="d-flex gap-2 mt-2"><button class="btn btn-danger flex-fill" @onclick="() => ConfirmDelete(scannedPage.Id)">Löschen bestätigen</button><button class="btn btn-outline-secondary flex-fill" @onclick="CancelDelete">Abbrechen</button></div>
+       }
+       else
+       {
+        <button class="btn btn-outline-danger w-100 mt-2" @onclick="() => RequestDelete(scannedPage.Id)">Seite löschen …</button>
+       }
+      </article>
+     }
+    </div>
+   }
+  </div>
+ </section>
+}
+
 <div class="container-fluid px-0">
     <div class="p-4 p-md-5 mb-4 rounded-3 bg-body-tertiary">
         <span class="badge text-bg-primary mb-3">Scannerkonfiguration</span>
@@ -152,6 +196,8 @@
     private int resolution = 300;
     private bool IsScanning => ScanWorkflow.Current?.IsActive == true;
     private bool finalBackIsBlank;
+    private Guid? deleteCandidate;
+    private Guid? loadedPreviewSession;
     private IJSObjectReference? notificationModule;
     private string notificationState = "disabled";
     private string? DuplexSource => availableSources.FirstOrDefault(IsFeederSource);
@@ -166,6 +212,7 @@
     {
         ScanWorkflow.Changed += OnScanChanged;
         DuplexWorkflow.Changed += OnScanChanged;
+        PageEditor.Changed += OnEditorChanged;
         savedScanners = await Discovery.GetSavedAsync(CancellationToken.None);
         if (savedScanners is [{ SaneDeviceId: not null } cached] && cached.Sources?.Count > 0)
             await ActivateScannerAsync(cached.Id);
@@ -177,7 +224,19 @@
         notificationState = await notificationModule.InvokeAsync<string>("getState");
         StateHasChanged();
     }
-    private void OnScanChanged() => _ = InvokeAsync(async () => { StateHasChanged(); await NotifyCurrentStateAsync(); });
+    private void OnScanChanged() => _ = InvokeAsync(async () =>
+    {
+        if (ScanWorkflow.Current is { State: ScanJobState.Completed } scan && loadedPreviewSession != scan.SessionId)
+        { loadedPreviewSession = scan.SessionId; await PageEditor.LoadAsync(scan.SessionId, false); }
+        if (DuplexWorkflow.Current is { State: ManualDuplexState.Completed } duplex && loadedPreviewSession != duplex.SessionId)
+        { loadedPreviewSession = duplex.SessionId; await PageEditor.LoadAsync(duplex.SessionId, true); }
+        StateHasChanged(); await NotifyCurrentStateAsync();
+    });
+    private void OnEditorChanged() => _ = InvokeAsync(StateHasChanged);
+    private static string PageUrl(Guid sessionId, string fileName) => $"/api/scan-sessions/{sessionId:D}/pages/{Uri.EscapeDataString(fileName)}";
+    private void RequestDelete(Guid id) => deleteCandidate = id;
+    private void CancelDelete() => deleteCandidate = null;
+    private void ConfirmDelete(Guid id) { PageEditor.Delete(id); deleteCandidate = null; }
     private async Task StartScanAsync() => await ScanWorkflow.StartAsync(new(activeDeviceId!, scanSource, colorMode, resolution));
     private Task CancelScanAsync() => ScanWorkflow.CancelAsync();
     private Task ContinueScanAsync() => ScanWorkflow.ContinueAsync();
@@ -201,7 +260,7 @@
     { try { await notificationModule!.InvokeVoidAsync("show", title, message, $"{sessionId:N}:{state}"); } catch (JSDisconnectedException) { } }
     public async ValueTask DisposeAsync()
     {
-        ScanWorkflow.Changed -= OnScanChanged; DuplexWorkflow.Changed -= OnScanChanged;
+        ScanWorkflow.Changed -= OnScanChanged; DuplexWorkflow.Changed -= OnScanChanged; PageEditor.Changed -= OnEditorChanged;
         if (notificationModule is not null) try { await notificationModule.DisposeAsync(); } catch (JSDisconnectedException) { }
     }
     private void ChangeSource(ChangeEventArgs args) => scanSource = args.Value?.ToString() ?? "";

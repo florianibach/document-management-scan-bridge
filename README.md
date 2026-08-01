@@ -87,6 +87,12 @@ The HP Color Laser MFP 179fnw's verified feeder behavior returns the flipped bac
 
 The active two-pass coordinator belongs to the current Blazor browser circuit rather than to an application-wide singleton. Independently connected browsers therefore have separate status, flip confirmation, and cancellation controls. A temporary SignalR reconnect retains the circuit; a full reload intentionally starts a new browser circuit and cancels its abandoned in-process scan. Temporary pages and the scanner process remain server-side because a browser cannot safely execute or own `scanimage`. In a multi-node deployment, keep standard Blazor circuit affinity for the duration of an active scan; a running physical scanner process cannot migrate between hosts.
 
+## Preview and page editing
+
+After a successful simplex or manual-duplex scan, the active browser circuit shows every page in its current reading order. Responsive thumbnails use native lazy loading so large batches do not block the mobile screen. A page can be rotated clockwise in 90-degree steps or removed only through a separate confirmation action; page numbers are recalculated immediately.
+
+These edits are non-destructive session metadata: original PNG files retain their scan quality and are not changed or deleted. An unreadable or corrupt PNG is marked individually, while the remaining pages stay editable. Reloading the page intentionally discards the active edit state; persistence and final PDF application belong to the following stories.
+
 ## Browser notifications
 
 Use **Benachrichtigungen aktivieren** on the start page to opt in. The browser then reports when a simplex scan needs a timeout decision, duplex fronts are ready to flip, pass counts differ, or a scan completes or fails. Permission is never requested during page load. A denied or unsupported permission is explained in the page.

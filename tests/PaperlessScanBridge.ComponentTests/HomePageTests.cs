@@ -64,6 +64,23 @@ public sealed class HomePageTests : BunitContext
     }
 
     [Fact]
+    public async Task PreviewRequiresDeleteConfirmationAndRenumbersPages()
+    {
+        var editor = new PageEditorStub(new(Guid.NewGuid(),
+            [new(Guid.NewGuid(), 1, "page-0001.png", 0, true, null), new(Guid.NewGuid(), 2, "page-0002.png", 0, true, null)]));
+        AddServices(new DiscoveryStub(new([], [])), editor: editor);
+        var page = Render<Home>();
+
+        Assert.Equal(2, page.FindAll(".preview-page").Count);
+        await page.FindAll("button").First(button => button.TextContent.Contains("Seite löschen")).ClickAsync(new());
+        Assert.Equal(2, page.FindAll(".preview-page").Count);
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Löschen bestätigen")).ClickAsync(new());
+
+        Assert.Single(page.FindAll(".preview-page"));
+        Assert.Contains("Seite 1", page.Find(".preview-page").TextContent);
+    }
+
+    [Fact]
     public async Task StartsSimplexScanAndReportsCompletion()
     {
         AddServices(new DiscoveryStub(new([], [])));
@@ -189,8 +206,8 @@ public sealed class HomePageTests : BunitContext
         Assert.Equal(200, duplex.ReceivedSettings.ResolutionDpi);
     }
 
-    private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); }
+    private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null, PageEditorStub? editor = null)
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); }
     private sealed class DiscoveryStub(ScannerNetworkDiscoveryResult result, string? selectionDiagnostic = null) : IScannerDiscoveryService
     {
         private readonly SelectedScanner saved = new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow, "airscan:test", ["Flatbed", "ADF Simplex"], [300]);
@@ -219,6 +236,19 @@ public sealed class HomePageTests : BunitContext
         public Task ContinueAsync() => Task.CompletedTask;
         public void SetState(ScanJobState state, string message)
         { Current = new(Guid.NewGuid(), state, 0, message, DateTimeOffset.UtcNow); Changed?.Invoke(); }
+    }
+
+    private sealed class PageEditorStub(PageEditingSnapshot? initial = null) : IPageEditingSession
+    {
+        public PageEditingSnapshot? Current { get; private set; } = initial;
+        public event Action? Changed;
+        public Task LoadAsync(Guid sessionId, bool manualDuplex, CancellationToken cancellationToken = default) { Current = new(sessionId, []); Changed?.Invoke(); return Task.CompletedTask; }
+        public void Rotate(Guid pageId) { }
+        public void Delete(Guid pageId)
+        {
+            var remaining = Current!.Pages.Where(page => page.Id != pageId).Select((page, index) => page with { Number = index + 1 }).ToArray();
+            Current = Current with { Pages = remaining }; Changed?.Invoke();
+        }
     }
     private sealed class DuplexWorkflowStub : IManualDuplexWorkflow
     {
