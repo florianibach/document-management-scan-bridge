@@ -6,6 +6,21 @@ public sealed class BridgeDbContext(DbContextOptions<BridgeDbContext> options) :
 {
     public DbSet<SchemaMarker> SchemaMarkers => Set<SchemaMarker>();
     public DbSet<SelectedScannerEntity> SelectedScanners => Set<SelectedScannerEntity>();
+    public DbSet<ProfileDefaultsEntity> ProfileDefaults => Set<ProfileDefaultsEntity>();
+}
+
+public sealed class ProfileDefaultsEntity
+{
+    public int Id { get; set; }
+    public long? ScannerId { get; set; }
+    public string? Source { get; set; }
+    public int ColorMode { get; set; }
+    public int ResolutionDpi { get; set; }
+    public string? Title { get; set; }
+    public int? CorrespondentId { get; set; }
+    public int? DocumentTypeId { get; set; }
+    public string TagIdsJson { get; set; } = "[]";
+    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 public sealed class SelectedScannerEntity

@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using PaperlessScanBridge.Infrastructure.Persistence;
 using PaperlessScanBridge.Application.Scanning;
+using PaperlessScanBridge.Application.Profiles;
 
 namespace PaperlessScanBridge.IntegrationTests;
 
@@ -20,6 +21,29 @@ public sealed class SqlitePersistenceTests
         Assert.True(await context.Database.CanConnectAsync());
         Assert.Empty(await context.SchemaMarkers.ToListAsync());
         Assert.Empty(await context.SelectedScanners.ToListAsync());
+        Assert.Empty(await context.ProfileDefaults.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ProfileDefaultsSurviveRestartUpdateAndReset()
+    {
+        var file = Path.Combine(Path.GetTempPath(), "profile-store-" + Guid.NewGuid().ToString("N") + ".db");
+        try
+        {
+            var options = new DbContextOptionsBuilder<BridgeDbContext>().UseSqlite("Data Source=" + file).Options;
+            await using (var context = new BridgeDbContext(options)) await context.Database.MigrateAsync();
+            var repository = new ProfileDefaultsRepository(new TestFactory(options));
+            await repository.SaveAsync(new(null,null,ScanColorMode.Grayscale,200," Rechnung ",4,5,[9,7],DateTimeOffset.UtcNow));
+            repository = new ProfileDefaultsRepository(new TestFactory(options));
+            var restarted = await repository.GetAsync();
+            Assert.Equal(ScanColorMode.Grayscale, restarted.ColorMode); Assert.Equal([7,9], restarted.TagIds);
+            await repository.SaveAsync(restarted with { ResolutionDpi = 300, Title = "Updated" });
+            Assert.Equal("Updated", (await repository.GetAsync()).Title);
+            await repository.ResetAsync();
+            Assert.Equal(300, (await repository.GetAsync()).ResolutionDpi);
+            Assert.Null((await repository.GetAsync()).Title);
+        }
+        finally { if(File.Exists(file)) File.Delete(file); }
     }
 
     [Fact]

@@ -1,0 +1,54 @@
+@page "/settings"
+@using PaperlessScanBridge.Application.Profiles
+@using PaperlessScanBridge.Application.Scanning
+@using PaperlessScanBridge.Application.Paperless
+@inject IProfileDefaultsService Profiles
+@inject IScannerDiscoveryService Discovery
+@inject IPaperlessClient Paperless
+@rendermode InteractiveServer
+
+<PageTitle>Profil-Einstellungen</PageTitle>
+<section class="card mt-4 settings-panel">
+ <div class="card-body">
+  <h1 class="h2">Lokales Profil</h1>
+  <p>Diese Vorgaben werden lokal in SQLite gespeichert und beim Start einer neuen Scan-Sitzung als unveränderlicher Ausgangspunkt übernommen.</p>
+  @if (loading) { <div class="alert alert-info" role="status">Einstellungen werden geladen …</div> }
+  else
+  {
+   @if (errors.Count > 0) { <div class="alert alert-warning" role="alert"><strong>Bitte korrigieren:</strong><ul class="mb-0">@foreach (var item in errors) { <li>@item</li> }</ul></div> }
+   @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-success" role="status">@message</div> }
+   <fieldset><legend class="h4">Scan-Vorgaben</legend>
+    <div class="mb-3"><label class="form-label" for="default-scanner">Scanner</label><select id="default-scanner" class="form-select form-select-lg" @bind="scannerId" @bind:after="ScannerChanged"><option value="">Kein Standardscanner</option>@foreach (var scanner in scanners) { <option value="@scanner.Id">@scanner.DisplayName (@scanner.IpAddress)</option> }</select></div>
+    <div class="mb-3"><label class="form-label" for="default-source">Quelle</label><select id="default-source" class="form-select form-select-lg" @bind="source" disabled="@(SelectedScanner is null)"><option value="">Quelle auswählen …</option>@foreach (var item in SelectedScanner?.Sources ?? []) { <option value="@item">@item</option> }</select></div>
+    <div class="row g-3"><div class="col-12 col-md-6"><label class="form-label" for="default-color">Farbmodus</label><select id="default-color" class="form-select form-select-lg" @bind="colorMode"><option value="Color">Farbe</option><option value="Grayscale">Graustufen</option><option value="BlackAndWhite">Schwarzweiß</option></select></div>
+    <div class="col-12 col-md-6"><label class="form-label" for="default-resolution">Auflösung</label><select id="default-resolution" class="form-select form-select-lg" @bind="resolution">@foreach (var dpi in SelectedScanner?.Resolutions ?? [100, 200, 300, 600]) { <option value="@dpi">@dpi dpi</option> }</select></div></div>
+   </fieldset>
+   <fieldset class="mt-4"><legend class="h4">Upload-Vorgaben</legend>
+    <div class="mb-3"><label class="form-label" for="default-title">Titel</label><input id="default-title" class="form-control form-control-lg" @bind="title" /></div>
+    <button class="btn btn-outline-secondary w-100 mb-3" @onclick="LoadMetadataAsync" disabled="@metadataLoading">@(metadataLoading ? "Paperless wird geprüft …" : "Paperless-Verbindung prüfen und Auswahl laden")</button>
+    @if (metadata is not null)
+    {
+     <div class="mb-3"><label class="form-label" for="default-correspondent">Korrespondent</label><select id="default-correspondent" class="form-select" @bind="correspondentId"><option value="">Keine Vorgabe</option>@foreach (var item in metadata.Correspondents) { <option value="@item.Id">@item.Name</option> }</select></div>
+     <div class="mb-3"><label class="form-label" for="default-document-type">Dokumenttyp</label><select id="default-document-type" class="form-select" @bind="documentTypeId"><option value="">Keine Vorgabe</option>@foreach (var item in metadata.DocumentTypes) { <option value="@item.Id">@item.Name</option> }</select></div>
+     <div><span class="form-label d-block">Tags</span>@foreach (var item in metadata.Tags) { <div class="form-check"><input class="form-check-input" type="checkbox" id="tag-@item.Id" checked="@tagIds.Contains(item.Id)" @onchange="args => ToggleTag(item.Id, args)" /><label class="form-check-label" for="tag-@item.Id">@item.Name</label></div> }</div>
+    }
+   </fieldset>
+   <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="SaveAsync">Vorgaben speichern</button>
+   <button class="btn btn-outline-danger w-100 mt-2" @onclick="ResetAsync">Auf Werkseinstellungen zurücksetzen</button>
+  }
+ </div>
+</section>
+
+@code {
+ private bool loading = true, metadataLoading; private string? message, source, title; private long? scannerId; private int resolution = 300; private ScanColorMode colorMode = ScanColorMode.Color;
+ private int? correspondentId, documentTypeId; private readonly HashSet<int> tagIds = []; private IReadOnlyList<string> errors = []; private IReadOnlyList<SelectedScanner> scanners = []; private PaperlessMetadata? metadata;
+ private SelectedScanner? SelectedScanner => scanners.FirstOrDefault(value => value.Id == scannerId);
+ protected override async Task OnInitializedAsync() { scanners = await Discovery.GetSavedAsync(default); Apply(await Profiles.GetAsync()); loading = false; }
+ private void Apply(ProfileDefaults value) { scannerId=value.ScannerId; source=value.Source; colorMode=value.ColorMode; resolution=value.ResolutionDpi; title=value.Title; correspondentId=value.CorrespondentId; documentTypeId=value.DocumentTypeId; tagIds.Clear(); tagIds.UnionWith(value.TagIds); }
+ private void ScannerChanged() { source = SelectedScanner?.Sources?.FirstOrDefault(); resolution = SelectedScanner?.Resolutions?.Contains(300) == true ? 300 : SelectedScanner?.Resolutions?.FirstOrDefault() ?? 300; }
+ private async Task LoadMetadataAsync() { metadataLoading=true; errors=[]; var result=await Paperless.GetMetadataAsync(); metadata=result.Metadata; if (!result.Result.Succeeded) errors=[result.Result.Message]; else ValidatePaperlessChoices(); metadataLoading=false; }
+ private void ValidatePaperlessChoices() { if (metadata is null) return; var list=new List<string>(); if (correspondentId is { } c && metadata.Correspondents.All(x=>x.Id!=c)) list.Add("Der gespeicherte Korrespondent existiert in Paperless nicht mehr."); if (documentTypeId is { } d && metadata.DocumentTypes.All(x=>x.Id!=d)) list.Add("Der gespeicherte Dokumenttyp existiert in Paperless nicht mehr."); foreach(var id in tagIds.Where(id=>metadata.Tags.All(x=>x.Id!=id))) list.Add($"Der gespeicherte Tag {id} existiert in Paperless nicht mehr."); errors=list; }
+ private void ToggleTag(int id, ChangeEventArgs args) { if(args.Value is true) tagIds.Add(id); else tagIds.Remove(id); }
+ private async Task SaveAsync() { message=null; ValidatePaperlessChoices(); if(errors.Count>0)return; var result=await Profiles.SaveAsync(new(scannerId,source,colorMode,resolution,title,correspondentId,documentTypeId,tagIds.ToArray(),DateTimeOffset.UtcNow)); errors=result.Errors; if(result.IsValid)message="Die Vorgaben wurden gespeichert."; }
+ private async Task ResetAsync() { await Profiles.ResetAsync(); Apply(await Profiles.GetAsync()); metadata=null; errors=[]; message="Alle Vorgaben wurden zurückgesetzt."; }
+}

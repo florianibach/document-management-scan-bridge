@@ -10,6 +10,7 @@ using PaperlessScanBridge.Application.Documents;
 using PaperlessScanBridge.Infrastructure.Documents;
 using PaperlessScanBridge.Application.Paperless;
 using PaperlessScanBridge.Infrastructure.Paperless;
+using PaperlessScanBridge.Application.Profiles;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,6 +54,8 @@ builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.O
 builder.Services.AddSingleton<IZeroconfBrowser, ZeroconfBrowser>();
 builder.Services.AddSingleton<IScannerDiscoveryService, ScannerDiscoveryService>();
 builder.Services.AddSingleton<ISelectedScannerRepository, SelectedScannerRepository>();
+builder.Services.AddSingleton<IProfileDefaultsRepository, ProfileDefaultsRepository>();
+builder.Services.AddScoped<IProfileDefaultsService, ProfileDefaultsService>();
 builder.Services.AddSingleton<ISaneAirscanConfigurationWriter, SaneAirscanConfigurationWriter>();
 builder.Services.AddSingleton<IScannerEndpointValidator, EsclScannerEndpointValidator>();
 builder.Services.AddHttpClient("escl-validation").ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
