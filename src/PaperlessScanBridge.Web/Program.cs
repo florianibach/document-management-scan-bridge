@@ -6,6 +6,8 @@ using PaperlessScanBridge.Application.Scanning;
 using PaperlessScanBridge.Infrastructure.Processes;
 using PaperlessScanBridge.Infrastructure.Scanning;
 using Microsoft.AspNetCore.DataProtection;
+using PaperlessScanBridge.Application.Documents;
+using PaperlessScanBridge.Infrastructure.Documents;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,6 +36,8 @@ builder.Services.AddScoped<ISimplexScanWorkflow, SimplexScanWorkflow>();
 // status, or cancellation controls into another independently connected browser.
 builder.Services.AddScoped<IManualDuplexWorkflow, ManualDuplexWorkflow>();
 builder.Services.AddScoped<IPageEditingSession, PageEditingSession>();
+builder.Services.AddScoped<IPdfCreationWorkflow, PdfCreationWorkflow>();
+builder.Services.AddSingleton<IPdfDocumentWriter, PdfSharpDocumentWriter>();
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TemporaryStorageOptions>>().Value);
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ScannerDiscoveryOptions>>().Value);
 builder.Services.AddSingleton<IZeroconfBrowser, ZeroconfBrowser>();
@@ -91,6 +95,11 @@ app.MapGet("/api/scan-sessions/{sessionId:guid}/pages/{fileName}", (Guid session
     var ordered = Path.Combine(root, "ordered", fileName);
     var path = File.Exists(direct) ? direct : ordered;
     return File.Exists(path) ? Results.File(path, "image/png", enableRangeProcessing: true) : Results.NotFound();
+});
+app.MapGet("/api/scan-sessions/{sessionId:guid}/document", (Guid sessionId, TemporaryStorageOptions storage) =>
+{
+    var path = Path.Combine(Path.GetFullPath(storage.Path), sessionId.ToString("N"), "document.pdf");
+    return File.Exists(path) ? Results.File(path, "application/pdf", "scan.pdf", enableRangeProcessing: true) : Results.NotFound();
 });
 
 app.Run();

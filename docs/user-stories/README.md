@@ -9,7 +9,7 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-003](done/003-simplex-scanning.md) | Simplex scanning (done) | One-sided documents can be scanned from the UI |
 | [US-004](done/004-manual-duplex.md) | Manual duplex (done) | Two passes become correctly ordered pages |
 | [US-005](done/005-preview-and-editing.md) | Preview and editing (done) | Users can inspect, rotate, and remove pages |
-| [US-006](006-pdf-creation.md) | PDF creation | Ordered pages become a final PDF |
+| [US-006](done/006-pdf-creation.md) | PDF creation (done) | Ordered pages become a final PDF |
 | [US-007](007-paperless-upload.md) | Paperless-ngx upload | PDFs and metadata can be submitted |
 | [US-008](008-profiles-and-defaults.md) | Profiles and defaults | Reused settings persist locally |
 | [US-009](009-deployment-hardening.md) | Deployment hardening | Self-hosting is reliable and documented |

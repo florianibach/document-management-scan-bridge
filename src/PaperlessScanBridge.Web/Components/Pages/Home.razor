@@ -1,10 +1,12 @@
 @page "/"
 @using PaperlessScanBridge.Application.Scanning
+@using PaperlessScanBridge.Application.Documents
 @inject IScannerDiscoveryService Discovery
 @inject IScanner Scanner
 @inject ISimplexScanWorkflow ScanWorkflow
 @inject IManualDuplexWorkflow DuplexWorkflow
 @inject IPageEditingSession PageEditor
+@inject IPdfCreationWorkflow PdfWorkflow
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 @rendermode InteractiveServer
@@ -126,6 +128,17 @@
       </article>
      }
     </div>
+    <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="CreatePdfAsync" disabled="@(PdfWorkflow.Current?.IsActive == true || preview.Pages.Any(page => !page.IsAvailable))">PDF erstellen</button>
+    @if (PdfWorkflow.Current?.IsActive == true)
+    {
+     <button class="btn btn-outline-danger w-100 mt-2" @onclick="CancelPdfAsync">PDF-Erstellung abbrechen</button>
+    }
+    @if (PdfWorkflow.Current is { } pdf)
+    {
+     <div class="alert @PdfStatusClass mt-3 mb-0" role="status" aria-live="polite"><strong>@PdfStatusLabel:</strong> @pdf.Message
+      @if (pdf.State == PdfCreationState.Completed) { <a class="btn btn-success w-100 mt-2" href="@PdfUrl(pdf.SessionId)">PDF herunterladen</a> }
+     </div>
+    }
    }
   </div>
  </section>
@@ -213,6 +226,7 @@
         ScanWorkflow.Changed += OnScanChanged;
         DuplexWorkflow.Changed += OnScanChanged;
         PageEditor.Changed += OnEditorChanged;
+        PdfWorkflow.Changed += OnPdfChanged;
         savedScanners = await Discovery.GetSavedAsync(CancellationToken.None);
         if (savedScanners is [{ SaneDeviceId: not null } cached] && cached.Sources?.Count > 0)
             await ActivateScannerAsync(cached.Id);
@@ -233,7 +247,13 @@
         StateHasChanged(); await NotifyCurrentStateAsync();
     });
     private void OnEditorChanged() => _ = InvokeAsync(StateHasChanged);
+    private void OnPdfChanged() => _ = InvokeAsync(StateHasChanged);
     private static string PageUrl(Guid sessionId, string fileName) => $"/api/scan-sessions/{sessionId:D}/pages/{Uri.EscapeDataString(fileName)}";
+    private static string PdfUrl(Guid sessionId) => $"/api/scan-sessions/{sessionId:D}/document";
+    private Task CreatePdfAsync() => PageEditor.Current is { } session ? PdfWorkflow.CreateAsync(session) : Task.CompletedTask;
+    private Task CancelPdfAsync() => PdfWorkflow.CancelAsync();
+    private string PdfStatusLabel => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "Fertig", PdfCreationState.Cancelled => "Abgebrochen", PdfCreationState.Failed => "Fehlgeschlagen", _ => "Läuft" };
+    private string PdfStatusClass => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "alert-success", PdfCreationState.Cancelled => "alert-warning", PdfCreationState.Failed => "alert-danger", _ => "alert-info" };
     private void RequestDelete(Guid id) => deleteCandidate = id;
     private void CancelDelete() => deleteCandidate = null;
     private void ConfirmDelete(Guid id) { PageEditor.Delete(id); deleteCandidate = null; }
@@ -260,7 +280,7 @@
     { try { await notificationModule!.InvokeVoidAsync("show", title, message, $"{sessionId:N}:{state}"); } catch (JSDisconnectedException) { } }
     public async ValueTask DisposeAsync()
     {
-        ScanWorkflow.Changed -= OnScanChanged; DuplexWorkflow.Changed -= OnScanChanged; PageEditor.Changed -= OnEditorChanged;
+        ScanWorkflow.Changed -= OnScanChanged; DuplexWorkflow.Changed -= OnScanChanged; PageEditor.Changed -= OnEditorChanged; PdfWorkflow.Changed -= OnPdfChanged;
         if (notificationModule is not null) try { await notificationModule.DisposeAsync(); } catch (JSDisconnectedException) { }
     }
     private void ChangeSource(ChangeEventArgs args) => scanSource = args.Value?.ToString() ?? "";

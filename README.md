@@ -93,6 +93,12 @@ After a successful simplex or manual-duplex scan, the active browser circuit sho
 
 These edits are non-destructive session metadata: original PNG files retain their scan quality and are not changed or deleted. An unreadable or corrupt PNG is marked individually, while the remaining pages stay editable. Reloading the page intentionally discards the active edit state; persistence and final PDF application belong to the following stories.
 
+## PDF creation
+
+After reviewing the pages, select **PDF erstellen**. The application uses the visible page order and applies every 90-degree rotation and deletion to one final PDF. Unavailable or corrupt pages block creation with a recoverable message. The default keeps the original PNG image data lossless and sizes each PDF page at the scan-oriented default of 300 dpi; OCR, PDF/A, signatures, and searchable text are deliberately not added.
+
+The completed file is written as `<session>/document.pdf.partial`, closed, and then atomically renamed to `document.pdf`, so the download endpoint can never publish a partial result. Repeating creation replaces the previous complete PDF. Success removes the partial file; cancellation and failure also remove it while retaining the original scan pages and non-destructive edit state for retry. The complete PDF and source pages remain together in temporary session storage until a later workflow deletes the session or the deployer clears the configured `TemporaryStorage` volume. This retention is intentional recovery behavior for US-006; automated age-based retention belongs to deployment hardening.
+
 ## Browser notifications
 
 Use **Benachrichtigungen aktivieren** on the start page to opt in. The browser then reports when a simplex scan needs a timeout decision, duplex fronts are ready to flip, pass counts differ, or a scan completes or fails. Permission is never requested during page load. A denied or unsupported permission is explained in the page.
