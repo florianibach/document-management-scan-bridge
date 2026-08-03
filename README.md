@@ -115,6 +115,14 @@ The completed file is written as `<session>/document.pdf.partial`, closed, and t
 
 Die Verbindungskontrolle unterscheidet fehlende Konfiguration, ungültige Authentifizierung (HTTP 401), fehlende Berechtigung (HTTP 403), Netzwerk-/Timeoutprobleme und Paperless-Serverfehler. `PAPERLESS_TIMEOUT_SECONDS` ändert bei Bedarf das Standardzeitlimit von 60 Sekunden. Paperless übernimmt OCR und seine normale Verarbeitung; die Bridge wartet nicht auf deren Abschluss.
 
+## Lokale Profilvorgaben
+
+Unter **Einstellungen** können Scan Bridge-Nutzer einen Standardscanner samt Quelle, Farbmodus und Auflösung sowie Titel, Korrespondent, Dokumenttyp und Tags für Paperless speichern. Die Werte liegen im persistenten SQLite-Datenvolumen. Eine neue Scan-Sitzung übernimmt eine Momentaufnahme; spätere Änderungen wirken nur auf danach gestartete Sitzungen.
+
+Vor dem Speichern werden Scannerquelle und Auflösung gegen die gespeicherten Fähigkeiten geprüft. Über **Paperless-Verbindung prüfen und Auswahl laden** werden gespeicherte Metadaten-IDs gegen die aktuelle Paperless-Instanz geprüft. Entfernte oder nicht mehr unterstützte Werte werden angezeigt und müssen korrigiert werden. **Auf Werkseinstellungen zurücksetzen** entfernt den lokalen Profildatensatz vollständig.
+
+US-008 ist absichtlich ein einzelnes lokales Profil ohne Anmeldung. Die geplanten [US-011](docs/user-stories/011-authenticated-user-profiles.md) und [US-012](docs/user-stories/012-profile-service-configuration.md) ergänzen eine OpenID-Connect-Anmeldung (beispielsweise Google oder Microsoft Entra ID), Benutzerisolation und verschlüsselt gespeicherte Paperless-URL und API-Token. Bis dahin bleiben URL und Token deployer-gesteuerte Umgebungswerte.
+
 ## Browser notifications
 
 Use **Benachrichtigungen aktivieren** on the start page to opt in. The browser then reports when a simplex scan needs a timeout decision, duplex fronts are ready to flip, pass counts differ, or a scan completes or fails. Permission is never requested during page load. A denied or unsupported permission is explained in the page.

@@ -11,6 +11,21 @@ partial class BridgeDbContextModelSnapshot : ModelSnapshot
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
         modelBuilder.HasAnnotation("ProductVersion", "10.0.2");
+        modelBuilder.Entity("PaperlessScanBridge.Infrastructure.Persistence.ProfileDefaultsEntity", b =>
+        {
+            b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+            b.Property<int>("ColorMode").HasColumnType("INTEGER");
+            b.Property<int?>("CorrespondentId").HasColumnType("INTEGER");
+            b.Property<int?>("DocumentTypeId").HasColumnType("INTEGER");
+            b.Property<int>("ResolutionDpi").HasColumnType("INTEGER");
+            b.Property<long?>("ScannerId").HasColumnType("INTEGER");
+            b.Property<string>("Source").HasColumnType("TEXT");
+            b.Property<string>("TagIdsJson").IsRequired().HasColumnType("TEXT");
+            b.Property<string>("Title").HasColumnType("TEXT");
+            b.Property<DateTimeOffset>("UpdatedAt").HasColumnType("TEXT");
+            b.HasKey("Id");
+            b.ToTable("ProfileDefaults");
+        });
         modelBuilder.Entity("PaperlessScanBridge.Infrastructure.Persistence.SchemaMarker", b =>
         {
             b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");

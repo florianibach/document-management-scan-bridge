@@ -2,6 +2,7 @@
 @using PaperlessScanBridge.Application.Scanning
 @using PaperlessScanBridge.Application.Documents
 @using PaperlessScanBridge.Application.Paperless
+@using PaperlessScanBridge.Application.Profiles
 @inject IScannerDiscoveryService Discovery
 @inject IScanner Scanner
 @inject ISimplexScanWorkflow ScanWorkflow
@@ -10,6 +11,7 @@
 @inject IPdfCreationWorkflow PdfWorkflow
 @inject IPaperlessClient PaperlessClient
 @inject IPaperlessUploadWorkflow UploadWorkflow
+@inject IProfileDefaultsService Profiles
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 @rendermode InteractiveServer
@@ -257,7 +259,18 @@
         PdfWorkflow.Changed += OnPdfChanged;
         UploadWorkflow.Changed += OnUploadChanged;
         savedScanners = await Discovery.GetSavedAsync(CancellationToken.None);
-        if (savedScanners is [{ SaneDeviceId: not null } cached] && cached.Sources?.Count > 0)
+        var defaults = await Profiles.GetAsync(CancellationToken.None);
+        colorMode = defaults.ColorMode; resolution = defaults.ResolutionDpi;
+        paperlessTitle = defaults.Title; paperlessCorrespondent = defaults.CorrespondentId;
+        paperlessDocumentType = defaults.DocumentTypeId; paperlessTags.UnionWith(defaults.TagIds);
+        var validation = await Profiles.ValidateAsync(defaults, CancellationToken.None);
+        if (!validation.IsValid) { error = true; message = string.Join(" ", validation.Errors) + " Bitte in den Einstellungen korrigieren."; }
+        else if (defaults.ScannerId is { } scannerId)
+        {
+            await ActivateScannerAsync(scannerId);
+            if (!string.IsNullOrWhiteSpace(defaults.Source)) scanSource = defaults.Source;
+        }
+        else if (savedScanners is [{ SaneDeviceId: not null } cached] && cached.Sources?.Count > 0)
             await ActivateScannerAsync(cached.Id);
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)

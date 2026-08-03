@@ -7,6 +7,7 @@ using PaperlessScanBridge.Web.Components.Layout;
 using PaperlessScanBridge.Web;
 using PaperlessScanBridge.Application.Documents;
 using PaperlessScanBridge.Application.Paperless;
+using PaperlessScanBridge.Application.Profiles;
 
 namespace PaperlessScanBridge.ComponentTests;
 
@@ -240,7 +241,15 @@ public sealed class HomePageTests : BunitContext
     }
 
     private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null, PageEditorStub? editor = null, PaperlessStub? paperless = null)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); }
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); Services.AddSingleton<IProfileDefaultsService>(new ProfileStub()); }
+    private sealed class ProfileStub : IProfileDefaultsService
+    {
+        private static readonly ProfileDefaults Empty = new(null,null,ScanColorMode.Color,300,null,null,null,[],DateTimeOffset.MinValue);
+        public Task<ProfileDefaults> GetAsync(CancellationToken cancellationToken=default)=>Task.FromResult(Empty);
+        public Task<ProfileValidation> ValidateAsync(ProfileDefaults value,CancellationToken cancellationToken=default)=>Task.FromResult(new ProfileValidation(true,[],value));
+        public Task<ProfileValidation> SaveAsync(ProfileDefaults value,CancellationToken cancellationToken=default)=>Task.FromResult(new ProfileValidation(true,[],value));
+        public Task ResetAsync(CancellationToken cancellationToken=default)=>Task.CompletedTask;
+    }
     private sealed class DiscoveryStub(ScannerNetworkDiscoveryResult result, string? selectionDiagnostic = null) : IScannerDiscoveryService
     {
         private readonly SelectedScanner saved = new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow, "airscan:test", ["Flatbed", "ADF Simplex"], [300]);
