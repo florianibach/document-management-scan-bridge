@@ -5,6 +5,7 @@ using PaperlessScanBridge.Application.Scanning;
 using PaperlessScanBridge.Web.Components.Pages;
 using PaperlessScanBridge.Web.Components.Layout;
 using PaperlessScanBridge.Web;
+using PaperlessScanBridge.Application.Documents;
 
 namespace PaperlessScanBridge.ComponentTests;
 
@@ -78,6 +79,19 @@ public sealed class HomePageTests : BunitContext
 
         Assert.Single(page.FindAll(".preview-page"));
         Assert.Contains("Seite 1", page.Find(".preview-page").TextContent);
+    }
+
+    [Fact]
+    public async Task ReviewedPagesCanCreateAndDownloadPdf()
+    {
+        var editor = new PageEditorStub(new(Guid.NewGuid(), [new(Guid.NewGuid(), 1, "page-0001.png", 90, true, null)]));
+        AddServices(new DiscoveryStub(new([], [])), editor: editor);
+        var page = Render<Home>();
+
+        await page.FindAll("button").Single(button => button.TextContent.Contains("PDF erstellen")).ClickAsync(new());
+
+        Assert.Contains("PDF herunterladen", page.Markup);
+        Assert.Contains("/document", page.Find("a[href$='/document']").GetAttribute("href"));
     }
 
     [Fact]
@@ -207,7 +221,7 @@ public sealed class HomePageTests : BunitContext
     }
 
     private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null, PageEditorStub? editor = null)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); }
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); }
     private sealed class DiscoveryStub(ScannerNetworkDiscoveryResult result, string? selectionDiagnostic = null) : IScannerDiscoveryService
     {
         private readonly SelectedScanner saved = new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow, "airscan:test", ["Flatbed", "ADF Simplex"], [300]);
@@ -259,5 +273,13 @@ public sealed class HomePageTests : BunitContext
         public Task ConfirmFlipAsync(bool finalBackIsBlank) => Task.CompletedTask;
         public Task CancelAsync() => Task.CompletedTask;
         public Task RestartAsync() { Current = null; Changed?.Invoke(); return Task.CompletedTask; }
+    }
+    private sealed class PdfWorkflowStub : IPdfCreationWorkflow
+    {
+        public PdfCreationSnapshot? Current { get; private set; }
+        public event Action? Changed;
+        public Task CreateAsync(PageEditingSnapshot session, CancellationToken cancellationToken = default)
+        { Current = new(session.SessionId, PdfCreationState.Completed, "PDF vollständig erstellt.", "document.pdf"); Changed?.Invoke(); return Task.CompletedTask; }
+        public Task CancelAsync() => Task.CompletedTask;
     }
 }
