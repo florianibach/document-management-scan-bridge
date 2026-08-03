@@ -25,6 +25,7 @@ public sealed class PaperlessOptions
     public const string SectionName = "Paperless";
     [Required, Url] public string BaseUrl { get; init; } = "http://paperless:8000";
     public string? ApiToken { get; init; }
+    [Range(1, 300)] public int TimeoutSeconds { get; init; } = 60;
 }
 
 public sealed class PersistenceOptions

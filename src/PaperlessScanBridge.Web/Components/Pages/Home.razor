@@ -1,12 +1,15 @@
 @page "/"
 @using PaperlessScanBridge.Application.Scanning
 @using PaperlessScanBridge.Application.Documents
+@using PaperlessScanBridge.Application.Paperless
 @inject IScannerDiscoveryService Discovery
 @inject IScanner Scanner
 @inject ISimplexScanWorkflow ScanWorkflow
 @inject IManualDuplexWorkflow DuplexWorkflow
 @inject IPageEditingSession PageEditor
 @inject IPdfCreationWorkflow PdfWorkflow
+@inject IPaperlessClient PaperlessClient
+@inject IPaperlessUploadWorkflow UploadWorkflow
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 @rendermode InteractiveServer
@@ -139,6 +142,23 @@
       @if (pdf.State == PdfCreationState.Completed) { <a class="btn btn-success w-100 mt-2" href="@PdfUrl(pdf.SessionId)">PDF herunterladen</a> }
      </div>
     }
+    @if (PdfWorkflow.Current is { State: PdfCreationState.Completed } completed)
+    {
+     <hr class="my-4" />
+     <h3 class="h4">An Paperless-ngx senden</h3>
+     <button class="btn btn-outline-primary w-100" @onclick="LoadPaperlessAsync" disabled="@paperlessLoading">@(paperlessLoading ? "Verbindung wird geprüft …" : "Verbindung prüfen und Metadaten laden")</button>
+     @if (!string.IsNullOrWhiteSpace(paperlessMessage)) { <div class="alert @(paperlessError ? "alert-danger" : "alert-success") mt-2" role="status">@paperlessMessage</div> }
+     @if (paperlessMetadata is not null)
+     {
+      <div class="mt-3"><label class="form-label" for="paperless-title">Titel (optional)</label><input id="paperless-title" class="form-control form-control-lg" maxlength="256" @bind="paperlessTitle" /></div>
+      <div class="mt-3"><label class="form-label" for="paperless-correspondent">Korrespondent (optional)</label><select id="paperless-correspondent" class="form-select form-select-lg" @bind="paperlessCorrespondent"><option value="">Nicht festlegen</option>@foreach (var choice in paperlessMetadata.Correspondents) { <option value="@choice.Id">@choice.Name</option> }</select></div>
+      <div class="mt-3"><label class="form-label" for="paperless-type">Dokumenttyp (optional)</label><select id="paperless-type" class="form-select form-select-lg" @bind="paperlessDocumentType"><option value="">Nicht festlegen</option>@foreach (var choice in paperlessMetadata.DocumentTypes) { <option value="@choice.Id">@choice.Name</option> }</select></div>
+      <fieldset class="mt-3"><legend class="h6">Tags (optional)</legend>@if (paperlessMetadata.Tags.Count == 0) { <p class="text-body-secondary">Keine Tags vorhanden.</p> }@foreach (var choice in paperlessMetadata.Tags) { <div class="form-check"><input class="form-check-input" id="paperless-tag-@choice.Id" type="checkbox" checked="@paperlessTags.Contains(choice.Id)" @onchange="args => ToggleTag(choice.Id, args)" /><label class="form-check-label" for="paperless-tag-@choice.Id">@choice.Name</label></div> }</fieldset>
+      <button class="btn btn-success btn-lg w-100 mt-4" @onclick="() => UploadAsync(completed.SessionId)" disabled="@(UploadWorkflow.Current?.IsActive == true || UploadWorkflow.Current is { State: PaperlessUploadState.Accepted, SessionId: var accepted } && accepted == completed.SessionId)">An Paperless senden</button>
+      @if (UploadWorkflow.Current?.IsActive == true) { <progress class="w-100 mt-3" max="100" value="@UploadWorkflow.Current.ProgressPercent">@UploadWorkflow.Current.ProgressPercent%</progress><button class="btn btn-outline-danger w-100 mt-2" @onclick="UploadWorkflow.CancelAsync">Upload abbrechen</button> }
+      @if (UploadWorkflow.Current is { } upload) { <div class="alert @(upload.State == PaperlessUploadState.Accepted ? "alert-success" : upload.State == PaperlessUploadState.Failed ? "alert-danger" : "alert-info") mt-3" role="status">@upload.Message@if (!string.IsNullOrWhiteSpace(upload.TaskId)) { <div><small>Paperless-Auftrags-ID: @upload.TaskId</small></div> }</div> }
+     }
+    }
    }
   </div>
  </section>
@@ -213,6 +233,14 @@
     private Guid? loadedPreviewSession;
     private IJSObjectReference? notificationModule;
     private string notificationState = "disabled";
+    private PaperlessMetadata? paperlessMetadata;
+    private string? paperlessMessage;
+    private bool paperlessError;
+    private bool paperlessLoading;
+    private string? paperlessTitle;
+    private int? paperlessCorrespondent;
+    private int? paperlessDocumentType;
+    private readonly HashSet<int> paperlessTags = [];
     private string? DuplexSource => availableSources.FirstOrDefault(IsFeederSource);
     private bool HasAdf => !string.IsNullOrWhiteSpace(activeDeviceId) && DuplexSource is not null;
     private string ColorModeLabel => colorMode switch { ScanColorMode.Color => "Farbe", ScanColorMode.Grayscale => "Graustufen", _ => "Schwarzweiß" };
@@ -227,6 +255,7 @@
         DuplexWorkflow.Changed += OnScanChanged;
         PageEditor.Changed += OnEditorChanged;
         PdfWorkflow.Changed += OnPdfChanged;
+        UploadWorkflow.Changed += OnUploadChanged;
         savedScanners = await Discovery.GetSavedAsync(CancellationToken.None);
         if (savedScanners is [{ SaneDeviceId: not null } cached] && cached.Sources?.Count > 0)
             await ActivateScannerAsync(cached.Id);
@@ -248,6 +277,15 @@
     });
     private void OnEditorChanged() => _ = InvokeAsync(StateHasChanged);
     private void OnPdfChanged() => _ = InvokeAsync(StateHasChanged);
+    private void OnUploadChanged() => _ = InvokeAsync(StateHasChanged);
+    private async Task LoadPaperlessAsync()
+    {
+        paperlessLoading = true;
+        try { var loaded = await PaperlessClient.GetMetadataAsync(); paperlessMetadata = loaded.Metadata; paperlessMessage = loaded.Result.Message; paperlessError = !loaded.Result.Succeeded; }
+        finally { paperlessLoading = false; }
+    }
+    private void ToggleTag(int id, ChangeEventArgs args) { if (args.Value is true) paperlessTags.Add(id); else paperlessTags.Remove(id); }
+    private Task UploadAsync(Guid sessionId) => UploadWorkflow.UploadAsync(new(sessionId, paperlessTitle, paperlessCorrespondent, paperlessDocumentType, paperlessTags.ToArray()));
     private static string PageUrl(Guid sessionId, string fileName) => $"/api/scan-sessions/{sessionId:D}/pages/{Uri.EscapeDataString(fileName)}";
     private static string PdfUrl(Guid sessionId) => $"/api/scan-sessions/{sessionId:D}/document";
     private Task CreatePdfAsync() => PageEditor.Current is { } session ? PdfWorkflow.CreateAsync(session) : Task.CompletedTask;
@@ -280,7 +318,7 @@
     { try { await notificationModule!.InvokeVoidAsync("show", title, message, $"{sessionId:N}:{state}"); } catch (JSDisconnectedException) { } }
     public async ValueTask DisposeAsync()
     {
-        ScanWorkflow.Changed -= OnScanChanged; DuplexWorkflow.Changed -= OnScanChanged; PageEditor.Changed -= OnEditorChanged; PdfWorkflow.Changed -= OnPdfChanged;
+        ScanWorkflow.Changed -= OnScanChanged; DuplexWorkflow.Changed -= OnScanChanged; PageEditor.Changed -= OnEditorChanged; PdfWorkflow.Changed -= OnPdfChanged; UploadWorkflow.Changed -= OnUploadChanged;
         if (notificationModule is not null) try { await notificationModule.DisposeAsync(); } catch (JSDisconnectedException) { }
     }
     private void ChangeSource(ChangeEventArgs args) => scanSource = args.Value?.ToString() ?? "";
