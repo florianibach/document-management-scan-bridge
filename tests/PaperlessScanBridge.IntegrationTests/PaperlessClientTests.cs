@@ -17,7 +17,10 @@ public sealed class PaperlessClientTests : IDisposable
         Assert.True(metadata.Result.Succeeded); Assert.Equal("Example", metadata.Metadata!.Correspondents.Single().Name);
         var session = Guid.NewGuid(); Directory.CreateDirectory(Path.Combine(root, session.ToString("N"))); await File.WriteAllTextAsync(Path.Combine(root, session.ToString("N"), "document.pdf"), "pdf");
         var result = await client.UploadAsync(new(session, "Invoice", 1, 2, [3]));
-        Assert.True(result.Succeeded); Assert.Equal("task-123", result.TaskId); Assert.Contains("name=title", handler.UploadBody); Assert.Contains("Invoice", handler.UploadBody); Assert.All(handler.AuthorizationValues, value => Assert.Equal("Token secret-token", value));
+        Assert.True(result.Succeeded); Assert.Equal("task-123", result.TaskId);
+        Assert.StartsWith("multipart/form-data", handler.UploadContentType);
+        Assert.Contains("boundary=", handler.UploadContentType);
+        Assert.Contains("name=title", handler.UploadBody); Assert.Contains("Invoice", handler.UploadBody); Assert.All(handler.AuthorizationValues, value => Assert.Equal("Token secret-token", value));
     }
 
     [Theory] [InlineData(HttpStatusCode.Unauthorized, PaperlessFailure.Authentication)] [InlineData(HttpStatusCode.Forbidden, PaperlessFailure.Authorization)] [InlineData(HttpStatusCode.InternalServerError, PaperlessFailure.Server)]
@@ -28,11 +31,18 @@ public sealed class PaperlessClientTests : IDisposable
     public void Dispose() { if (Directory.Exists(root)) Directory.Delete(root, true); }
     private sealed class Handler(HttpStatusCode? failure = null) : HttpMessageHandler
     {
-        public string UploadBody { get; private set; } = ""; public List<string> AuthorizationValues { get; } = [];
+        public string UploadBody { get; private set; } = "";
+        public string UploadContentType { get; private set; } = "";
+        public List<string> AuthorizationValues { get; } = [];
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             AuthorizationValues.Add(request.Headers.Authorization!.ToString()); if (failure is { } status) return new(status);
-            if (request.Method == HttpMethod.Post) { UploadBody = await request.Content!.ReadAsStringAsync(cancellationToken); return new(HttpStatusCode.OK) { Content = new StringContent("\"task-123\"") }; }
+            if (request.Method == HttpMethod.Post)
+            {
+                UploadContentType = request.Content!.Headers.ContentType?.ToString() ?? "";
+                UploadBody = await request.Content.ReadAsStringAsync(cancellationToken);
+                return new(HttpStatusCode.OK) { Content = new StringContent("\"task-123\"") };
+            }
             if (request.RequestUri!.AbsolutePath.Contains("documents")) return Json("{\"results\":[]}");
             return Json("{\"results\":[{\"id\":1,\"name\":\"Example\"}]}");
         }

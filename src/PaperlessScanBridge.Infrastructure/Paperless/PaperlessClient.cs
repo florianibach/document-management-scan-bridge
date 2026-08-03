@@ -87,8 +87,23 @@ public sealed class PaperlessClient(HttpClient http, PaperlessOptions options, T
     private sealed class PaperlessHttpException(HttpStatusCode statusCode) : Exception { public HttpStatusCode StatusCode { get; } = statusCode; }
 }
 
-internal sealed class ProgressContent(HttpContent inner, IProgress<int>? progress) : HttpContent
+internal sealed class ProgressContent : HttpContent
 {
+    private readonly HttpContent inner;
+    private readonly IProgress<int>? progress;
+
+    public ProgressContent(HttpContent inner, IProgress<int>? progress)
+    {
+        this.inner = inner;
+        this.progress = progress;
+
+        // HttpContent wrappers do not inherit the wrapped content headers. In particular,
+        // dropping multipart/form-data (including its boundary) makes Paperless reject the
+        // otherwise valid body with HTTP 415 Unsupported Media Type.
+        foreach (var header in inner.Headers)
+            Headers.TryAddWithoutValidation(header.Key, header.Value);
+    }
+
     protected override bool TryComputeLength(out long length) { length = inner.Headers.ContentLength ?? -1; return length >= 0; }
     protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context)
     {
