@@ -8,6 +8,8 @@ using PaperlessScanBridge.Infrastructure.Scanning;
 using Microsoft.AspNetCore.DataProtection;
 using PaperlessScanBridge.Application.Documents;
 using PaperlessScanBridge.Infrastructure.Documents;
+using PaperlessScanBridge.Application.Paperless;
+using PaperlessScanBridge.Infrastructure.Paperless;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,6 +40,14 @@ builder.Services.AddScoped<IManualDuplexWorkflow, ManualDuplexWorkflow>();
 builder.Services.AddScoped<IPageEditingSession, PageEditingSession>();
 builder.Services.AddScoped<IPdfCreationWorkflow, PdfCreationWorkflow>();
 builder.Services.AddSingleton<IPdfDocumentWriter, PdfSharpDocumentWriter>();
+builder.Services.AddScoped<IPaperlessUploadWorkflow, PaperlessUploadWorkflow>();
+builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaperlessOptions>>().Value);
+builder.Services.AddHttpClient<IPaperlessClient, PaperlessClient>((sp, client) =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaperlessOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TemporaryStorageOptions>>().Value);
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ScannerDiscoveryOptions>>().Value);
 builder.Services.AddSingleton<IZeroconfBrowser, ZeroconfBrowser>();

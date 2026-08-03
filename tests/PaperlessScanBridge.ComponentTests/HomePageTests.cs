@@ -6,6 +6,7 @@ using PaperlessScanBridge.Web.Components.Pages;
 using PaperlessScanBridge.Web.Components.Layout;
 using PaperlessScanBridge.Web;
 using PaperlessScanBridge.Application.Documents;
+using PaperlessScanBridge.Application.Paperless;
 
 namespace PaperlessScanBridge.ComponentTests;
 
@@ -92,6 +93,24 @@ public sealed class HomePageTests : BunitContext
 
         Assert.Contains("PDF herunterladen", page.Markup);
         Assert.Contains("/document", page.Find("a[href$='/document']").GetAttribute("href"));
+    }
+
+    [Fact]
+    public async Task CompletedPdfLoadsMetadataAndUploadsExactlyOnce()
+    {
+        var editor = new PageEditorStub(new(Guid.NewGuid(), [new(Guid.NewGuid(), 1, "page.png", 0, true, null)]));
+        var paperless = new PaperlessStub();
+        AddServices(new DiscoveryStub(new([], [])), editor: editor, paperless: paperless);
+        var page = Render<Home>();
+        await page.FindAll("button").Single(button => button.TextContent.Contains("PDF erstellen")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Metadaten laden")).ClickAsync(new());
+        Assert.Contains("Example GmbH", page.Markup);
+        await page.Find("#paperless-title").ChangeAsync("Rechnung August");
+        await page.FindAll("button").Single(button => button.TextContent.Contains("An Paperless senden")).ClickAsync(new());
+        var acceptedButton = page.FindAll("button").Single(button => button.TextContent.Contains("An Paperless senden"));
+        Assert.True(acceptedButton.HasAttribute("disabled"));
+        Assert.Equal(1, paperless.UploadCalls);
+        page.WaitForAssertion(() => Assert.Contains("angenommen", page.Markup));
     }
 
     [Fact]
@@ -220,8 +239,8 @@ public sealed class HomePageTests : BunitContext
         Assert.Equal(200, duplex.ReceivedSettings.ResolutionDpi);
     }
 
-    private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null, PageEditorStub? editor = null)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); }
+    private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null, PageEditorStub? editor = null, PaperlessStub? paperless = null)
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); }
     private sealed class DiscoveryStub(ScannerNetworkDiscoveryResult result, string? selectionDiagnostic = null) : IScannerDiscoveryService
     {
         private readonly SelectedScanner saved = new(1, "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL", DateTimeOffset.UtcNow, "airscan:test", ["Flatbed", "ADF Simplex"], [300]);
@@ -281,5 +300,12 @@ public sealed class HomePageTests : BunitContext
         public Task CreateAsync(PageEditingSnapshot session, CancellationToken cancellationToken = default)
         { Current = new(session.SessionId, PdfCreationState.Completed, "PDF vollständig erstellt.", "document.pdf"); Changed?.Invoke(); return Task.CompletedTask; }
         public Task CancelAsync() => Task.CompletedTask;
+    }
+    private sealed class PaperlessStub : IPaperlessClient
+    {
+        public int UploadCalls { get; private set; }
+        public Task<PaperlessResult> CheckConnectivityAsync(CancellationToken cancellationToken = default) => Task.FromResult(new PaperlessResult(true, "Verbindung gültig."));
+        public Task<(PaperlessResult Result, PaperlessMetadata? Metadata)> GetMetadataAsync(CancellationToken cancellationToken = default) => Task.FromResult<(PaperlessResult, PaperlessMetadata?)>((new(true, "Metadaten wurden geladen."), new([new(1, "Example GmbH")], [new(2, "Rechnung")], [new(3, "Eingang")])));
+        public Task<PaperlessResult> UploadAsync(PaperlessUploadRequest request, IProgress<int>? progress = null, CancellationToken cancellationToken = default) { UploadCalls++; progress?.Report(100); return Task.FromResult(new PaperlessResult(true, "Paperless hat das Dokument angenommen.", TaskId: "task-1")); }
     }
 }

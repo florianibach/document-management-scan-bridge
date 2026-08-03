@@ -61,7 +61,7 @@ Configuration uses standard ASP.NET Core keys:
 | --- | --- | --- |
 | `Scanner` | Executable, short discovery timeout, long scan-job timeout, and optional selected device | `SCANNER_SCAN_TIMEOUT_SECONDS=1800` |
 | `ScannerDiscovery` | mDNS/validation timeouts and managed SANE configuration | `ScannerDiscovery__TimeoutSeconds=5` |
-| `Paperless` | Future service URL and secret token | `Paperless__ApiToken=...` |
+| `Paperless` | Service URL, secret API token, and HTTP timeout | `Paperless__ApiToken=...` |
 | `Persistence` | SQLite connection | `Persistence__ConnectionString=Data Source=/app/data/bridge.db` |
 | `TemporaryStorage` | Writable working directory | `TemporaryStorage__Path=/app/temp` |
 | `DataProtectionStorage` | Persistent ASP.NET Core encryption keys | `DataProtectionStorage__Path=/app/data/dataprotection-keys` |
@@ -98,6 +98,22 @@ These edits are non-destructive session metadata: original PNG files retain thei
 After reviewing the pages, select **PDF erstellen**. The application uses the visible page order and applies every 90-degree rotation and deletion to one final PDF. Unavailable or corrupt pages block creation with a recoverable message. The default keeps the original PNG image data lossless and sizes each PDF page at the scan-oriented default of 300 dpi; OCR, PDF/A, signatures, and searchable text are deliberately not added.
 
 The completed file is written as `<session>/document.pdf.partial`, closed, and then atomically renamed to `document.pdf`, so the download endpoint can never publish a partial result. Repeating creation replaces the previous complete PDF. Success removes the partial file; cancellation and failure also remove it while retaining the original scan pages and non-destructive edit state for retry. The complete PDF and source pages remain together in temporary session storage until a later workflow deletes the session or the deployer clears the configured `TemporaryStorage` volume. This retention is intentional recovery behavior for US-006; automated age-based retention belongs to deployment hardening.
+
+## Paperless-ngx einrichten und hochladen
+
+1. In Paperless-ngx anmelden, rechts oben das Benutzermenü öffnen und **Mein Profil** wählen.
+2. Im Bereich **API-Authentifizierung** mit dem runden Pfeil einen Token erzeugen beziehungsweise erneuern und den angezeigten Wert kopieren. Ein erneuerter Token macht den bisherigen Token ungültig. Details stehen in der [Paperless-ngx-Dokumentation zur API-Authentifizierung](https://docs.paperless-ngx.com/api/#authorization).
+3. Auf dem Scan-Bridge-Host eine nicht versionierte `.env`-Datei neben `compose.yaml` anlegen:
+
+   ```dotenv
+   PAPERLESS_URL=https://paperless.example.test
+   PAPERLESS_TOKEN=den-kopierten-token-hier-einsetzen
+   ```
+
+4. `docker compose up --detach --build` ausführen. Die `.env`-Datei und der Token dürfen nicht committed, in Screenshots geteilt oder in Support-Ausgaben eingefügt werden. Der Benutzer des Tokens benötigt mindestens Leserechte für Dokumente, Korrespondenten, Dokumenttypen und Tags sowie die Berechtigung zum Hinzufügen von Dokumenten.
+5. Nach der PDF-Erstellung **Verbindung prüfen und Metadaten laden** wählen. Titel, Korrespondent, Dokumenttyp und Tags auswählen und anschließend **An Paperless senden** drücken. Nach Annahme zeigt die Anwendung die Paperless-Auftrags-ID. Bei Netzwerk- oder Serverfehlern bleibt `document.pdf` in der Scan-Sitzung erhalten und der kontrollierte erneute Versuch ist möglich.
+
+Die Verbindungskontrolle unterscheidet fehlende Konfiguration, ungültige Authentifizierung (HTTP 401), fehlende Berechtigung (HTTP 403), Netzwerk-/Timeoutprobleme und Paperless-Serverfehler. `PAPERLESS_TIMEOUT_SECONDS` ändert bei Bedarf das Standardzeitlimit von 60 Sekunden. Paperless übernimmt OCR und seine normale Verarbeitung; die Bridge wartet nicht auf deren Abschluss.
 
 ## Browser notifications
 
