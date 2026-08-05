@@ -87,6 +87,7 @@ Do not commit `.env`, API tokens, client secrets, private scanner IDs, or privat
 | `PROFILE_MODE` | `Profiles__Mode` | `Anonymous` | `Anonymous` uses one shared no-login profile; `OpenIdConnect` requires OIDC sign-in and isolates profiles by issuer plus subject. |
 | `PROFILE_ANONYMOUS_SUBJECT` | `Profiles__AnonymousSubject` | `scan-bridge-local-anonymous-profile` | Stable deployment-local subject for the shared anonymous profile. Not secret; keep stable across restarts. |
 | `PROFILE_LEGACY_DEFAULTS_MIGRATION` | `Profiles__LegacyDefaultsMigration` | `MoveToAnonymous` | One-time handling for pre-US-011 local defaults. `MoveToAnonymous` keeps them on the anonymous profile; `Reset` can be used before first authenticated production use to discard them. |
+| `PROFILE_SIGNOUT_MODE` | `Profiles__SignOutMode` | `ProviderWithLocalFallback` | Logout behavior. `ProviderWithLocalFallback` tries provider logout after clearing the local cookie and falls back to local completion if provider discovery/logout is unavailable; `LocalOnly` never contacts the provider. |
 | `OIDC_AUTHORITY` | `Authentication__Oidc__Authority` | empty | OpenID Connect issuer/authority, for example `https://accounts.google.com`. Required when `PROFILE_MODE=OpenIdConnect`. |
 | `OIDC_CLIENT_ID` | `Authentication__Oidc__ClientId` | empty | OIDC web application client ID. Treat deployment-specific values as sensitive operational metadata. |
 | `OIDC_CLIENT_SECRET` | `Authentication__Oidc__ClientSecret` | empty | OIDC web application client secret. Secret; store only in `.env` or a secret manager. |
@@ -167,7 +168,7 @@ Google provider setup example:
 
 Authenticated profile identity uses the provider issuer and stable subject claim. Email addresses are display metadata only and are not used as immutable profile keys. If an account should be removed, delete or deny it at the provider and remove the corresponding SQLite `UserProfiles` row during maintenance; its defaults are isolated by internal profile ID.
 
-Cookies use ASP.NET Core data-protection keys persisted in `/app/data/dataprotection-keys`; back up this directory with the database so authentication and antiforgery cookies survive ordinary container recreation. The auth cookie is `Secure`, uses `SameSite=Lax`, and should be used behind an HTTPS reverse proxy. After changing profile or OIDC variables, run `docker compose config`, recreate the service, and verify `/health` plus a full sign-in/sign-out loop.
+Logout first clears the local Scan Bridge cookie, then tries the provider logout flow when `PROFILE_SIGNOUT_MODE=ProviderWithLocalFallback`; if provider discovery or logout is temporarily unavailable, the app records a warning and still completes the local logout. Cookies use ASP.NET Core data-protection keys persisted in `/app/data/dataprotection-keys`; back up this directory with the database so authentication and antiforgery cookies survive ordinary container recreation. The auth cookie is `Secure`, uses `SameSite=Lax`, and should be used behind an HTTPS reverse proxy. After changing profile or OIDC variables, run `docker compose config`, recreate the service, and verify `/health` plus a full sign-in/sign-out loop.
 
 ## Browser notifications
 

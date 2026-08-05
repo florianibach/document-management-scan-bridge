@@ -142,8 +142,8 @@ var components = app.MapRazorComponents<App>()
 if (profileOptions.Mode == ProfileMode.OpenIdConnect) components.RequireAuthorization();
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapGet("/signin", () => Results.Challenge(new Microsoft.AspNetCore.Authentication.AuthenticationProperties { RedirectUri = "/" }, [OpenIdConnectDefaults.AuthenticationScheme])).AllowAnonymous();
-app.MapPost("/signout", async (HttpContext context) => await LocalSignOutEndpoint.SignOutAsync(context));
-app.MapGet("/signed-out", () => Results.Content("""<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Abgemeldet</title><link rel="stylesheet" href="/lib/bootstrap/dist/css/bootstrap.min.css"></head><body class="p-3"><main class="container py-4"><h1>Abgemeldet</h1><div class="alert alert-success">Du wurdest lokal von Scan Bridge abgemeldet. Falls dein Identitätsanbieter weiterhin angemeldet ist, kann eine erneute Anmeldung ohne Passwortabfrage erfolgen.</div><a class="btn btn-primary" href="/signin">Erneut anmelden</a></main></body></html>""", "text/html")).AllowAnonymous();
+app.MapPost("/signout", LocalSignOutEndpoint.SignOutAsync);
+app.MapGet("/signed-out", () => Results.Content("""<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Abgemeldet</title><link rel="stylesheet" href="/lib/bootstrap/dist/css/bootstrap.min.css"></head><body class="p-3"><main class="container py-4"><h1>Abgemeldet</h1><div class="alert alert-success">Du wurdest von Scan Bridge abgemeldet. Falls der Identitätsanbieter nicht erreichbar war, wurde zumindest die lokale Sitzung sicher beendet.</div><a class="btn btn-primary" href="/signin">Erneut anmelden</a></main></body></html>""", "text/html")).AllowAnonymous();
 app.MapGet("/api/scanners", async (IScannerDiscoveryService discovery, CancellationToken cancellationToken) =>
     Results.Ok(await discovery.DiscoverAsync(cancellationToken)));
 app.MapGet("/api/scanners/selected", async (IScannerDiscoveryService discovery, CancellationToken cancellationToken) =>
