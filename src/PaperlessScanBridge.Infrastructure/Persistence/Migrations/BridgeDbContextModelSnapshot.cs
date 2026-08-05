@@ -17,6 +17,7 @@ partial class BridgeDbContextModelSnapshot : ModelSnapshot
             b.Property<int>("ColorMode").HasColumnType("INTEGER");
             b.Property<int?>("CorrespondentId").HasColumnType("INTEGER");
             b.Property<int?>("DocumentTypeId").HasColumnType("INTEGER");
+            b.Property<string>("ProfileId").IsRequired().HasColumnType("TEXT");
             b.Property<int>("ResolutionDpi").HasColumnType("INTEGER");
             b.Property<long?>("ScannerId").HasColumnType("INTEGER");
             b.Property<string>("Source").HasColumnType("TEXT");
@@ -24,6 +25,7 @@ partial class BridgeDbContextModelSnapshot : ModelSnapshot
             b.Property<string>("Title").HasColumnType("TEXT");
             b.Property<DateTimeOffset>("UpdatedAt").HasColumnType("TEXT");
             b.HasKey("Id");
+            b.HasIndex("ProfileId").IsUnique();
             b.ToTable("ProfileDefaults");
         });
         modelBuilder.Entity("PaperlessScanBridge.Infrastructure.Persistence.SchemaMarker", b =>
@@ -47,6 +49,18 @@ partial class BridgeDbContextModelSnapshot : ModelSnapshot
             b.Property<DateTimeOffset>("ValidatedAt").HasColumnType("TEXT");
             b.HasKey("Id");
             b.ToTable("SelectedScanners");
+        });
+        modelBuilder.Entity("PaperlessScanBridge.Infrastructure.Persistence.UserProfileEntity", b =>
+        {
+            b.Property<string>("Id").HasColumnType("TEXT");
+            b.Property<DateTimeOffset>("CreatedAt").HasColumnType("TEXT");
+            b.Property<string>("DisplayName").IsRequired().HasColumnType("TEXT");
+            b.Property<string>("Issuer").IsRequired().HasColumnType("TEXT");
+            b.Property<DateTimeOffset>("LastSeenAt").HasColumnType("TEXT");
+            b.Property<string>("Subject").IsRequired().HasColumnType("TEXT");
+            b.HasKey("Id");
+            b.HasIndex("Issuer", "Subject").IsUnique();
+            b.ToTable("UserProfiles");
         });
     }
 }

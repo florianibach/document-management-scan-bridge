@@ -8,6 +8,12 @@ public sealed class BridgeDbContext(DbContextOptions<BridgeDbContext> options) :
     public DbSet<SelectedScannerEntity> SelectedScanners => Set<SelectedScannerEntity>();
     public DbSet<ProfileDefaultsEntity> ProfileDefaults => Set<ProfileDefaultsEntity>();
     public DbSet<UserProfileEntity> UserProfiles => Set<UserProfileEntity>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ProfileDefaultsEntity>().HasIndex(value => value.ProfileId).IsUnique();
+        modelBuilder.Entity<UserProfileEntity>().HasIndex(value => new { value.Issuer, value.Subject }).IsUnique();
+    }
 }
 
 public sealed class ProfileDefaultsEntity

@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 #nullable disable
 
 namespace PaperlessScanBridge.Infrastructure.Persistence.Migrations;
 
+[DbContext(typeof(BridgeDbContext))]
 [Migration("20260805000000_AddAuthenticatedProfiles")]
 public sealed class AddAuthenticatedProfiles : Migration
 {
