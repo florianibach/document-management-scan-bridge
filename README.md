@@ -84,6 +84,13 @@ Do not commit `.env`, API tokens, client secrets, private scanner IDs, or privat
 | *(Compose fixed)* | `TemporaryStorage__Path` | `/app/temp` | Temporary scan/PDF working directory. Keep it on writable storage with enough free space for large jobs. |
 | *(Compose fixed)* | `DataProtectionStorage__Path` | `/app/data/dataprotection-keys` | Persisted ASP.NET Core data-protection key ring used for cookies and future encrypted profile secrets. |
 | *(Compose fixed)* | `ScannerDiscovery__SaneConfigurationDirectory` | `/app/data/sane.d` | Persistent directory where the application writes generated sane-airscan configuration. |
+| `PROFILE_MODE` | `Profiles__Mode` | `Anonymous` | `Anonymous` uses one shared no-login profile; `OpenIdConnect` requires OIDC sign-in and isolates profiles by issuer plus subject. |
+| `PROFILE_ANONYMOUS_SUBJECT` | `Profiles__AnonymousSubject` | `scan-bridge-local-anonymous-profile` | Stable deployment-local subject for the shared anonymous profile. Not secret; keep stable across restarts. |
+| `PROFILE_LEGACY_DEFAULTS_MIGRATION` | `Profiles__LegacyDefaultsMigration` | `MoveToAnonymous` | One-time handling for pre-US-011 local defaults. `MoveToAnonymous` keeps them on the anonymous profile; `Reset` can be used before first authenticated production use to discard them. |
+| `OIDC_AUTHORITY` | `Authentication__Oidc__Authority` | empty | OpenID Connect issuer/authority, for example `https://accounts.google.com`. Required when `PROFILE_MODE=OpenIdConnect`. |
+| `OIDC_CLIENT_ID` | `Authentication__Oidc__ClientId` | empty | OIDC web application client ID. Treat deployment-specific values as sensitive operational metadata. |
+| `OIDC_CLIENT_SECRET` | `Authentication__Oidc__ClientSecret` | empty | OIDC web application client secret. Secret; store only in `.env` or a secret manager. |
+
 
 Advanced ASP.NET Core configuration keys can also be set directly with double underscores, but prefer the documented Compose variables above for supported deployments.
 
@@ -141,7 +148,26 @@ Unter **Einstellungen** können Scan Bridge-Nutzer einen Standardscanner samt Qu
 
 Vor dem Speichern werden Scannerquelle und Auflösung gegen die gespeicherten Fähigkeiten geprüft. Über **Paperless-Verbindung prüfen und Auswahl laden** werden gespeicherte Metadaten-IDs gegen die aktuelle Paperless-Instanz geprüft. Entfernte oder nicht mehr unterstützte Werte werden angezeigt und müssen korrigiert werden. **Auf Werkseinstellungen zurücksetzen** entfernt den lokalen Profildatensatz vollständig.
 
-US-008 ist absichtlich ein einzelnes lokales Profil ohne Anmeldung. Die geplanten [US-011](docs/user-stories/011-authenticated-user-profiles.md) und [US-012](docs/user-stories/012-profile-service-configuration.md) ergänzen eine OpenID-Connect-Anmeldung (beispielsweise Google oder Microsoft Entra ID), Benutzerisolation und verschlüsselt gespeicherte Paperless-URL und API-Token. Bis dahin bleiben URL und Token deployer-gesteuerte Umgebungswerte.
+US-008 ist absichtlich ein einzelnes lokales Profil ohne Anmeldung. Die geplanten [US-011](docs/user-stories/done/011-authenticated-user-profiles.md) und [US-012](docs/user-stories/012-profile-service-configuration.md) ergänzen eine OpenID-Connect-Anmeldung (beispielsweise Google oder Microsoft Entra ID), Benutzerisolation und verschlüsselt gespeicherte Paperless-URL und API-Token. Bis dahin bleiben URL und Token deployer-gesteuerte Umgebungswerte.
+
+## Profile mode and OpenID Connect sign-in
+
+Scan Bridge supports two profile modes controlled by deployment settings:
+
+- `Anonymous` (default) starts without a login screen. Every browser visitor uses one deployment-local profile named by `PROFILE_ANONYMOUS_SUBJECT`, so scanner and Paperless defaults are shared intentionally.
+- `OpenIdConnect` requires sign-in before scans, documents, settings, Paperless defaults, and scanner APIs are available. `/health`, `/signin`, and `/signin-oidc` remain reachable so reverse proxies and the identity provider can complete startup and login flows.
+
+Google provider setup example:
+
+1. In Google Cloud, create or choose a project and configure the OAuth consent screen for your household or trusted test users.
+2. Create an OAuth 2.0 **Web application** client. Add the public Scan Bridge origin, for example `https://scan.example.test`, and register the exact callback path `https://scan.example.test/signin-oidc`.
+3. Store the client ID and client secret outside the image, for example in an untracked `.env` file or your secret manager, and map them to `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET`.
+4. Set `PROFILE_MODE=OpenIdConnect`, `OIDC_AUTHORITY=https://accounts.google.com`, and serve Scan Bridge through HTTPS. Keep forwarded headers enabled at the reverse proxy so generated redirect URIs use the external HTTPS origin.
+5. Test sign-in from a mobile browser, sign out, try a denied Google account if consent-screen restrictions are used, rotate the client secret, and keep a recovery path: either restore the provider configuration or temporarily set `PROFILE_MODE=Anonymous` while the provider is unavailable.
+
+Authenticated profile identity uses the provider issuer and stable subject claim. Email addresses are display metadata only and are not used as immutable profile keys. If an account should be removed, delete or deny it at the provider and remove the corresponding SQLite `UserProfiles` row during maintenance; its defaults are isolated by internal profile ID.
+
+Cookies use ASP.NET Core data-protection keys persisted in `/app/data/dataprotection-keys`; back up this directory with the database so authentication and antiforgery cookies survive ordinary container recreation. The auth cookie is `Secure`, uses `SameSite=Lax`, and should be used behind an HTTPS reverse proxy. After changing profile or OIDC variables, run `docker compose config`, recreate the service, and verify `/health` plus a full sign-in/sign-out loop.
 
 ## Browser notifications
 

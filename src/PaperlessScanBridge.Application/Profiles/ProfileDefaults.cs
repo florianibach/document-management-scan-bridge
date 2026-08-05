@@ -20,9 +20,9 @@ public sealed record ProfileValidation(
 
 public interface IProfileDefaultsRepository
 {
-    Task<ProfileDefaults> GetAsync(CancellationToken cancellationToken = default);
-    Task SaveAsync(ProfileDefaults defaults, CancellationToken cancellationToken = default);
-    Task ResetAsync(CancellationToken cancellationToken = default);
+    Task<ProfileDefaults> GetAsync(string profileId, CancellationToken cancellationToken = default);
+    Task SaveAsync(string profileId, ProfileDefaults defaults, CancellationToken cancellationToken = default);
+    Task ResetAsync(string profileId, CancellationToken cancellationToken = default);
 }
 
 public interface IProfileDefaultsService
@@ -35,9 +35,11 @@ public interface IProfileDefaultsService
 
 public sealed class ProfileDefaultsService(
     IProfileDefaultsRepository repository,
-    ISelectedScannerRepository scanners) : IProfileDefaultsService
+    ISelectedScannerRepository scanners,
+    ICurrentProfileAccessor currentProfile) : IProfileDefaultsService
 {
-    public Task<ProfileDefaults> GetAsync(CancellationToken cancellationToken = default) => repository.GetAsync(cancellationToken);
+    public async Task<ProfileDefaults> GetAsync(CancellationToken cancellationToken = default) =>
+        await repository.GetAsync((await currentProfile.GetRequiredAsync(cancellationToken)).Id, cancellationToken);
 
     public async Task<ProfileValidation> ValidateAsync(ProfileDefaults defaults, CancellationToken cancellationToken = default)
     {
@@ -67,9 +69,10 @@ public sealed class ProfileDefaultsService(
     {
         var normalized = defaults with { Title = string.IsNullOrWhiteSpace(defaults.Title) ? null : defaults.Title.Trim(), UpdatedAt = DateTimeOffset.UtcNow };
         var validation = await ValidateAsync(normalized, cancellationToken);
-        if (validation.IsValid) await repository.SaveAsync(normalized, cancellationToken);
+        if (validation.IsValid) await repository.SaveAsync((await currentProfile.GetRequiredAsync(cancellationToken)).Id, normalized, cancellationToken);
         return validation;
     }
 
-    public Task ResetAsync(CancellationToken cancellationToken = default) => repository.ResetAsync(cancellationToken);
+    public async Task ResetAsync(CancellationToken cancellationToken = default) =>
+        await repository.ResetAsync((await currentProfile.GetRequiredAsync(cancellationToken)).Id, cancellationToken);
 }
