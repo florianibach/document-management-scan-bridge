@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PaperlessScanBridge.Infrastructure\PaperlessScanBridge.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\PaperlessScanBridge.Web\PaperlessScanBridge.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>

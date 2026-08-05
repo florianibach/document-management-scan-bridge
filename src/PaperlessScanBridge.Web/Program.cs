@@ -1,3 +1,4 @@
+using PaperlessScanBridge.Web;
 using PaperlessScanBridge.Web.Components;
 using Microsoft.EntityFrameworkCore;
 using PaperlessScanBridge.Application.Configuration;
@@ -65,7 +66,8 @@ if (!string.IsNullOrWhiteSpace(Path.GetDirectoryName(databasePath))) Directory.C
 var temporaryStorage = builder.Configuration.GetSection(TemporaryStorageOptions.SectionName).Get<TemporaryStorageOptions>() ?? new();
 Directory.CreateDirectory(temporaryStorage.Path);
 builder.Services.AddDbContextFactory<BridgeDbContext>(options => options.UseSqlite(persistence.ConnectionString));
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck<DeploymentReadinessHealthCheck>("deployment_readiness", tags: ["ready"]);
 
 var app = builder.Build();
 

@@ -55,17 +55,37 @@ ASP.NET Core data-protection keys are persisted under `/app/data/dataprotection-
 
 Host networking is supported by the intended Linux/Raspberry Pi deployment. On Docker Desktop, enable host networking in Docker Desktop settings or run the application directly with `dotnet run` for scanner discovery.
 
-Configuration uses standard ASP.NET Core keys:
+Configuration uses standard ASP.NET Core keys. In Compose, most operator-facing settings are exposed as shell-style variables with safe defaults. Put overrides in an untracked `.env` file next to `compose.yaml`, export them in the shell before running Compose, or provide them through your deployment system. Compose substitutes `${NAME:-default}` before the container starts; inside the container the resulting environment variables use ASP.NET Core's double-underscore section syntax, for example `Paperless__BaseUrl` maps to `Paperless:BaseUrl`.
 
-| Section | Purpose | Container override example |
-| --- | --- | --- |
-| `Scanner` | Executable, short discovery timeout, long scan-job timeout, and optional selected device | `SCANNER_SCAN_TIMEOUT_SECONDS=1800` |
-| `ScannerDiscovery` | mDNS/validation timeouts and managed SANE configuration | `ScannerDiscovery__TimeoutSeconds=5` |
-| `Paperless` | Service URL, secret API token, and HTTP timeout | `Paperless__ApiToken=...` |
-| `Persistence` | SQLite connection | `Persistence__ConnectionString=Data Source=/app/data/bridge.db` |
-| `TemporaryStorage` | Writable working directory | `TemporaryStorage__Path=/app/temp` |
-| `DataProtectionStorage` | Persistent ASP.NET Core encryption keys | `DataProtectionStorage__Path=/app/data/dataprotection-keys` |
-| `Build` | Visible source revision | `Build__Commit=abc1234` |
+Example `.env`:
+
+```dotenv
+GIT_COMMIT=local-dev
+PAPERLESS_URL=https://paperless.example.test
+PAPERLESS_TOKEN=replace-with-a-paperless-api-token
+PAPERLESS_TIMEOUT_SECONDS=60
+SCANNER_SCAN_TIMEOUT_SECONDS=1800
+SCANNER_MAXIMUM_SCAN_DURATION_SECONDS=14400
+```
+
+Do not commit `.env`, API tokens, client secrets, private scanner IDs, or private hostnames. After changing variables, recreate the service with `docker compose up --detach --build` and confirm the effective configuration with `docker compose config` before sharing diagnostics.
+
+| Compose variable | Container key | Default | Meaning |
+| --- | --- | --- | --- |
+| `GIT_COMMIT` | `Build__Commit` image build argument and label | `unknown` | Shows the running source revision in the UI and OCI metadata. |
+| `PAPERLESS_URL` | `Paperless__BaseUrl` | `http://paperless:8000` | Deployment-wide Paperless-ngx base URL used by the current upload flow and by later fallback/anonymous profile modes. |
+| `PAPERLESS_TOKEN` | `Paperless__ApiToken` | empty | Deployment-wide Paperless API token. Treat it as a secret; later profile stories may replace it with encrypted per-profile tokens. |
+| `PAPERLESS_TIMEOUT_SECONDS` | `Paperless__TimeoutSeconds` | `60` | HTTP timeout for Paperless connectivity, metadata loading, and upload calls. |
+| `SCANNER_DEVICE_ID` | `Scanner__DeviceId` | empty | Optional fixed SANE device identifier for diagnostics or deployments that bypass UI selection. Prefer UI discovery for normal use. |
+| `SCANNER_TIMEOUT_SECONDS` | `Scanner__TimeoutSeconds` | `30` | Timeout for short scanner discovery and capability commands. |
+| `SCANNER_SCAN_TIMEOUT_SECONDS` | `Scanner__ScanTimeoutSeconds` | `120` | User-confirmation interval while a scan process is still running. Increase for slow ADF batches. |
+| `SCANNER_MAXIMUM_SCAN_DURATION_SECONDS` | `Scanner__MaximumScanDurationSeconds` | `14400` | Hard safety limit for abandoned scan processes. |
+| *(Compose fixed)* | `Persistence__ConnectionString` | `Data Source=/app/data/bridge.db` | SQLite database path in the persistent data volume. Change only together with backup/restore plans. |
+| *(Compose fixed)* | `TemporaryStorage__Path` | `/app/temp` | Temporary scan/PDF working directory. Keep it on writable storage with enough free space for large jobs. |
+| *(Compose fixed)* | `DataProtectionStorage__Path` | `/app/data/dataprotection-keys` | Persisted ASP.NET Core data-protection key ring used for cookies and future encrypted profile secrets. |
+| *(Compose fixed)* | `ScannerDiscovery__SaneConfigurationDirectory` | `/app/data/sane.d` | Persistent directory where the application writes generated sane-airscan configuration. |
+
+Advanced ASP.NET Core configuration keys can also be set directly with double underscores, but prefer the documented Compose variables above for supported deployments.
 
 ## Simplex scanning
 
@@ -128,6 +148,58 @@ US-008 ist absichtlich ein einzelnes lokales Profil ohne Anmeldung. Die geplante
 Use **Benachrichtigungen aktivieren** on the start page to opt in. The browser then reports when a simplex scan needs a timeout decision, duplex fronts are ready to flip, pass counts differ, or a scan completes or fails. Permission is never requested during page load. A denied or unsupported permission is explained in the page.
 
 The opt-in and delivered-event keys are kept in the browser tab's `sessionStorage`. Reconnects and repeated state events therefore do not repeat an already delivered notification, and no application singleton stores notification state. Delivery uses a service worker, so an open application tab also raises the operating-system notification while another tab or application has focus. Clicking it focuses the existing scan page. The Blazor page must remain open and connected so it can receive the scan transition; this release does not implement server-originated Web Push for a fully closed browser. Browsers require a secure HTTPS origin (or `localhost`) for notifications and service workers.
+
+## Deployment hardening
+
+The supported self-hosted deployment is a single Linux host, preferably Raspberry Pi OS or another ARM64 Linux system, with Docker Engine and the Compose plugin. A non-ARM Linux development host is also supported for build and smoke validation. Host networking is intentional because scanner discovery depends on multicast DNS; do not add Compose port publishing while `network_mode: host` is active.
+
+### Configuration and secrets
+
+Use an ignored `.env` file or an external secret manager for deployer-controlled values. Never bake Paperless tokens, scanner identifiers, or private URLs into an image. The current deployment-wide Paperless fallback is configured with `PAPERLESS_URL` and `PAPERLESS_TOKEN`; later profile stories will make this optional for signed-in or anonymous profile modes.
+
+`./app/data` contains SQLite configuration, selected scanner state, generated SANE configuration, profile defaults, and ASP.NET Core data-protection keys. `./app/temp` contains active scan sessions, source PNG pages, ordered working copies, and generated PDFs. Back up `./app/data` while the container is stopped. Back up `./app/temp` only if you intentionally want to recover unfinished local scan artifacts; an in-progress scanner process itself is not recoverable after shutdown.
+
+```bash
+docker compose down
+rsync -a ./app/data/ /backup/paperless-scan-bridge/data/
+# Optional recovery copy for not-yet-uploaded documents:
+rsync -a ./app/temp/ /backup/paperless-scan-bridge/temp/
+docker compose up --detach
+```
+
+Restore by stopping the container, replacing `./app/data` from the backup, optionally restoring `./app/temp`, and starting Compose again. Keep ownership writable by the container; the entrypoint repairs `./app/data` and `./app/temp` permissions for the image user at startup.
+
+### Readiness, logs, and resource expectations
+
+The container image and Compose file define a health check against `http://127.0.0.1:8080/health`. The endpoint verifies application readiness for SQLite plus writable temporary and data-protection storage. It deliberately does not require the scanner or Paperless-ngx to be online, because those are workflow dependencies that may be unavailable while the bridge should still start and show diagnostics.
+
+Use structured container logs for operations:
+
+```bash
+docker compose ps
+docker compose logs --timestamps --tail=200 scan-bridge
+docker compose logs --follow scan-bridge
+```
+
+Logs include event categories, session identifiers, page counts, command outcomes, and failure types for scanning, PDF creation, persistence, and Paperless uploads. They must not contain API tokens, scanner document pixels, uploaded PDF contents, or private metadata values. If you share diagnostics, redact hostnames, IP addresses, and user-specific document metadata first.
+
+Plan persistent storage for the SQLite database, data-protection key ring, generated SANE configuration, temporary PNG pages, and generated PDFs. Memory and CPU requirements depend mostly on scan resolution and page count; keep enough free disk for at least two copies of the largest expected document while PDF creation is running.
+
+### Upgrade, rollback, and shutdown
+
+For an upgrade, back up `./app/data`, pull or build the new revision, set `GIT_COMMIT`, and recreate the container:
+
+```bash
+docker compose down
+rsync -a ./app/data/ /backup/paperless-scan-bridge/data-before-upgrade/
+export GIT_COMMIT="$(git rev-parse --short HEAD)"
+docker compose up --detach --build
+curl --fail http://127.0.0.1:8080/health
+```
+
+For rollback, check out the previous revision, restore the matching data backup if the migration is not backward-compatible, and run `docker compose up --detach --build`. Graceful `docker compose down` lets the Blazor Server process stop cleanly; active scanner processes and in-flight uploads are cancelled, partial PDF files remain hidden by the atomic `.partial` to final-file rename, and completed PDFs in `./app/temp` can be retried after restart.
+
+Manual verification for a release should include `docker compose config`, container build, a health check, scanner discovery on the target network, one representative scan through PDF creation, and one Paperless upload using non-production test data. Record the host architecture, scanner model/firmware, Compose commands, and any accepted hardware limitations in the release notes or pull request.
 
 ## Product documentation
 
