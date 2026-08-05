@@ -17,7 +17,7 @@ description: Implement or revise any paperless-scan-bridge user story from accep
 1. Keep domain and workflow logic in the application layer. Put process, database, HTTP, and file-system integrations behind explicit boundaries rather than in Razor components.
 2. Use typed, validated configuration for deployer-controlled values. Never embed environment-specific identifiers, credentials, or secrets in code.
 3. Implement relevant validation, cancellation, retries, empty states, timeouts, cleanup, and recovery. Provide actionable diagnostics without sensitive metadata or document content.
-4. Update dependency injection, persistence migrations, container packaging, Compose configuration, and logs only when required by the selected story.
+4. Update dependency injection, persistence migrations, container packaging, Compose configuration, and logs only when required by the selected story. When Compose variables are added, renamed, repurposed, or made operator-facing, document their names, defaults, meanings, secret handling, and validation commands in `README.md`.
 5. Keep mobile-first UI behavior accessible and consistent with the existing component and styling system.
 
 ## Verify the change

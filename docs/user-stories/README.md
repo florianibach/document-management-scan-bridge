@@ -15,6 +15,6 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-009](done/009-deployment-hardening.md) | Deployment hardening (done) | Self-hosting is reliable and documented |
 | [US-010](done/010-browser-notifications-and-isolation.md) | Browser notifications and isolation (done) | Scan events are announced without global browser state |
 | [US-011](011-authenticated-user-profiles.md) | Authenticated user profiles | External login protects and separates user profiles |
-| [US-012](012-profile-service-configuration.md) | Per-profile service configuration | Paperless credentials and defaults belong to a signed-in user |
+| [US-012](012-profile-service-configuration.md) | Per-profile service configuration | Paperless credentials and defaults belong to the selected profile mode |
 
 Every story is subject to the shared [Definition of Done](../definition-of-done.md). Explicitly deferred items are not implied by an acceptance criterion.

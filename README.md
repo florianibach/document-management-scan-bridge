@@ -55,17 +55,37 @@ ASP.NET Core data-protection keys are persisted under `/app/data/dataprotection-
 
 Host networking is supported by the intended Linux/Raspberry Pi deployment. On Docker Desktop, enable host networking in Docker Desktop settings or run the application directly with `dotnet run` for scanner discovery.
 
-Configuration uses standard ASP.NET Core keys:
+Configuration uses standard ASP.NET Core keys. In Compose, most operator-facing settings are exposed as shell-style variables with safe defaults. Put overrides in an untracked `.env` file next to `compose.yaml`, export them in the shell before running Compose, or provide them through your deployment system. Compose substitutes `${NAME:-default}` before the container starts; inside the container the resulting environment variables use ASP.NET Core's double-underscore section syntax, for example `Paperless__BaseUrl` maps to `Paperless:BaseUrl`.
 
-| Section | Purpose | Container override example |
-| --- | --- | --- |
-| `Scanner` | Executable, short discovery timeout, long scan-job timeout, and optional selected device | `SCANNER_SCAN_TIMEOUT_SECONDS=1800` |
-| `ScannerDiscovery` | mDNS/validation timeouts and managed SANE configuration | `ScannerDiscovery__TimeoutSeconds=5` |
-| `Paperless` | Service URL, secret API token, and HTTP timeout | `Paperless__ApiToken=...` |
-| `Persistence` | SQLite connection | `Persistence__ConnectionString=Data Source=/app/data/bridge.db` |
-| `TemporaryStorage` | Writable working directory | `TemporaryStorage__Path=/app/temp` |
-| `DataProtectionStorage` | Persistent ASP.NET Core encryption keys | `DataProtectionStorage__Path=/app/data/dataprotection-keys` |
-| `Build` | Visible source revision | `Build__Commit=abc1234` |
+Example `.env`:
+
+```dotenv
+GIT_COMMIT=local-dev
+PAPERLESS_URL=https://paperless.example.test
+PAPERLESS_TOKEN=replace-with-a-paperless-api-token
+PAPERLESS_TIMEOUT_SECONDS=60
+SCANNER_SCAN_TIMEOUT_SECONDS=1800
+SCANNER_MAXIMUM_SCAN_DURATION_SECONDS=14400
+```
+
+Do not commit `.env`, API tokens, client secrets, private scanner IDs, or private hostnames. After changing variables, recreate the service with `docker compose up --detach --build` and confirm the effective configuration with `docker compose config` before sharing diagnostics.
+
+| Compose variable | Container key | Default | Meaning |
+| --- | --- | --- | --- |
+| `GIT_COMMIT` | `Build__Commit` image build argument and label | `unknown` | Shows the running source revision in the UI and OCI metadata. |
+| `PAPERLESS_URL` | `Paperless__BaseUrl` | `http://paperless:8000` | Deployment-wide Paperless-ngx base URL used by the current upload flow and by later fallback/anonymous profile modes. |
+| `PAPERLESS_TOKEN` | `Paperless__ApiToken` | empty | Deployment-wide Paperless API token. Treat it as a secret; later profile stories may replace it with encrypted per-profile tokens. |
+| `PAPERLESS_TIMEOUT_SECONDS` | `Paperless__TimeoutSeconds` | `60` | HTTP timeout for Paperless connectivity, metadata loading, and upload calls. |
+| `SCANNER_DEVICE_ID` | `Scanner__DeviceId` | empty | Optional fixed SANE device identifier for diagnostics or deployments that bypass UI selection. Prefer UI discovery for normal use. |
+| `SCANNER_TIMEOUT_SECONDS` | `Scanner__TimeoutSeconds` | `30` | Timeout for short scanner discovery and capability commands. |
+| `SCANNER_SCAN_TIMEOUT_SECONDS` | `Scanner__ScanTimeoutSeconds` | `120` | User-confirmation interval while a scan process is still running. Increase for slow ADF batches. |
+| `SCANNER_MAXIMUM_SCAN_DURATION_SECONDS` | `Scanner__MaximumScanDurationSeconds` | `14400` | Hard safety limit for abandoned scan processes. |
+| *(Compose fixed)* | `Persistence__ConnectionString` | `Data Source=/app/data/bridge.db` | SQLite database path in the persistent data volume. Change only together with backup/restore plans. |
+| *(Compose fixed)* | `TemporaryStorage__Path` | `/app/temp` | Temporary scan/PDF working directory. Keep it on writable storage with enough free space for large jobs. |
+| *(Compose fixed)* | `DataProtectionStorage__Path` | `/app/data/dataprotection-keys` | Persisted ASP.NET Core data-protection key ring used for cookies and future encrypted profile secrets. |
+| *(Compose fixed)* | `ScannerDiscovery__SaneConfigurationDirectory` | `/app/data/sane.d` | Persistent directory where the application writes generated sane-airscan configuration. |
+
+Advanced ASP.NET Core configuration keys can also be set directly with double underscores, but prefer the documented Compose variables above for supported deployments.
 
 ## Simplex scanning
 

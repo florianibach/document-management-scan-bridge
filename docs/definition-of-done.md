@@ -26,7 +26,7 @@ A story is done only when every applicable criterion below is satisfied. Any cri
 
 ## Documentation, security, and review
 
-- User, developer, operations, and example configuration documentation are updated as applicable.
+- User, developer, operations, and example configuration documentation are updated as applicable, including every supported Docker Compose variable, its meaning, default, secret status, and restart/validation procedure when Compose behavior changes.
 - No credentials, tokens, private documents, personal data, or other secrets are committed.
 - Dependencies are justified, supported, and checked for known vulnerabilities by the repository's automated tooling.
 - The change has been reviewed, all review findings are resolved or explicitly accepted, and no known critical defects remain.
