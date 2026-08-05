@@ -129,6 +129,58 @@ Use **Benachrichtigungen aktivieren** on the start page to opt in. The browser t
 
 The opt-in and delivered-event keys are kept in the browser tab's `sessionStorage`. Reconnects and repeated state events therefore do not repeat an already delivered notification, and no application singleton stores notification state. Delivery uses a service worker, so an open application tab also raises the operating-system notification while another tab or application has focus. Clicking it focuses the existing scan page. The Blazor page must remain open and connected so it can receive the scan transition; this release does not implement server-originated Web Push for a fully closed browser. Browsers require a secure HTTPS origin (or `localhost`) for notifications and service workers.
 
+## Deployment hardening
+
+The supported self-hosted deployment is a single Linux host, preferably Raspberry Pi OS or another ARM64 Linux system, with Docker Engine and the Compose plugin. A non-ARM Linux development host is also supported for build and smoke validation. Host networking is intentional because scanner discovery depends on multicast DNS; do not add Compose port publishing while `network_mode: host` is active.
+
+### Configuration and secrets
+
+Use an ignored `.env` file or an external secret manager for deployer-controlled values. Never bake Paperless tokens, scanner identifiers, or private URLs into an image. The current deployment-wide Paperless fallback is configured with `PAPERLESS_URL` and `PAPERLESS_TOKEN`; later profile stories will make this optional for signed-in or anonymous profile modes.
+
+`./app/data` contains SQLite configuration, selected scanner state, generated SANE configuration, profile defaults, and ASP.NET Core data-protection keys. `./app/temp` contains active scan sessions, source PNG pages, ordered working copies, and generated PDFs. Back up `./app/data` while the container is stopped. Back up `./app/temp` only if you intentionally want to recover unfinished local scan artifacts; an in-progress scanner process itself is not recoverable after shutdown.
+
+```bash
+docker compose down
+rsync -a ./app/data/ /backup/paperless-scan-bridge/data/
+# Optional recovery copy for not-yet-uploaded documents:
+rsync -a ./app/temp/ /backup/paperless-scan-bridge/temp/
+docker compose up --detach
+```
+
+Restore by stopping the container, replacing `./app/data` from the backup, optionally restoring `./app/temp`, and starting Compose again. Keep ownership writable by the container; the entrypoint repairs `./app/data` and `./app/temp` permissions for the image user at startup.
+
+### Readiness, logs, and resource expectations
+
+The container image and Compose file define a health check against `http://127.0.0.1:8080/health`. The endpoint verifies application readiness for SQLite plus writable temporary and data-protection storage. It deliberately does not require the scanner or Paperless-ngx to be online, because those are workflow dependencies that may be unavailable while the bridge should still start and show diagnostics.
+
+Use structured container logs for operations:
+
+```bash
+docker compose ps
+docker compose logs --timestamps --tail=200 scan-bridge
+docker compose logs --follow scan-bridge
+```
+
+Logs include event categories, session identifiers, page counts, command outcomes, and failure types for scanning, PDF creation, persistence, and Paperless uploads. They must not contain API tokens, scanner document pixels, uploaded PDF contents, or private metadata values. If you share diagnostics, redact hostnames, IP addresses, and user-specific document metadata first.
+
+Plan persistent storage for the SQLite database, data-protection key ring, generated SANE configuration, temporary PNG pages, and generated PDFs. Memory and CPU requirements depend mostly on scan resolution and page count; keep enough free disk for at least two copies of the largest expected document while PDF creation is running.
+
+### Upgrade, rollback, and shutdown
+
+For an upgrade, back up `./app/data`, pull or build the new revision, set `GIT_COMMIT`, and recreate the container:
+
+```bash
+docker compose down
+rsync -a ./app/data/ /backup/paperless-scan-bridge/data-before-upgrade/
+export GIT_COMMIT="$(git rev-parse --short HEAD)"
+docker compose up --detach --build
+curl --fail http://127.0.0.1:8080/health
+```
+
+For rollback, check out the previous revision, restore the matching data backup if the migration is not backward-compatible, and run `docker compose up --detach --build`. Graceful `docker compose down` lets the Blazor Server process stop cleanly; active scanner processes and in-flight uploads are cancelled, partial PDF files remain hidden by the atomic `.partial` to final-file rename, and completed PDFs in `./app/temp` can be retried after restart.
+
+Manual verification for a release should include `docker compose config`, container build, a health check, scanner discovery on the target network, one representative scan through PDF creation, and one Paperless upload using non-production test data. Record the host architecture, scanner model/firmware, Compose commands, and any accepted hardware limitations in the release notes or pull request.
+
 ## Product documentation
 
 - [User stories](docs/user-stories/README.md)

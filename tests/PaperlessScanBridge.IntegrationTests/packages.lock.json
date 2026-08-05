@@ -228,6 +228,13 @@
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
           "Zeroconf": "[3.7.16, )"
         }
+      },
+      "paperlessscanbridge.web": {
+        "type": "Project",
+        "dependencies": {
+          "PaperlessScanBridge.Application": "[1.0.0, )",
+          "PaperlessScanBridge.Infrastructure": "[1.0.0, )"
+        }
       }
     }
   }

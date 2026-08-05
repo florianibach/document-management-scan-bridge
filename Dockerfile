@@ -12,7 +12,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_RUNTIME_VERSION}-noble AS runtime
 ARG GIT_COMMIT
 WORKDIR /app
 RUN apt-get update \
- && apt-get install --yes --no-install-recommends gosu sane-utils sane-airscan \
+ && apt-get install --yes --no-install-recommends curl gosu sane-utils sane-airscan \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /app/data/sane.d /app/temp \
  && ln -sfn /app/data/sane.d/airscan.conf /etc/sane.d/airscan.conf \
@@ -23,5 +23,6 @@ ENV ASPNETCORE_URLS=http://+:8080
 ENV Build__Commit=$GIT_COMMIT
 LABEL org.opencontainers.image.revision=$GIT_COMMIT
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD curl --fail --silent --show-error http://127.0.0.1:8080/health || exit 1
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["dotnet", "PaperlessScanBridge.Web.dll"]
