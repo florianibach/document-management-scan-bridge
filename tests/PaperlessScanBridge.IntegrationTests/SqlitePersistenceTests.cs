@@ -33,15 +33,34 @@ public sealed class SqlitePersistenceTests
             var options = new DbContextOptionsBuilder<BridgeDbContext>().UseSqlite("Data Source=" + file).Options;
             await using (var context = new BridgeDbContext(options)) await context.Database.MigrateAsync();
             var repository = new ProfileDefaultsRepository(new TestFactory(options));
-            await repository.SaveAsync(new(null,null,ScanColorMode.Grayscale,200," Rechnung ",4,5,[9,7],DateTimeOffset.UtcNow));
+            await repository.SaveAsync("profile-a", new(null,null,ScanColorMode.Grayscale,200," Rechnung ",4,5,[9,7],DateTimeOffset.UtcNow));
             repository = new ProfileDefaultsRepository(new TestFactory(options));
-            var restarted = await repository.GetAsync();
+            var restarted = await repository.GetAsync("profile-a");
             Assert.Equal(ScanColorMode.Grayscale, restarted.ColorMode); Assert.Equal([7,9], restarted.TagIds);
-            await repository.SaveAsync(restarted with { ResolutionDpi = 300, Title = "Updated" });
-            Assert.Equal("Updated", (await repository.GetAsync()).Title);
-            await repository.ResetAsync();
-            Assert.Equal(300, (await repository.GetAsync()).ResolutionDpi);
-            Assert.Null((await repository.GetAsync()).Title);
+            await repository.SaveAsync("profile-a", restarted with { ResolutionDpi = 300, Title = "Updated" });
+            Assert.Equal("Updated", (await repository.GetAsync("profile-a")).Title);
+            await repository.ResetAsync("profile-a");
+            Assert.Equal(300, (await repository.GetAsync("profile-a")).ResolutionDpi);
+            Assert.Null((await repository.GetAsync("profile-a")).Title);
+        }
+        finally { if(File.Exists(file)) File.Delete(file); }
+    }
+
+    [Fact]
+    public async Task ProfileDefaultsAreIsolatedByProfileId()
+    {
+        var file = Path.Combine(Path.GetTempPath(), "profile-isolation-" + Guid.NewGuid().ToString("N") + ".db");
+        try
+        {
+            var options = new DbContextOptionsBuilder<BridgeDbContext>().UseSqlite("Data Source=" + file).Options;
+            await using (var context = new BridgeDbContext(options)) await context.Database.MigrateAsync();
+            var repository = new ProfileDefaultsRepository(new TestFactory(options));
+
+            await repository.SaveAsync("user-one", new(null, null, ScanColorMode.Grayscale, 200, "User One", null, null, [], DateTimeOffset.UtcNow));
+            await repository.SaveAsync("user-two", new(null, null, ScanColorMode.Color, 300, "User Two", null, null, [], DateTimeOffset.UtcNow));
+
+            Assert.Equal("User One", (await repository.GetAsync("user-one")).Title);
+            Assert.Equal("User Two", (await repository.GetAsync("user-two")).Title);
         }
         finally { if(File.Exists(file)) File.Delete(file); }
     }

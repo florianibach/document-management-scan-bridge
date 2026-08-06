@@ -7,11 +7,19 @@ public sealed class BridgeDbContext(DbContextOptions<BridgeDbContext> options) :
     public DbSet<SchemaMarker> SchemaMarkers => Set<SchemaMarker>();
     public DbSet<SelectedScannerEntity> SelectedScanners => Set<SelectedScannerEntity>();
     public DbSet<ProfileDefaultsEntity> ProfileDefaults => Set<ProfileDefaultsEntity>();
+    public DbSet<UserProfileEntity> UserProfiles => Set<UserProfileEntity>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ProfileDefaultsEntity>().HasIndex(value => value.ProfileId).IsUnique();
+        modelBuilder.Entity<UserProfileEntity>().HasIndex(value => new { value.Issuer, value.Subject }).IsUnique();
+    }
 }
 
 public sealed class ProfileDefaultsEntity
 {
     public int Id { get; set; }
+    public string ProfileId { get; set; } = "anonymous";
     public long? ScannerId { get; set; }
     public string? Source { get; set; }
     public int ColorMode { get; set; }
@@ -41,4 +49,14 @@ public sealed class SchemaMarker
 {
     public int Id { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class UserProfileEntity
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public required string Issuer { get; set; }
+    public required string Subject { get; set; }
+    public required string DisplayName { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset LastSeenAt { get; set; }
 }
