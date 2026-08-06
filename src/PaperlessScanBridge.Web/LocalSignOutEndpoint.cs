@@ -20,6 +20,11 @@ public static class LocalSignOutEndpoint
             return Results.Redirect("/signed-out");
         }
 
+        if (!string.IsNullOrWhiteSpace(options.Value.RemoteSignOutUrl))
+        {
+            return Results.Redirect(options.Value.RemoteSignOutUrl);
+        }
+
         try
         {
             await context.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme,

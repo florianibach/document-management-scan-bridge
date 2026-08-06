@@ -27,6 +27,26 @@ public sealed class LocalSignOutEndpointTests
         Assert.Equal("EmptyHttpResult", result.GetType().Name);
     }
 
+
+    [Fact]
+    public async Task ConfiguredRemoteSignOutUrlIsPreferredOverMetadataSignOut()
+    {
+        var auth = new RecordingAuthenticationService { ThrowForScheme = OpenIdConnectDefaults.AuthenticationScheme };
+        var context = CreateContext(auth);
+
+        var result = await LocalSignOutEndpoint.SignOutAsync(context,
+            Options.Create(new ProfileOptions
+            {
+                Mode = ProfileMode.OpenIdConnect,
+                RemoteSignOutUrl = "https://accounts.google.com/Logout"
+            }),
+            LoggerFactory.Create(_ => { }));
+        await result.ExecuteAsync(context);
+
+        Assert.Equal([CookieAuthenticationDefaults.AuthenticationScheme], auth.SignedOutSchemes);
+        Assert.Equal("https://accounts.google.com/Logout", context.Response.Headers.Location);
+    }
+
     [Fact]
     public async Task SignOutFallsBackToLocalCompletionWhenProviderSignOutFails()
     {

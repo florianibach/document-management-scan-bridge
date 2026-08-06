@@ -34,6 +34,7 @@ builder.Services.AddOptions<ProfileOptions>().BindConfiguration(ProfileOptions.S
     .Validate(o => o.Mode == ProfileMode.Anonymous || !string.IsNullOrWhiteSpace(builder.Configuration["Authentication:Oidc:Authority"]), "OIDC authority is required in OpenIdConnect profile mode.")
     .Validate(o => o.Mode == ProfileMode.Anonymous || !string.IsNullOrWhiteSpace(builder.Configuration["Authentication:Oidc:ClientId"]), "OIDC client ID is required in OpenIdConnect profile mode.")
     .Validate(o => o.Mode == ProfileMode.Anonymous || !string.IsNullOrWhiteSpace(builder.Configuration["Authentication:Oidc:ClientSecret"]), "OIDC client secret is required in OpenIdConnect profile mode.")
+    .Validate(o => string.IsNullOrWhiteSpace(o.RemoteSignOutUrl) || Uri.TryCreate(o.RemoteSignOutUrl, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps, "Remote sign-out URL must be an absolute HTTPS URL.")
     .ValidateOnStart();
 var dataProtectionStorage = builder.Configuration.GetSection(DataProtectionStorageOptions.SectionName).Get<DataProtectionStorageOptions>() ?? new();
 Directory.CreateDirectory(dataProtectionStorage.Path);

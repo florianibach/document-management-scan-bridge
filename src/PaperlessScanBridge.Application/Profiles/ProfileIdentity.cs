@@ -13,6 +13,7 @@ public sealed class ProfileOptions
     [Required, MinLength(12)] public string AnonymousSubject { get; init; } = "scan-bridge-local-anonymous-profile";
     public LegacyDefaultsMigrationMode LegacyDefaultsMigration { get; init; } = LegacyDefaultsMigrationMode.MoveToAnonymous;
     public ProfileSignOutMode SignOutMode { get; init; } = ProfileSignOutMode.ProviderWithLocalFallback;
+    public string? RemoteSignOutUrl { get; init; }
 }
 
 public sealed record UserProfile(string Id, string Issuer, string Subject, string DisplayName, DateTimeOffset CreatedAt, DateTimeOffset LastSeenAt);
