@@ -14,7 +14,7 @@ namespace PaperlessScanBridge.IntegrationTests;
 public sealed class LocalSignOutEndpointTests
 {
     [Fact]
-    public async Task SignOutUsesProviderAfterClearingLocalCookieByDefault()
+    public async Task SignOutUsesProviderAfterClearingLocalCookie()
     {
         var auth = new RecordingAuthenticationService();
         var context = CreateContext(auth);
@@ -38,13 +38,13 @@ public sealed class LocalSignOutEndpointTests
             Options.Create(new ProfileOptions
             {
                 Mode = ProfileMode.OpenIdConnect,
-                RemoteSignOutUrl = "https://accounts.google.com/Logout"
+                RemoteSignOutUrl = "https://identity.example.test/logout"
             }),
             LoggerFactory.Create(_ => { }));
         await result.ExecuteAsync(context);
 
         Assert.Equal([CookieAuthenticationDefaults.AuthenticationScheme], auth.SignedOutSchemes);
-        Assert.Equal("https://accounts.google.com/Logout", context.Response.Headers.Location);
+        Assert.Equal("https://identity.example.test/logout", context.Response.Headers.Location);
     }
 
     [Fact]
@@ -64,13 +64,13 @@ public sealed class LocalSignOutEndpointTests
     }
 
     [Fact]
-    public async Task LocalOnlyModeNeverContactsOpenIdProvider()
+    public async Task AnonymousModeOnlyClearsLocalCookie()
     {
         var auth = new RecordingAuthenticationService { ThrowForScheme = OpenIdConnectDefaults.AuthenticationScheme };
         var context = CreateContext(auth);
 
         var result = await LocalSignOutEndpoint.SignOutAsync(context,
-            Options.Create(new ProfileOptions { Mode = ProfileMode.OpenIdConnect, SignOutMode = ProfileSignOutMode.LocalOnly }),
+            Options.Create(new ProfileOptions { Mode = ProfileMode.Anonymous }),
             LoggerFactory.Create(_ => { }));
         await result.ExecuteAsync(context);
 

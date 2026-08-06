@@ -4,7 +4,6 @@ namespace PaperlessScanBridge.Application.Profiles;
 
 public enum ProfileMode { Anonymous, OpenIdConnect }
 public enum LegacyDefaultsMigrationMode { MoveToAnonymous, Reset }
-public enum ProfileSignOutMode { ProviderWithLocalFallback, LocalOnly }
 
 public sealed class ProfileOptions
 {
@@ -12,7 +11,6 @@ public sealed class ProfileOptions
     [Required] public ProfileMode Mode { get; init; } = ProfileMode.Anonymous;
     [Required, MinLength(12)] public string AnonymousSubject { get; init; } = "scan-bridge-local-anonymous-profile";
     public LegacyDefaultsMigrationMode LegacyDefaultsMigration { get; init; } = LegacyDefaultsMigrationMode.MoveToAnonymous;
-    public ProfileSignOutMode SignOutMode { get; init; } = ProfileSignOutMode.ProviderWithLocalFallback;
     public string? RemoteSignOutUrl { get; init; }
 }
 

@@ -15,7 +15,7 @@ public static class LocalSignOutEndpoint
     {
         await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
-        if (options.Value.Mode != ProfileMode.OpenIdConnect || options.Value.SignOutMode == ProfileSignOutMode.LocalOnly)
+        if (options.Value.Mode != ProfileMode.OpenIdConnect)
         {
             return Results.Redirect("/signed-out");
         }
