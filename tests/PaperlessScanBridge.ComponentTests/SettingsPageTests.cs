@@ -19,15 +19,43 @@ public sealed class SettingsPageTests : BunitContext
 
         var page = Render<Settings>();
 
-        var url = page.Find("#paperless-url");
-        Assert.True(url.HasAttribute("readonly"));
-        Assert.Equal("https://paperless.environment.test", url.GetAttribute("value"));
-        Assert.True(page.Find("#paperless-token-status").HasAttribute("readonly"));
+        var url = page.Find("#paperless-url-value");
+        Assert.Equal("DD", url.TagName);
+        Assert.Contains("bg-body-secondary", url.ClassList);
+        Assert.Equal("https://paperless.environment.test", url.TextContent.Trim());
+        Assert.Equal("DD", page.Find("#paperless-token-status").TagName);
+        Assert.Contains("••••••••••••", page.Find("#paperless-token-status").TextContent);
         Assert.Contains("PAPERLESS_URL", page.Markup);
         Assert.Contains("PAPERLESS_TOKEN", page.Markup);
         Assert.DoesNotContain("environment-secret", page.Markup);
         Assert.DoesNotContain(page.FindAll("input"), input => input.Id == "replace-token");
         Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Contains("aktivieren"));
+    }
+
+    [Fact]
+    public async Task AuthenticatedUserCanRevealOnlyNewTokenBeforeSaving()
+    {
+        Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
+        Services.AddSingleton<IScannerDiscoveryService>(new DiscoveryStub());
+        Services.AddSingleton<IProfileServiceConfigurationService>(new AuthenticatedConfigurationStub());
+        Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
+        var page = Render<Settings>();
+        var token = page.Find("#paperless-token");
+        Assert.Equal("password", token.GetAttribute("type"));
+        await token.ChangeAsync("new-visible-token");
+        Assert.DoesNotContain("stored-secret-never-rendered", page.Markup);
+        await page.Find("#toggle-paperless-token").ClickAsync(new());
+        Assert.Equal("text", page.Find("#paperless-token").GetAttribute("type"));
+        Assert.Equal("new-visible-token", page.Find("#paperless-token").GetAttribute("value"));
+        Assert.Contains("nicht wieder angezeigt", page.Markup);
+    }
+
+    private sealed class AuthenticatedConfigurationStub : IProfileServiceConfigurationService
+    {
+        public Task<ProfileServiceConfiguration> GetAsync(CancellationToken cancellationToken=default) => Task.FromResult(new ProfileServiceConfiguration("https://profile.test", true, false, true, DateTimeOffset.UtcNow));
+        public Task<EffectivePaperlessConfiguration> GetEffectiveAsync(CancellationToken cancellationToken=default) => Task.FromResult(new EffectivePaperlessConfiguration("https://profile.test", "stored-secret-never-rendered", PaperlessConfigurationSource.Profile, PaperlessConfigurationSource.Profile));
+        public Task<ProfileServiceConfigurationResult> ValidateAndSaveAsync(ProfileServiceConfigurationInput input,CancellationToken cancellationToken=default) => throw new NotSupportedException();
+        public Task DeleteAsync(CancellationToken cancellationToken=default) => throw new NotSupportedException();
     }
 
     private sealed class AnonymousConfigurationStub : IProfileServiceConfigurationService
