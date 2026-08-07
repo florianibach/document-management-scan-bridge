@@ -15,7 +15,7 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-009](done/009-deployment-hardening.md) | Deployment hardening (done) | Self-hosting is reliable and documented |
 | [US-010](done/010-browser-notifications-and-isolation.md) | Browser notifications and isolation (done) | Scan events are announced without global browser state |
 | [US-011](done/011-authenticated-user-profiles.md) | Authenticated user profiles | External login protects and separates user profiles |
-| [US-012](012-profile-service-configuration.md) | Per-profile service configuration | Paperless credentials and defaults belong to the selected profile mode |
+| [US-012](done/012-profile-service-configuration.md) | Per-profile service configuration | Paperless credentials and defaults belong to the selected profile mode |
 | [US-013](013-mobile-first-navigation-and-workflow-shell.md) | Mobile-first navigation and workflow shell | Daily scan workflow gets a guided app shell and separated admin areas |
 | [US-014](014-guided-scanner-setup-and-preparation.md) | Guided scanner setup and preparation | Scanner setup and settings are presented as a safe preparation step |
 | [US-015](015-guided-scan-and-manual-duplex-states.md) | Guided scan and manual duplex states | Simplex and manual duplex scans use explicit, recoverable UI states |

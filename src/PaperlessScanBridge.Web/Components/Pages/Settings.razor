@@ -3,6 +3,7 @@
 @using PaperlessScanBridge.Application.Scanning
 @using PaperlessScanBridge.Application.Paperless
 @inject IProfileDefaultsService Profiles
+@inject IProfileServiceConfigurationService ServiceConfiguration
 @inject IScannerDiscoveryService Discovery
 @inject IPaperlessClient Paperless
 @rendermode InteractiveServer
@@ -17,7 +18,16 @@
   {
    @if (errors.Count > 0) { <div class="alert alert-warning" role="alert"><strong>Bitte korrigieren:</strong><ul class="mb-0">@foreach (var item in errors) { <li>@item</li> }</ul></div> }
    @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-success" role="status">@message</div> }
-   <fieldset><legend class="h4">Scan-Vorgaben</legend>
+   <fieldset><legend class="h4">Paperless-Verbindung</legend>
+    <p class="text-muted">Wirksame Quelle: URL <strong>@SourceName(effective?.UrlSource)</strong>, Token <strong>@SourceName(effective?.TokenSource)</strong>. Ein gespeicherter Token wird niemals wieder angezeigt.</p>
+    <div class="mb-3"><label class="form-label" for="paperless-url">Basis-URL</label><input id="paperless-url" class="form-control form-control-lg" @bind="paperlessUrl" disabled="@(!serviceConfiguration.AllowProfileUrlOverride)" placeholder="https://paperless.example.test" /></div>
+    <div class="mb-3"><label class="form-label" for="paperless-token">Neuer API-Token</label><input id="paperless-token" type="password" autocomplete="new-password" class="form-control form-control-lg" @bind="paperlessToken" /><div class="form-text">@(serviceConfiguration.HasToken ? "Ein verschlüsselter Profil-Token ist gespeichert." : "Kein Profil-Token gespeichert.")</div></div>
+    <div class="form-check mb-2"><input id="replace-token" class="form-check-input" type="checkbox" @bind="replaceToken" /><label for="replace-token" class="form-check-label">Token durch obigen Wert ersetzen</label></div>
+    <div class="form-check mb-2"><input id="delete-token" class="form-check-input" type="checkbox" @bind="deleteToken" /><label for="delete-token" class="form-check-label">Gespeicherten Profil-Token löschen</label></div>
+    <div class="form-check mb-3"><input id="deployment-token" class="form-check-input" type="checkbox" @bind="useDeploymentToken" /><label for="deployment-token" class="form-check-label">Bereitstellungs-Token als Fallback verwenden</label></div>
+    <button class="btn btn-outline-primary w-100" @onclick="SaveServiceAsync" disabled="@serviceSaving">@(serviceSaving ? "Verbindung wird vollständig geprüft …" : "Verbindung prüfen und aktivieren")</button>
+   </fieldset>
+   <fieldset class="mt-4"><legend class="h4">Scan-Vorgaben</legend>
     <div class="mb-3"><label class="form-label" for="default-scanner">Scanner</label><select id="default-scanner" class="form-select form-select-lg" @bind="scannerId" @bind:after="ScannerChanged"><option value="">Kein Standardscanner</option>@foreach (var scanner in scanners) { <option value="@scanner.Id">@scanner.DisplayName (@scanner.IpAddress)</option> }</select></div>
     <div class="mb-3"><label class="form-label" for="default-source">Quelle</label><select id="default-source" class="form-select form-select-lg" @bind="source" disabled="@(SelectedScanner is null)"><option value="">Quelle auswählen …</option>@foreach (var item in SelectedScanner?.Sources ?? []) { <option value="@item">@item</option> }</select></div>
     <div class="row g-3"><div class="col-12 col-md-6"><label class="form-label" for="default-color">Farbmodus</label><select id="default-color" class="form-select form-select-lg" @bind="colorMode"><option value="Color">Farbe</option><option value="Grayscale">Graustufen</option><option value="BlackAndWhite">Schwarzweiß</option></select></div>
@@ -40,12 +50,15 @@
 </section>
 
 @code {
- private bool loading = true, metadataLoading; private string? message, source, title; private long? scannerId; private int resolution = 300; private ScanColorMode colorMode = ScanColorMode.Color;
+ private bool loading = true, metadataLoading, serviceSaving, replaceToken, deleteToken, useDeploymentToken; private string? message, source, title; private long? scannerId; private int resolution = 300; private ScanColorMode colorMode = ScanColorMode.Color;
+ private string? paperlessUrl, paperlessToken; private ProfileServiceConfiguration serviceConfiguration = new(null,false,false,true,DateTimeOffset.MinValue); private EffectivePaperlessConfiguration? effective;
  private int? correspondentId, documentTypeId; private readonly HashSet<int> tagIds = []; private IReadOnlyList<string> errors = []; private IReadOnlyList<SelectedScanner> scanners = []; private PaperlessMetadata? metadata;
  private SelectedScanner? SelectedScanner => scanners.FirstOrDefault(value => value.Id == scannerId);
- protected override async Task OnInitializedAsync() { scanners = await Discovery.GetSavedAsync(default); Apply(await Profiles.GetAsync()); loading = false; }
+ protected override async Task OnInitializedAsync() { scanners = await Discovery.GetSavedAsync(default); Apply(await Profiles.GetAsync()); serviceConfiguration = await ServiceConfiguration.GetAsync(); effective = await ServiceConfiguration.GetEffectiveAsync(); paperlessUrl=serviceConfiguration.BaseUrl; useDeploymentToken=serviceConfiguration.UseDeploymentToken; loading = false; }
  private void Apply(ProfileDefaults value) { scannerId=value.ScannerId; source=value.Source; colorMode=value.ColorMode; resolution=value.ResolutionDpi; title=value.Title; correspondentId=value.CorrespondentId; documentTypeId=value.DocumentTypeId; tagIds.Clear(); tagIds.UnionWith(value.TagIds); }
  private void ScannerChanged() { source = SelectedScanner?.Sources?.FirstOrDefault(); resolution = SelectedScanner?.Resolutions?.Contains(300) == true ? 300 : SelectedScanner?.Resolutions?.FirstOrDefault() ?? 300; }
+ private async Task SaveServiceAsync() { serviceSaving=true; message=null; errors=[]; var result=await ServiceConfiguration.ValidateAndSaveAsync(new(paperlessUrl,paperlessToken,replaceToken,deleteToken,useDeploymentToken)); errors=result.Errors; if(result.Succeeded){ serviceConfiguration=result.Configuration; effective=await ServiceConfiguration.GetEffectiveAsync(); metadata=result.Metadata; paperlessToken=null; replaceToken=false; deleteToken=false; message="Paperless-Konfiguration wurde geprüft und aktiviert."; } serviceSaving=false; }
+ private static string SourceName(PaperlessConfigurationSource? source) => source switch { PaperlessConfigurationSource.Profile => "Profil", PaperlessConfigurationSource.Deployment => "Bereitstellung", _ => "nicht konfiguriert" };
  private async Task LoadMetadataAsync() { metadataLoading=true; errors=[]; var result=await Paperless.GetMetadataAsync(); metadata=result.Metadata; if (!result.Result.Succeeded) errors=[result.Result.Message]; else ValidatePaperlessChoices(); metadataLoading=false; }
  private void ValidatePaperlessChoices() { if (metadata is null) return; var list=new List<string>(); if (correspondentId is { } c && metadata.Correspondents.All(x=>x.Id!=c)) list.Add("Der gespeicherte Korrespondent existiert in Paperless nicht mehr."); if (documentTypeId is { } d && metadata.DocumentTypes.All(x=>x.Id!=d)) list.Add("Der gespeicherte Dokumenttyp existiert in Paperless nicht mehr."); foreach(var id in tagIds.Where(id=>metadata.Tags.All(x=>x.Id!=id))) list.Add($"Der gespeicherte Tag {id} existiert in Paperless nicht mehr."); errors=list; }
  private void ToggleTag(int id, ChangeEventArgs args) { if(args.Value is true) tagIds.Add(id); else tagIds.Remove(id); }

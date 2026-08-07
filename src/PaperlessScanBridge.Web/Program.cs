@@ -26,6 +26,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddAntiforgery(options => options.Cookie.Name = ".PaperlessScanBridge.Antiforgery.v2");
 builder.Services.AddOptions<ScannerOptions>().BindConfiguration(ScannerOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddOptions<PaperlessOptions>().BindConfiguration(PaperlessOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
+builder.Services.AddOptions<ProfileServiceOptions>().BindConfiguration(ProfileServiceOptions.SectionName).ValidateOnStart();
 builder.Services.AddOptions<PersistenceOptions>().BindConfiguration(PersistenceOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddOptions<TemporaryStorageOptions>().BindConfiguration(TemporaryStorageOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddOptions<ScannerDiscoveryOptions>().BindConfiguration(ScannerDiscoveryOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
@@ -40,6 +41,7 @@ var dataProtectionStorage = builder.Configuration.GetSection(DataProtectionStora
 Directory.CreateDirectory(dataProtectionStorage.Path);
 
 var profileOptions = builder.Configuration.GetSection(ProfileOptions.SectionName).Get<ProfileOptions>() ?? new();
+builder.Services.AddSingleton(profileOptions);
 if (profileOptions.Mode == ProfileMode.OpenIdConnect)
 {
     builder.Services.AddAuthentication(options =>
@@ -83,13 +85,13 @@ builder.Services.AddScoped<IPageEditingSession, PageEditingSession>();
 builder.Services.AddScoped<IPdfCreationWorkflow, PdfCreationWorkflow>();
 builder.Services.AddSingleton<IPdfDocumentWriter, PdfSharpDocumentWriter>();
 builder.Services.AddScoped<IPaperlessUploadWorkflow, PaperlessUploadWorkflow>();
+builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ProfileServiceOptions>>().Value);
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaperlessOptions>>().Value);
-builder.Services.AddHttpClient<IPaperlessClient, PaperlessClient>((sp, client) =>
-{
-    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaperlessOptions>>().Value;
-    client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddHttpClient<IPaperlessClient, PaperlessClient>((sp, client) => client.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaperlessOptions>>().Value.TimeoutSeconds))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddHttpClient("paperless-validation", (sp, client) => client.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaperlessOptions>>().Value.TimeoutSeconds))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddScoped<IPaperlessConnectionTester, PaperlessConnectionTester>();
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TemporaryStorageOptions>>().Value);
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ScannerDiscoveryOptions>>().Value);
 builder.Services.AddSingleton<IZeroconfBrowser, ZeroconfBrowser>();
@@ -97,8 +99,12 @@ builder.Services.AddSingleton<IScannerDiscoveryService, ScannerDiscoveryService>
 builder.Services.AddSingleton<ISelectedScannerRepository, SelectedScannerRepository>();
 builder.Services.AddSingleton<IProfileDefaultsRepository, ProfileDefaultsRepository>();
 builder.Services.AddSingleton<IUserProfileRepository, UserProfileRepository>();
+builder.Services.AddSingleton<IProfileServiceConfigurationRepository, ProfileServiceConfigurationRepository>();
+builder.Services.AddSingleton<IScanSessionOwnerRepository, ScanSessionOwnerRepository>();
 builder.Services.AddScoped<ICurrentProfileAccessor, CurrentProfileAccessor>();
 builder.Services.AddScoped<IProfileDefaultsService, ProfileDefaultsService>();
+builder.Services.AddScoped<IProfileServiceConfigurationService, ProfileServiceConfigurationService>();
+builder.Services.AddScoped<IScanSessionAccessService, ScanSessionAccessService>();
 builder.Services.AddSingleton<ISaneAirscanConfigurationWriter, SaneAirscanConfigurationWriter>();
 builder.Services.AddSingleton<IScannerEndpointValidator, EsclScannerEndpointValidator>();
 builder.Services.AddHttpClient("escl-validation").ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
@@ -154,8 +160,9 @@ app.MapPost("/api/scanners/{discoveryId}/select", async (string discoveryId, ISc
     var result = await discovery.SelectAsync(discoveryId, cancellationToken);
     return result.Succeeded ? Results.Ok(result.Scanner) : Results.BadRequest(new { result.Diagnostic });
 });
-app.MapGet("/api/scan-sessions/{sessionId:guid}/pages/{fileName}", (Guid sessionId, string fileName, TemporaryStorageOptions storage) =>
+app.MapGet("/api/scan-sessions/{sessionId:guid}/pages/{fileName}", async (Guid sessionId, string fileName, TemporaryStorageOptions storage, IScanSessionAccessService access) =>
 {
+    if (!await access.CanAccessAsync(sessionId)) return Results.NotFound();
     if (Path.GetFileName(fileName) != fileName || !fileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) return Results.BadRequest();
     var root = Path.Combine(Path.GetFullPath(storage.Path), sessionId.ToString("N"));
     var direct = Path.Combine(root, fileName);
@@ -163,8 +170,9 @@ app.MapGet("/api/scan-sessions/{sessionId:guid}/pages/{fileName}", (Guid session
     var path = File.Exists(direct) ? direct : ordered;
     return File.Exists(path) ? Results.File(path, "image/png", enableRangeProcessing: true) : Results.NotFound();
 });
-app.MapGet("/api/scan-sessions/{sessionId:guid}/document", (Guid sessionId, TemporaryStorageOptions storage) =>
+app.MapGet("/api/scan-sessions/{sessionId:guid}/document", async (Guid sessionId, TemporaryStorageOptions storage, IScanSessionAccessService access) =>
 {
+    if (!await access.CanAccessAsync(sessionId)) return Results.NotFound();
     var path = Path.Combine(Path.GetFullPath(storage.Path), sessionId.ToString("N"), "document.pdf");
     return File.Exists(path) ? Results.File(path, "application/pdf", "scan.pdf", enableRangeProcessing: true) : Results.NotFound();
 });

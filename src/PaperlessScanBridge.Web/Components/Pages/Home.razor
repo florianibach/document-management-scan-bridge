@@ -12,6 +12,7 @@
 @inject IPaperlessClient PaperlessClient
 @inject IPaperlessUploadWorkflow UploadWorkflow
 @inject IProfileDefaultsService Profiles
+@inject IScanSessionAccessService SessionAccess
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 @rendermode InteractiveServer
@@ -283,9 +284,9 @@
     private void OnScanChanged() => _ = InvokeAsync(async () =>
     {
         if (ScanWorkflow.Current is { State: ScanJobState.Completed } scan && loadedPreviewSession != scan.SessionId)
-        { loadedPreviewSession = scan.SessionId; await PageEditor.LoadAsync(scan.SessionId, false); }
+        { await SessionAccess.ClaimAsync(scan.SessionId); loadedPreviewSession = scan.SessionId; await PageEditor.LoadAsync(scan.SessionId, false); }
         if (DuplexWorkflow.Current is { State: ManualDuplexState.Completed } duplex && loadedPreviewSession != duplex.SessionId)
-        { loadedPreviewSession = duplex.SessionId; await PageEditor.LoadAsync(duplex.SessionId, true); }
+        { await SessionAccess.ClaimAsync(duplex.SessionId); loadedPreviewSession = duplex.SessionId; await PageEditor.LoadAsync(duplex.SessionId, true); }
         StateHasChanged(); await NotifyCurrentStateAsync();
     });
     private void OnEditorChanged() => _ = InvokeAsync(StateHasChanged);

@@ -21,3 +21,10 @@
 ## Dependencies
 
 - US-011
+
+## Completion evidence
+
+- Profile URL/token precedence, validation, explicit replacement/deletion, and non-disclosure are covered by `ProfileServiceConfigurationTests` and the settings component.
+- SQLite/Data Protection integration proves encrypted-at-rest, profile-isolated tokens and persisted keys; session ownership guards document routes across profiles.
+- Deployment fallbacks remain options-only, anonymous mode resolves one stable anonymous profile, and operational recovery is documented in the README.
+- Representative browser behavior is implemented mobile-first with Bootstrap controls. No scanner hardware behavior changed, so HP hardware verification is not applicable.

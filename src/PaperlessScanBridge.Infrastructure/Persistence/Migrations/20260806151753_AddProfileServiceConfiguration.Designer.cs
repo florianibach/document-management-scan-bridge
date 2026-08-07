@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PaperlessScanBridge.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using PaperlessScanBridge.Infrastructure.Persistence;
 namespace PaperlessScanBridge.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BridgeDbContext))]
-    partial class BridgeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260806151753_AddProfileServiceConfiguration")]
+    partial class AddProfileServiceConfiguration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.2");
@@ -91,24 +94,6 @@ namespace PaperlessScanBridge.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ProfileServiceConfigurations");
-                });
-
-            modelBuilder.Entity("PaperlessScanBridge.Infrastructure.Persistence.ScanSessionOwnerEntity", b =>
-                {
-                    b.Property<Guid>("SessionId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ProfileId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("SessionId");
-
-                    b.ToTable("ScanSessionOwners");
                 });
 
             modelBuilder.Entity("PaperlessScanBridge.Infrastructure.Persistence.SchemaMarker", b =>

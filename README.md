@@ -87,6 +87,8 @@ Do not commit `.env`, API tokens, client secrets, private scanner IDs, or privat
 | `PROFILE_MODE` | `Profiles__Mode` | `Anonymous` | `Anonymous` uses one shared no-login profile; `OpenIdConnect` requires OIDC sign-in and isolates profiles by issuer plus subject. |
 | `PROFILE_ANONYMOUS_SUBJECT` | `Profiles__AnonymousSubject` | `scan-bridge-local-anonymous-profile` | Stable deployment-local subject for the shared anonymous profile. Not secret; keep stable across restarts. |
 | `PROFILE_LEGACY_DEFAULTS_MIGRATION` | `Profiles__LegacyDefaultsMigration` | `MoveToAnonymous` | One-time handling for pre-US-011 local defaults. `MoveToAnonymous` keeps them on the anonymous profile; `Reset` can be used before first authenticated production use to discard them. |
+| `PROFILE_ALLOW_PAPERLESS_URL_OVERRIDE` | `ProfileServices__AllowProfileUrlOverride` | `true` | Lets authenticated profiles store a validated Paperless URL; set `false` to enforce the deployment URL. |
+| `PROFILE_ANONYMOUS_USES_PAPERLESS_TOKEN` | `ProfileServices__AnonymousUsesDeploymentToken` | `true` | Lets the single anonymous profile use the deployment token without login. The token remains configuration-only and is never copied to SQLite. |
 | `PROFILE_REMOTE_SIGNOUT_URL` | `Profiles__RemoteSignOutUrl` | empty | Optional absolute HTTPS provider logout URL used after local cookie removal. Leave empty when the provider advertises an OIDC `end_session_endpoint`; configure it only for providers whose supported logout flow is not discoverable from their metadata. |
 | `OIDC_AUTHORITY` | `Authentication__Oidc__Authority` | empty | OpenID Connect issuer/authority, for example `https://accounts.google.com`. Required when `PROFILE_MODE=OpenIdConnect`. |
 | `OIDC_CLIENT_ID` | `Authentication__Oidc__ClientId` | empty | OIDC web application client ID. Treat deployment-specific values as sensitive operational metadata. |
@@ -149,7 +151,21 @@ Unter **Einstellungen** können Scan Bridge-Nutzer einen Standardscanner samt Qu
 
 Vor dem Speichern werden Scannerquelle und Auflösung gegen die gespeicherten Fähigkeiten geprüft. Über **Paperless-Verbindung prüfen und Auswahl laden** werden gespeicherte Metadaten-IDs gegen die aktuelle Paperless-Instanz geprüft. Entfernte oder nicht mehr unterstützte Werte werden angezeigt und müssen korrigiert werden. **Auf Werkseinstellungen zurücksetzen** entfernt den lokalen Profildatensatz vollständig.
 
-US-008 ist absichtlich ein einzelnes lokales Profil ohne Anmeldung. Die geplanten [US-011](docs/user-stories/done/011-authenticated-user-profiles.md) und [US-012](docs/user-stories/012-profile-service-configuration.md) ergänzen eine OpenID-Connect-Anmeldung (beispielsweise Google oder Microsoft Entra ID), Benutzerisolation und verschlüsselt gespeicherte Paperless-URL und API-Token. Bis dahin bleiben URL und Token deployer-gesteuerte Umgebungswerte.
+US-008 führte lokale Vorgaben ein. Die abgeschlossenen [US-011](docs/user-stories/done/011-authenticated-user-profiles.md) und [US-012](docs/user-stories/done/012-profile-service-configuration.md) ergänzen OpenID-Connect-Anmeldung, Benutzerisolation und verschlüsselt gespeicherte Paperless-URL und API-Token; Bereitstellungswerte bleiben als kontrollierbarer Fallback verfügbar.
+
+## Per-profile Paperless configuration
+
+The settings page can validate and activate a profile-specific Paperless URL and API token. Activation checks the HTTPS URL policy (plain HTTP is accepted only for loopback development), connectivity, authentication, document-list permission, and the correspondent, document-type, and tag endpoints. A profile value takes precedence over the optional deployment fallback; the page identifies the effective source. Operators can disable URL overrides with `PROFILE_ALLOW_PAPERLESS_URL_OVERRIDE=false`. Anonymous mode has exactly one shared profile and, by default, uses `PAPERLESS_TOKEN` without prompting; this provides no per-person separation.
+
+Profile API tokens are encrypted with ASP.NET Core Data Protection before SQLite writes. The plaintext is never rendered after saving. Use the explicit replace/delete controls for rotation. Deployment tokens are read at process startup and never copied into SQLite. Scan-session download routes have a persisted profile owner and return not-found across profile boundaries; metadata/default records and service configuration are keyed by the same internal profile ID. Do not place sensitive values in logs.
+
+Recovery procedures:
+
+- **Rotate or invalidate a token:** enter a replacement and activate it; the old encrypted value is overwritten only after the full connection test passes. If credentials fail, the last active configuration remains available.
+- **Paperless unavailable:** correct DNS/TLS/firewall or URL settings and retry validation. No candidate settings become active after a failed check.
+- **Account deletion:** deny the identity at the OIDC provider, then remove its `UserProfiles`, profile defaults, profile service configuration, scan ownership rows, and corresponding temporary session directories during a stopped maintenance window.
+- **Migration/backup/restore:** stop Compose and back up `bridge.db` together with `dataprotection-keys`; both are required to decrypt profile tokens. Restore them as one consistent set. Losing the key ring intentionally makes old tokens unreadable; delete the affected rows and enter new tokens. Deployment fallback secrets must be restored separately from the secret manager or `.env`.
+- **Mode changes:** authenticated and anonymous identities use distinct internal profile IDs. Switching modes does not merge records. Before permanently changing mode, finish or remove temporary documents; the one anonymous profile remains shared by every anonymous visitor.
 
 ## Profile mode and OpenID Connect sign-in
 

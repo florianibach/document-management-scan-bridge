@@ -24,6 +24,13 @@ public sealed class UserProfileRepository(IDbContextFactory<BridgeDbContext> fac
     public async Task RemoveAsync(string issuer, string subject, CancellationToken cancellationToken = default)
     {
         await using var context = await factory.CreateDbContextAsync(cancellationToken);
-        await context.UserProfiles.Where(x => x.Issuer == issuer && x.Subject == subject).ExecuteDeleteAsync(cancellationToken);
+        var profileId = await context.UserProfiles.Where(x => x.Issuer == issuer && x.Subject == subject).Select(x => x.Id).SingleOrDefaultAsync(cancellationToken);
+        if (profileId is null) return;
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await context.ProfileDefaults.Where(x => x.ProfileId == profileId).ExecuteDeleteAsync(cancellationToken);
+        await context.ProfileServiceConfigurations.Where(x => x.ProfileId == profileId).ExecuteDeleteAsync(cancellationToken);
+        await context.ScanSessionOwners.Where(x => x.ProfileId == profileId).ExecuteDeleteAsync(cancellationToken);
+        await context.UserProfiles.Where(x => x.Id == profileId).ExecuteDeleteAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 }

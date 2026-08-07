@@ -27,7 +27,7 @@ public sealed class HomePageTests : BunitContext
     [Fact]
     public void ShowsBuildCommitInLayout()
     {
-        Services.AddSingleton(new BuildInformation("abc1234")); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions()));
+        Services.AddSingleton(new BuildInformation("abc1234")); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions()));
         var layout = Render<MainLayout>(parameters => parameters.Add(value => value.Body, _ => { }));
         Assert.Contains("abc1234", layout.Markup);
     }
@@ -241,7 +241,7 @@ public sealed class HomePageTests : BunitContext
     }
 
     private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null, PageEditorStub? editor = null, PaperlessStub? paperless = null)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); Services.AddSingleton<IProfileDefaultsService>(new ProfileStub()); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions())); }
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); Services.AddSingleton<IProfileDefaultsService>(new ProfileStub()); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions())); }
     private sealed class CurrentProfileStub : ICurrentProfileAccessor
     {
         public Task<UserProfile> GetRequiredAsync(CancellationToken cancellationToken = default) => Task.FromResult(new UserProfile("test-profile", "test", "subject", "Test", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
@@ -297,6 +297,7 @@ public sealed class HomePageTests : BunitContext
             Current = Current with { Pages = remaining }; Changed?.Invoke();
         }
     }
+    private sealed class SessionAccessStub : IScanSessionAccessService { public Task ClaimAsync(Guid sessionId,CancellationToken cancellationToken=default)=>Task.CompletedTask; public Task<bool> CanAccessAsync(Guid sessionId,CancellationToken cancellationToken=default)=>Task.FromResult(true); }
     private sealed class DuplexWorkflowStub : IManualDuplexWorkflow
     {
         public SimplexScanSettings? ReceivedSettings { get; private set; }
