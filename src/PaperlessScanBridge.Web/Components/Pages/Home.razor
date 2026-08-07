@@ -12,6 +12,7 @@
 @inject IPaperlessClient PaperlessClient
 @inject IPaperlessUploadWorkflow UploadWorkflow
 @inject IProfileDefaultsService Profiles
+@inject IProfileServiceConfigurationService ServiceConfiguration
 @inject IScanSessionAccessService SessionAccess
 @inject IJSRuntime JS
 @implements IAsyncDisposable
@@ -186,6 +187,19 @@ else if (CurrentWorkflowStep == "Prüfen")
  <section class="card mt-4"><div class="card-body">
   <span class="badge text-bg-success mb-2">PDF fertig</span>
   <h2 class="h3">An Paperless-ngx senden</h2>
+  @if (UploadWorkflow.Current is { State: PaperlessUploadState.Accepted } acceptedUpload && acceptedUpload.SessionId == completedPdf.SessionId)
+  {
+   <AppStateCard Kind="success" Title="Dokument wurde übergeben" Message="@acceptedUpload.Message">
+    <ChildContent>
+     @if (!string.IsNullOrWhiteSpace(acceptedUpload.TaskId)) { <p class="small">Paperless-Auftrags-ID: @acceptedUpload.TaskId</p> }
+     <button class="btn btn-primary btn-lg w-100" @onclick="StartNewDocument">Zur Startseite – neues Dokument</button>
+     @if (PaperlessHomeUrl is not null) { <a class="btn btn-outline-primary btn-lg w-100 mt-2" href="@PaperlessHomeUrl" target="_blank" rel="noopener noreferrer">Paperless öffnen</a> }
+     <a class="btn btn-outline-success w-100 mt-2" href="@PdfUrl(completedPdf.SessionId)">PDF herunterladen</a>
+    </ChildContent>
+   </AppStateCard>
+  }
+  else
+  {
   <a class="btn btn-outline-success btn-lg w-100" href="@PdfUrl(completedPdf.SessionId)">PDF herunterladen</a>
   <button class="btn btn-outline-primary btn-lg w-100 mt-2" @onclick="LoadPaperlessAsync" disabled="@paperlessLoading">@(paperlessLoading ? "Verbindung wird geprüft …" : "Verbindung prüfen und Metadaten laden")</button>
   @if (!string.IsNullOrWhiteSpace(paperlessMessage)) { <div class="alert @(paperlessError ? "alert-danger" : "alert-success") mt-2" role="status">@paperlessMessage</div> }
@@ -195,11 +209,12 @@ else if (CurrentWorkflowStep == "Prüfen")
    <div class="mt-3"><label class="form-label" for="send-correspondent">Korrespondent (optional)</label><select id="send-correspondent" class="form-select form-select-lg" @bind="paperlessCorrespondent"><option value="">Nicht festlegen</option>@foreach (var choice in paperlessMetadata.Correspondents) { <option value="@choice.Id">@choice.Name</option> }</select></div>
    <div class="mt-3"><label class="form-label" for="send-type">Dokumenttyp (optional)</label><select id="send-type" class="form-select form-select-lg" @bind="paperlessDocumentType"><option value="">Nicht festlegen</option>@foreach (var choice in paperlessMetadata.DocumentTypes) { <option value="@choice.Id">@choice.Name</option> }</select></div>
    <fieldset class="mt-3"><legend class="h6">Tags (optional)</legend>@foreach (var choice in paperlessMetadata.Tags) { <div class="form-check"><input class="form-check-input" id="send-tag-@choice.Id" type="checkbox" checked="@paperlessTags.Contains(choice.Id)" @onchange="args => ToggleTag(choice.Id, args)" /><label class="form-check-label" for="send-tag-@choice.Id">@choice.Name</label></div> }</fieldset>
-   <button class="btn btn-success btn-lg w-100 mt-3" @onclick="() => UploadAsync(completedPdf.SessionId)" disabled="@(UploadWorkflow.Current?.IsActive == true || UploadWorkflow.Current?.State == PaperlessUploadState.Accepted)">An Paperless senden</button>
+   <button class="btn btn-success btn-lg w-100 mt-3" @onclick="() => UploadAsync(completedPdf.SessionId)" disabled="@(UploadWorkflow.Current?.IsActive == true || UploadWorkflow.Current is { State: PaperlessUploadState.Accepted, SessionId: var acceptedSession } && acceptedSession == completedPdf.SessionId)">An Paperless senden</button>
   }
   @if (UploadWorkflow.Current is { } upload) { <div class="alert @(upload.State == PaperlessUploadState.Accepted ? "alert-success" : upload.State == PaperlessUploadState.Failed ? "alert-danger" : "alert-info") mt-3" role="status">@upload.Message</div> }
   <button class="btn btn-outline-secondary btn-lg w-100 mt-3" @onclick="ShowReview">Zurück zur Vorschau</button>
   @if (UploadWorkflow.Current?.IsActive == true) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="UploadWorkflow.CancelAsync">Senden abbrechen</button> }
+  }
  </div></section>
 }
 
@@ -217,7 +232,8 @@ else if (CurrentWorkflowStep == "Prüfen")
     private int resolution = 300;
     private bool IsScanning => ScanWorkflow.Current?.IsActive == true;
     private string? displayedStep;
-    private string CurrentWorkflowStep => displayedStep ?? (PdfWorkflow.Current?.State == PdfCreationState.Completed ? "Senden" : PdfWorkflow.Current is not null ? "PDF" : PageEditor.Current is not null || ScanWorkflow.Current?.State == ScanJobState.Completed || DuplexWorkflow.Current?.State == ManualDuplexState.Completed ? "Prüfen" : IsScanning || DuplexWorkflow.Current?.IsActive == true ? "Scannen" : "Vorbereiten");
+    private PdfCreationSnapshot? RelevantPdf => PageEditor.Current is { } editor && PdfWorkflow.Current is { } pdf && editor.SessionId == pdf.SessionId ? pdf : null;
+    private string CurrentWorkflowStep => displayedStep ?? (IsScanning || DuplexWorkflow.Current?.IsActive == true ? "Scannen" : RelevantPdf?.State == PdfCreationState.Completed ? "Senden" : RelevantPdf is not null ? "PDF" : PageEditor.Current is not null || ScanWorkflow.Current?.State == ScanJobState.Completed || DuplexWorkflow.Current?.State == ManualDuplexState.Completed ? "Prüfen" : "Vorbereiten");
     private bool finalBackIsBlank;
     private Guid? deleteCandidate;
     private Guid? loadedPreviewSession;
@@ -227,9 +243,11 @@ else if (CurrentWorkflowStep == "Prüfen")
     private bool paperlessError;
     private bool paperlessLoading;
     private string? paperlessTitle;
+    private string? paperlessBaseUrl;
     private int? paperlessCorrespondent;
     private int? paperlessDocumentType;
     private readonly HashSet<int> paperlessTags = [];
+    private string? PaperlessHomeUrl => Uri.TryCreate(paperlessBaseUrl, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" ? uri.GetLeftPart(UriPartial.Authority) + uri.AbsolutePath.TrimEnd('/') : null;
     private string? DuplexSource => availableSources.FirstOrDefault(IsFeederSource);
     private bool HasAdf => !string.IsNullOrWhiteSpace(activeDeviceId) && DuplexSource is not null;
     private string ColorModeLabel => colorMode switch { ScanColorMode.Color => "Farbe", ScanColorMode.Grayscale => "Graustufen", _ => "Schwarzweiß" };
@@ -247,6 +265,7 @@ else if (CurrentWorkflowStep == "Prüfen")
         UploadWorkflow.Changed += OnUploadChanged;
         savedScanners = await Discovery.GetSavedAsync(CancellationToken.None);
         var defaults = await Profiles.GetAsync(CancellationToken.None);
+        paperlessBaseUrl = (await ServiceConfiguration.GetEffectiveAsync(CancellationToken.None)).BaseUrl;
         colorMode = defaults.ColorMode; resolution = defaults.ResolutionDpi;
         paperlessTitle = defaults.Title; paperlessCorrespondent = defaults.CorrespondentId;
         paperlessDocumentType = defaults.DocumentTypeId; paperlessTags.UnionWith(defaults.TagIds);
@@ -290,6 +309,7 @@ else if (CurrentWorkflowStep == "Prüfen")
     private Task CancelPdfAsync() => PdfWorkflow.CancelAsync();
     private void ShowReview() => displayedStep = "Prüfen";
     private void ShowPreparation() => displayedStep = "Vorbereiten";
+    private void StartNewDocument() { displayedStep = "Vorbereiten"; paperlessMetadata = null; paperlessMessage = null; }
     private Task CancelActiveScanAsync() => ScanWorkflow.Current?.IsActive == true ? ScanWorkflow.CancelAsync() : DuplexWorkflow.CancelAsync();
     private string PdfStatusLabel => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "Fertig", PdfCreationState.Cancelled => "Abgebrochen", PdfCreationState.Failed => "Fehlgeschlagen", _ => "Läuft" };
     private string PdfStatusClass => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "alert-success", PdfCreationState.Cancelled => "alert-warning", PdfCreationState.Failed => "alert-danger", _ => "alert-info" };

@@ -118,10 +118,14 @@ public sealed class HomePageTests : BunitContext
         Assert.Contains("Example GmbH", page.Markup);
         await page.Find("#paperless-title").ChangeAsync("Rechnung August");
         await page.FindAll("button").Single(button => button.TextContent.Contains("An Paperless senden")).ClickAsync(new());
-        var acceptedButton = page.FindAll("button").Single(button => button.TextContent.Contains("An Paperless senden"));
-        Assert.True(acceptedButton.HasAttribute("disabled"));
+        page.WaitForAssertion(() => Assert.Contains("Dokument wurde übergeben", page.Markup));
+        Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Contains("An Paperless senden"));
+        Assert.Equal("https://paperless.example.test", page.FindAll("a").Single(link => link.TextContent.Contains("Paperless öffnen")).GetAttribute("href"));
+        Assert.Equal("_blank", page.FindAll("a").Single(link => link.TextContent.Contains("Paperless öffnen")).GetAttribute("target"));
         Assert.Equal(1, paperless.UploadCalls);
-        page.WaitForAssertion(() => Assert.Contains("angenommen", page.Markup));
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Zur Startseite")).ClickAsync(new());
+        Assert.Contains("Simplex-Scan starten", page.Markup);
+        Assert.DoesNotContain("Dokument wurde übergeben", page.Markup);
     }
 
     [Fact]
@@ -231,7 +235,14 @@ public sealed class HomePageTests : BunitContext
     }
 
     private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null, PageEditorStub? editor = null, PaperlessStub? paperless = null)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); Services.AddSingleton<IProfileDefaultsService>(new ProfileStub()); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions())); }
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); Services.AddSingleton<IProfileDefaultsService>(new ProfileStub()); Services.AddSingleton<IProfileServiceConfigurationService>(new ServiceConfigurationStub()); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions())); }
+    private sealed class ServiceConfigurationStub : IProfileServiceConfigurationService
+    {
+        public Task<ProfileServiceConfiguration> GetAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<EffectivePaperlessConfiguration> GetEffectiveAsync(CancellationToken cancellationToken = default) => Task.FromResult(new EffectivePaperlessConfiguration("https://paperless.example.test", "secret", PaperlessConfigurationSource.Profile, PaperlessConfigurationSource.Profile));
+        public Task<ProfileServiceConfigurationResult> ValidateAndSaveAsync(ProfileServiceConfigurationInput input, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeleteAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
     private sealed class CurrentProfileStub : ICurrentProfileAccessor
     {
         public Task<UserProfile> GetRequiredAsync(CancellationToken cancellationToken = default) => Task.FromResult(new UserProfile("test-profile", "test", "subject", "Test", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));

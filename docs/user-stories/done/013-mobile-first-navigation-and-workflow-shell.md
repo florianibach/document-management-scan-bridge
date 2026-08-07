@@ -46,3 +46,5 @@
 ### Follow-up: focused workflow stages
 
 The scan page now renders only the active stage's controls. Preparation choices disappear while scanning, reviewing, creating the PDF, or sending; the send and PDF stages provide explicit cancellation where an operation is active and a safe return to the review without discarding source pages. Component coverage verifies that preparation controls are absent after scanning and after PDF completion.
+
+After Paperless accepts an upload, the send form is replaced by a final success state. It offers a clear return to the preparation start, a PDF download, and—when an effective HTTP(S) Paperless base URL is configured—a safe new-tab link to Paperless. Starting another document ignores the previous PDF state while retaining existing temporary artifacts according to the established recovery policy.
