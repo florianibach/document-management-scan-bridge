@@ -20,12 +20,21 @@
    @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-success" role="status">@message</div> }
    <fieldset><legend class="h4">Paperless-Verbindung</legend>
     <p class="text-muted">Wirksame Quelle: URL <strong>@SourceName(effective?.UrlSource)</strong>, Token <strong>@SourceName(effective?.TokenSource)</strong>. Ein gespeicherter Token wird niemals wieder angezeigt.</p>
-    <div class="mb-3"><label class="form-label" for="paperless-url">Basis-URL</label><input id="paperless-url" class="form-control form-control-lg" @bind="paperlessUrl" disabled="@(!serviceConfiguration.AllowProfileUrlOverride)" placeholder="https://paperless.example.test" /></div>
-    <div class="mb-3"><label class="form-label" for="paperless-token">Neuer API-Token</label><input id="paperless-token" type="password" autocomplete="new-password" class="form-control form-control-lg" @bind="paperlessToken" /><div class="form-text">@(serviceConfiguration.HasToken ? "Ein verschlüsselter Profil-Token ist gespeichert." : "Kein Profil-Token gespeichert.")</div></div>
-    <div class="form-check mb-2"><input id="replace-token" class="form-check-input" type="checkbox" @bind="replaceToken" /><label for="replace-token" class="form-check-label">Token durch obigen Wert ersetzen</label></div>
-    <div class="form-check mb-2"><input id="delete-token" class="form-check-input" type="checkbox" @bind="deleteToken" /><label for="delete-token" class="form-check-label">Gespeicherten Profil-Token löschen</label></div>
-    <div class="form-check mb-3"><input id="deployment-token" class="form-check-input" type="checkbox" @bind="useDeploymentToken" /><label for="deployment-token" class="form-check-label">Bereitstellungs-Token als Fallback verwenden</label></div>
-    <button class="btn btn-outline-primary w-100" @onclick="SaveServiceAsync" disabled="@serviceSaving">@(serviceSaving ? "Verbindung wird vollständig geprüft …" : "Verbindung prüfen und aktivieren")</button>
+    @if (serviceConfiguration.IsReadOnly)
+    {
+     <div class="alert alert-info" role="note">Im anonymen Modus werden diese Werte schreibgeschützt aus den Umgebungsvariablen <code>PAPERLESS_URL</code> und <code>PAPERLESS_TOKEN</code> gelesen. Änderungen erfolgen in der Bereitstellungsumgebung und werden nach einem Neustart wirksam.</div>
+     <div class="mb-3"><label class="form-label" for="paperless-url">Basis-URL aus <code>PAPERLESS_URL</code></label><input id="paperless-url" class="form-control form-control-lg" value="@paperlessUrl" readonly aria-readonly="true" /></div>
+     <div class="mb-3"><label class="form-label" for="paperless-token-status">API-Token aus <code>PAPERLESS_TOKEN</code></label><input id="paperless-token-status" class="form-control form-control-lg" value="@(serviceConfiguration.HasToken ? "Konfiguriert (Wert wird nicht angezeigt)" : "Nicht konfiguriert")" readonly aria-readonly="true" /></div>
+    }
+    else
+    {
+     <div class="mb-3"><label class="form-label" for="paperless-url">Basis-URL</label><input id="paperless-url" class="form-control form-control-lg" @bind="paperlessUrl" disabled="@(!serviceConfiguration.AllowProfileUrlOverride)" placeholder="https://paperless.example.test" /></div>
+     <div class="mb-3"><label class="form-label" for="paperless-token">Neuer API-Token</label><input id="paperless-token" type="password" autocomplete="new-password" class="form-control form-control-lg" @bind="paperlessToken" /><div class="form-text">@(serviceConfiguration.HasToken ? "Ein verschlüsselter Profil-Token ist gespeichert." : "Kein Profil-Token gespeichert.")</div></div>
+     <div class="form-check mb-2"><input id="replace-token" class="form-check-input" type="checkbox" @bind="replaceToken" /><label for="replace-token" class="form-check-label">Token durch obigen Wert ersetzen</label></div>
+     <div class="form-check mb-2"><input id="delete-token" class="form-check-input" type="checkbox" @bind="deleteToken" /><label for="delete-token" class="form-check-label">Gespeicherten Profil-Token löschen</label></div>
+     <div class="form-check mb-3"><input id="deployment-token" class="form-check-input" type="checkbox" @bind="useDeploymentToken" /><label for="deployment-token" class="form-check-label">Bereitstellungs-Token als Fallback verwenden</label></div>
+     <button class="btn btn-outline-primary w-100" @onclick="SaveServiceAsync" disabled="@serviceSaving">@(serviceSaving ? "Verbindung wird vollständig geprüft …" : "Verbindung prüfen und aktivieren")</button>
+    }
    </fieldset>
    <fieldset class="mt-4"><legend class="h4">Scan-Vorgaben</legend>
     <div class="mb-3"><label class="form-label" for="default-scanner">Scanner</label><select id="default-scanner" class="form-select form-select-lg" @bind="scannerId" @bind:after="ScannerChanged"><option value="">Kein Standardscanner</option>@foreach (var scanner in scanners) { <option value="@scanner.Id">@scanner.DisplayName (@scanner.IpAddress)</option> }</select></div>

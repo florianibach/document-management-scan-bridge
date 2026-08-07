@@ -4,7 +4,7 @@ using PaperlessScanBridge.Application.Paperless;
 namespace PaperlessScanBridge.Application.Profiles;
 
 public enum PaperlessConfigurationSource { None, Deployment, Profile }
-public sealed record ProfileServiceConfiguration(string? BaseUrl, bool HasToken, bool UseDeploymentToken, bool AllowProfileUrlOverride, DateTimeOffset UpdatedAt);
+public sealed record ProfileServiceConfiguration(string? BaseUrl, bool HasToken, bool UseDeploymentToken, bool AllowProfileUrlOverride, DateTimeOffset UpdatedAt, bool IsReadOnly = false);
 public sealed record EffectivePaperlessConfiguration(string? BaseUrl, string? ApiToken, PaperlessConfigurationSource UrlSource, PaperlessConfigurationSource TokenSource)
 {
     public bool IsConfigured => Uri.TryCreate(BaseUrl, UriKind.Absolute, out _) && !string.IsNullOrWhiteSpace(ApiToken);
@@ -16,7 +16,6 @@ public sealed class ProfileServiceOptions
 {
     public const string SectionName = "ProfileServices";
     public bool AllowProfileUrlOverride { get; init; } = true;
-    public bool AnonymousUsesDeploymentToken { get; init; } = true;
 }
 
 public interface IProfileServiceConfigurationRepository
@@ -45,16 +44,21 @@ public sealed class ProfileServiceConfigurationService(
     public async Task<ProfileServiceConfiguration> GetAsync(CancellationToken cancellationToken = default)
     {
         var profile = await currentProfile.GetRequiredAsync(cancellationToken);
+        if (profiles.Mode == ProfileMode.Anonymous)
+            return new(deployment.BaseUrl, !string.IsNullOrWhiteSpace(deployment.ApiToken), true, false, DateTimeOffset.MinValue, true);
         var stored = await repository.GetSecretAsync(profile.Id, cancellationToken);
-        return new(stored?.BaseUrl, !string.IsNullOrWhiteSpace(stored?.ApiToken), stored?.UseDeploymentToken ?? DefaultUseDeployment(profile), options.AllowProfileUrlOverride, stored?.UpdatedAt ?? DateTimeOffset.MinValue);
+        return new(stored?.BaseUrl, !string.IsNullOrWhiteSpace(stored?.ApiToken), stored?.UseDeploymentToken ?? false, options.AllowProfileUrlOverride, stored?.UpdatedAt ?? DateTimeOffset.MinValue);
     }
 
     public async Task<EffectivePaperlessConfiguration> GetEffectiveAsync(CancellationToken cancellationToken = default)
     {
         var profile = await currentProfile.GetRequiredAsync(cancellationToken);
+        if (profiles.Mode == ProfileMode.Anonymous)
+            return new(deployment.BaseUrl, deployment.ApiToken, PaperlessConfigurationSource.Deployment,
+                string.IsNullOrWhiteSpace(deployment.ApiToken) ? PaperlessConfigurationSource.None : PaperlessConfigurationSource.Deployment);
         var stored = await repository.GetSecretAsync(profile.Id, cancellationToken);
         var url = options.AllowProfileUrlOverride && stored is { } storedUrl && !string.IsNullOrWhiteSpace(storedUrl.BaseUrl) ? storedUrl.BaseUrl : deployment.BaseUrl;
-        var useDeployment = stored?.UseDeploymentToken ?? DefaultUseDeployment(profile);
+        var useDeployment = stored?.UseDeploymentToken ?? false;
         var token = stored is { } storedToken && !string.IsNullOrWhiteSpace(storedToken.ApiToken) ? storedToken.ApiToken : useDeployment ? deployment.ApiToken : null;
         return new(url, token,
             options.AllowProfileUrlOverride && !string.IsNullOrWhiteSpace(stored?.BaseUrl) ? PaperlessConfigurationSource.Profile : PaperlessConfigurationSource.Deployment,
@@ -64,6 +68,11 @@ public sealed class ProfileServiceConfigurationService(
     public async Task<ProfileServiceConfigurationResult> ValidateAndSaveAsync(ProfileServiceConfigurationInput input, CancellationToken cancellationToken = default)
     {
         var profile = await currentProfile.GetRequiredAsync(cancellationToken);
+        if (profiles.Mode == ProfileMode.Anonymous)
+        {
+            var readOnly = new ProfileServiceConfiguration(deployment.BaseUrl, !string.IsNullOrWhiteSpace(deployment.ApiToken), true, false, DateTimeOffset.MinValue, true);
+            return new(false, ["Im anonymen Modus wird die Paperless-Konfiguration ausschließlich über PAPERLESS_URL und PAPERLESS_TOKEN bereitgestellt."], readOnly);
+        }
         var existing = await repository.GetSecretAsync(profile.Id, cancellationToken);
         var errors = new List<string>();
         var baseUrl = string.IsNullOrWhiteSpace(input.BaseUrl) ? null : input.BaseUrl.Trim().TrimEnd('/');
@@ -86,6 +95,9 @@ public sealed class ProfileServiceConfigurationService(
         return new(errors.Count == 0, errors, view, metadata);
     }
 
-    public async Task DeleteAsync(CancellationToken cancellationToken = default) => await repository.DeleteAsync((await currentProfile.GetRequiredAsync(cancellationToken)).Id, cancellationToken);
-    private bool DefaultUseDeployment(UserProfile profile) => profiles.Mode == ProfileMode.Anonymous && options.AnonymousUsesDeploymentToken;
+    public async Task DeleteAsync(CancellationToken cancellationToken = default)
+    {
+        if (profiles.Mode == ProfileMode.Anonymous) throw new InvalidOperationException("Anonymous service configuration is deployment-controlled.");
+        await repository.DeleteAsync((await currentProfile.GetRequiredAsync(cancellationToken)).Id, cancellationToken);
+    }
 }
