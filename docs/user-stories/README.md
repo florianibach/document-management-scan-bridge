@@ -21,5 +21,12 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-015](015-guided-scan-and-manual-duplex-states.md) | Guided scan and manual duplex states | Simplex and manual duplex scans use explicit, recoverable UI states |
 | [US-016](016-review-pdf-and-paperless-send-flow.md) | Review, PDF, and Paperless send flow | Page review, PDF creation, and upload become one safe handoff flow |
 | [US-017](017-settings-status-and-diagnostics-ui.md) | Settings, status, and diagnostics UI | Configuration and troubleshooting move into clear non-scan areas |
+| [US-018](018-first-scan-honors-adf-after-container-start.md) | First scan honors ADF after container start | The first scan uses the selected feeder source reliably |
+| [US-019](019-split-scan-batches-into-documents.md) | Split scan batches into documents | One paper stack can become several separately reviewed and uploaded documents |
+| [US-020](020-account-menu-and-profile-context.md) | Account menu and profile context | Anonymous and authenticated identity information has one consistent home |
+| [US-021](021-forget-a-saved-scanner.md) | Forget a saved scanner | Retired scanners can be removed safely without blocking rediscovery |
+| [US-022](022-scanner-operation-loading-states.md) | Scanner operation loading states | Slow scanner and API operations provide visible, blocking feedback |
+| [US-023](023-configurable-application-http-port.md) | Configurable application HTTP port | Host-network deployments can choose the application's listening port |
+| [US-024](024-multiple-parallel-login-providers.md) | Multiple parallel login providers | Household members can choose among configured identity providers |
 
 Every story is subject to the shared [Definition of Done](../definition-of-done.md). Explicitly deferred items are not implied by an acceptance criterion.
