@@ -71,18 +71,18 @@ public sealed class ProfileServiceConfigurationService(
         if (profiles.Mode == ProfileMode.Anonymous)
         {
             var readOnly = new ProfileServiceConfiguration(deployment.BaseUrl, !string.IsNullOrWhiteSpace(deployment.ApiToken), true, false, DateTimeOffset.MinValue, true);
-            return new(false, ["Im anonymen Modus wird die Paperless-Konfiguration ausschließlich über PAPERLESS_URL und PAPERLESS_TOKEN bereitgestellt."], readOnly);
+            return new(false, ["In anonymous mode, Paperless configuration is provided exclusively through PAPERLESS_URL and PAPERLESS_TOKEN."], readOnly);
         }
         var existing = await repository.GetSecretAsync(profile.Id, cancellationToken);
         var errors = new List<string>();
         var baseUrl = string.IsNullOrWhiteSpace(input.BaseUrl) ? null : input.BaseUrl.Trim().TrimEnd('/');
         if (baseUrl is not null && (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)))
-            errors.Add("Die Paperless-URL muss HTTPS verwenden; HTTP ist nur für localhost zulässig.");
-        if (!options.AllowProfileUrlOverride && baseUrl is not null) errors.Add("Profilbezogene URL-Änderungen sind durch die Bereitstellung gesperrt.");
+            errors.Add("The Paperless URL must use HTTPS; HTTP is allowed only for localhost.");
+        if (!options.AllowProfileUrlOverride && baseUrl is not null) errors.Add("Profile URL changes are disabled by the deployment.");
         var token = input.DeleteToken ? null : input.ReplaceToken ? input.ApiToken?.Trim() : existing?.ApiToken;
         var effectiveUrl = baseUrl ?? deployment.BaseUrl;
         var effectiveToken = token ?? (input.UseDeploymentToken ? deployment.ApiToken : null);
-        if (string.IsNullOrWhiteSpace(effectiveToken)) errors.Add("Ein API-Token ist erforderlich oder der Bereitstellungs-Token muss aktiviert werden.");
+        if (string.IsNullOrWhiteSpace(effectiveToken)) errors.Add("An API token is required, or the deployment token must be enabled.");
         PaperlessMetadata? metadata = null;
         if (errors.Count == 0)
         {

@@ -1,17 +1,98 @@
 @using PaperlessScanBridge.Application.Scanning
 @inject IScannerDiscoveryService Discovery
-<section class="card"><div class="card-body">
- <h2 class="h4">Scanner einrichten</h2><p>Kompatible eSCL/AirScan-Geräte im lokalen Netzwerk suchen und sicher auswählen.</p>
- <button class="btn btn-primary btn-lg w-100" @onclick="DiscoverAsync" disabled="@loading">@(loading ? "Suche läuft …" : "Scanner im Netzwerk suchen")</button>
- @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert @(error ? "alert-warning" : "alert-success") mt-3" role="alert">@message</div> }
- @if (result is not null)
- {
-  @if (result.Devices.Count == 0) { <AppStateCard Kind="warning" Title="Kein Scanner gefunden" Message="Gerät und Netzwerk prüfen und die Suche erneut starten."><TechnicalDetails>@string.Join(" ", result.Diagnostics)</TechnicalDetails></AppStateCard> }
-  else { <fieldset class="row g-3 mt-1"><legend class="h5">Gefundene Scanner</legend>@foreach (var device in result.Devices) { <div class="col-12 col-lg-6"><label class="card h-100 scanner-choice @(selectedId == device.DiscoveryId ? "border-primary" : "")"><div class="card-body"><input type="radio" name="scanner" value="@device.DiscoveryId" @onchange="() => selectedId=device.DiscoveryId" /><strong class="ms-2">@device.DisplayName</strong><div class="text-body-secondary small mt-2">@device.Protocol.ToUpperInvariant() · @device.IpAddress</div></div></label></div> }</fieldset><button class="btn btn-success btn-lg w-100 mt-3" disabled="@(loading || selectedId is null)" @onclick="SelectAsync">Auswählen und prüfen</button> }
- }
-</div></section>
+
+<section class="card scanner-setup-card" aria-labelledby="scanner-setup-title">
+ <div class="card-body">
+  <h2 id="scanner-setup-title" class="h4">Set up a scanner</h2>
+  <p>Find compatible eSCL/AirScan devices on your local network. Your current scanner will not change until another device passes validation.</p>
+  <button class="btn btn-primary btn-lg w-100" @onclick="DiscoverAsync" disabled="@busy">
+   @if (discovering) { <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> }@(discovering ? "Searching for scanners …" : "Search for scanners")
+  </button>
+
+  @if (discovering)
+  {
+   <div class="alert alert-info mt-3" role="status" aria-live="polite">Searching the local network for compatible scanners.</div>
+  }
+  @if (result is not null && !discovering)
+  {
+   @if (result.Devices.Count == 0)
+   {
+    <AppStateCard Kind="warning" Title="No scanners found" Message="Make sure the scanner is switched on, connected to the same network, and then try again.">
+     <ChildContent><button class="btn btn-outline-primary w-100" @onclick="DiscoverAsync">Try again</button></ChildContent>
+     <TechnicalDetails>@string.Join(" ", result.Diagnostics)</TechnicalDetails>
+    </AppStateCard>
+   }
+   else
+   {
+    @if (result.Diagnostics.Any(value => value.Contains("both HTTP and HTTPS", StringComparison.OrdinalIgnoreCase)))
+    { <div class="alert alert-info mt-3" role="status">Duplicate advertisements for the same physical device were merged. HTTPS will be tried first.</div> }
+    <div class="mt-3" aria-labelledby="found-scanners-title">
+     <h3 id="found-scanners-title" class="h5">Discovered scanners</h3>
+     <div class="row g-3">
+      @foreach (var device in result.Devices)
+      {
+       <div class="col-12 col-lg-6">
+        <article class="card h-100 scanner-choice @(validatingId == device.DiscoveryId ? "border-primary" : "")">
+         <div class="card-body d-flex flex-column">
+          <h4 class="h5">@device.DisplayName</h4>
+          <p class="text-body-secondary mb-2">eSCL available · @device.Protocol.ToUpperInvariant() preferred</p>
+          @if (validatingId == device.DiscoveryId)
+          { <div class="alert alert-info" role="status"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Validating scanner capabilities …</div> }
+          <button class="btn btn-success btn-lg w-100 mt-auto" disabled="@busy" @onclick="() => SelectAsync(device.DiscoveryId)">Select and validate</button>
+         </div>
+        </article>
+       </div>
+      }
+     </div>
+    </div>
+   }
+  }
+
+  @if (selection is { Succeeded: true, Scanner: { } scanner })
+  {
+   <AppStateCard Kind="success" Title="Scanner selected" Message="@SuccessMessage(scanner, selection.Diagnostic)">
+    <ChildContent><a class="btn btn-primary w-100" href="/">Return to scan preparation</a></ChildContent>
+   </AppStateCard>
+  }
+  else if (selection is { Succeeded: false })
+  {
+   <AppStateCard Kind="error" Title="This scanner could not be validated" Message="@UserFailure(selection)">
+    <ChildContent><button class="btn btn-outline-primary w-100" @onclick="() => SelectAsync(lastAttemptedId!)">Try again</button><a class="btn btn-outline-secondary w-100 mt-2" href="/status">Open diagnostics</a></ChildContent>
+    <TechnicalDetails>@selection.Diagnostic</TechnicalDetails>
+   </AppStateCard>
+  }
+ </div>
+</section>
+
 @code {
- private ScannerNetworkDiscoveryResult? result; private string? selectedId,message; private bool loading,error;
- private async Task DiscoverAsync(){loading=true;message=null;selectedId=null;try{result=await Discovery.DiscoverAsync(default);}finally{loading=false;}}
- private async Task SelectAsync(){loading=true;message=null;try{var selection=await Discovery.SelectAsync(selectedId!,default);error=!selection.Succeeded;message=selection.Succeeded?selection.Diagnostic ?? $"{selection.Scanner!.DisplayName} wurde geprüft und gespeichert.":selection.Diagnostic;}finally{loading=false;}}
+ private ScannerNetworkDiscoveryResult? result;
+ private ScannerSelectionResult? selection;
+ private string? validatingId, lastAttemptedId;
+ private bool discovering;
+ private bool busy => discovering || validatingId is not null;
+
+ private async Task DiscoverAsync()
+ {
+  discovering = true; selection = null;
+  try { result = await Discovery.DiscoverAsync(default); }
+  finally { discovering = false; }
+ }
+
+ private async Task SelectAsync(string discoveryId)
+ {
+  validatingId = discoveryId; lastAttemptedId = discoveryId; selection = null;
+  try { selection = await Discovery.SelectAsync(discoveryId, default); }
+  finally { validatingId = null; }
+ }
+
+ private static string SuccessMessage(SelectedScanner scanner, string? diagnostic) =>
+  diagnostic is null ? $"{scanner.DisplayName} passed capability validation and is ready to use. HTTPS was preferred." : $"{scanner.DisplayName} is ready to use. {diagnostic}";
+
+ private static string UserFailure(ScannerSelectionResult value) => value.Failure switch
+ {
+  ScannerEndpointFailure.InvalidCapabilities or ScannerEndpointFailure.InvalidXml => "The device responded, but its scanner capabilities could not be read. Your current scanner is unchanged.",
+  ScannerEndpointFailure.HttpStatus => "The device was found, but it does not provide compatible eSCL scanner capabilities. Your current scanner is unchanged.",
+  ScannerEndpointFailure.Timeout => "The scanner took too long to respond. It may be busy or temporarily unavailable. Your current scanner is unchanged.",
+  _ => "The scanner was found, but the connection could not be validated. Check that it is available and try again. Your current scanner is unchanged."
+ };
 }

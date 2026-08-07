@@ -95,7 +95,7 @@ public sealed class ManualDuplexWorkflow(
             scanSettings = settings;
             source = cancellation;
             finalBackIsBlank = lastBackIsBlank;
-            Current = Current with { State = ManualDuplexState.ScanningBacks, Message = "Rückseiten werden gescannt …", UpdatedAt = DateTimeOffset.UtcNow };
+            Current = Current with { State = ManualDuplexState.ScanningBacks, Message = "Scanning back sides …", UpdatedAt = DateTimeOffset.UtcNow };
         }
         Changed?.Invoke();
         _ = CaptureBacksAsync(sessionId, scanSettings, source);
@@ -153,7 +153,7 @@ public sealed class ManualDuplexWorkflow(
             fronts = ValidPages(capture.PageFiles, directory);
             if (fronts.Length == 0) throw new InvalidOperationException("No front pages were captured.");
             Update(new(id, ManualDuplexState.AwaitingFlipConfirmation, fronts.Length, 0, 0,
-                "Vorderseiten fertig. Stapel wie gezeigt wenden und den zweiten Durchlauf ausdrücklich bestätigen.", DateTimeOffset.UtcNow));
+                "Front sides complete. Flip the stack as shown and explicitly confirm the second pass.", DateTimeOffset.UtcNow));
             logger.LogInformation("Manual duplex session {SessionId} captured {PageCount} front page(s)", id, fronts.Length);
         }
         catch (OperationCanceledException) when (source.IsCancellationRequested) { Cancelled(id); }
@@ -172,7 +172,7 @@ public sealed class ManualDuplexWorkflow(
             if (backs.Length != expected && !(finalBackIsBlank && backs.Length == fronts.Length))
             {
                 Update(new(id, ManualDuplexState.PageCountMismatch, fronts.Length, backs.Length, 0,
-                    $"Die Durchläufe passen nicht zusammen ({fronts.Length} Vorder-, {backs.Length} Rückseiten). Stapel prüfen und neu starten.", DateTimeOffset.UtcNow));
+                    $"The passes do not match ({fronts.Length} front, {backs.Length} back pages). Check the stack and restart.", DateTimeOffset.UtcNow));
                 logger.LogWarning("Manual duplex session {SessionId} has incompatible pass counts {FrontCount}/{BackCount}", id, fronts.Length, backs.Length);
                 return;
             }
@@ -211,8 +211,8 @@ public sealed class ManualDuplexWorkflow(
     private static string[] ValidPages(IEnumerable<string> pages, string directory) => pages
         .Where(path => Path.GetFullPath(path).StartsWith(Path.GetFullPath(directory) + Path.DirectorySeparatorChar, StringComparison.Ordinal) && File.Exists(path)).ToArray();
     private void Update(ManualDuplexSnapshot snapshot) { lock (gate) Current = snapshot; Changed?.Invoke(); }
-    private void Cancelled(Guid id) { DeleteSession(SessionDirectory(id)); Update(new(id, ManualDuplexState.Cancelled, 0, 0, 0, "Duplex-Scan abgebrochen; unvollständige Seiten wurden entfernt.", DateTimeOffset.UtcNow)); }
-    private void Failed(Guid id, Exception exception) { DeleteSession(SessionDirectory(id)); Update(new(id, ManualDuplexState.Failed, 0, 0, 0, "Duplex-Scan fehlgeschlagen. Scanner und Stapel prüfen und neu starten.", DateTimeOffset.UtcNow)); logger.LogWarning("Manual duplex session {SessionId} failed: {FailureType}", id, exception.GetType().Name); }
+    private void Cancelled(Guid id) { DeleteSession(SessionDirectory(id)); Update(new(id, ManualDuplexState.Cancelled, 0, 0, 0, "Duplex scan cancelled; incomplete pages were removed.", DateTimeOffset.UtcNow)); }
+    private void Failed(Guid id, Exception exception) { DeleteSession(SessionDirectory(id)); Update(new(id, ManualDuplexState.Failed, 0, 0, 0, "Duplex scan failed. Check the scanner and stack, then restart.", DateTimeOffset.UtcNow)); logger.LogWarning("Manual duplex session {SessionId} failed: {FailureType}", id, exception.GetType().Name); }
     private static void DeleteSession(string path) { if (Directory.Exists(path)) Directory.Delete(path, true); }
     public void Dispose() => cancellation?.Cancel();
 }

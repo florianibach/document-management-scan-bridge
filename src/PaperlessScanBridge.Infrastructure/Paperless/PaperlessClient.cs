@@ -14,14 +14,14 @@ public sealed class PaperlessClient(HttpClient http, IProfileServiceConfiguratio
     public async Task<PaperlessResult> CheckConnectivityAsync(CancellationToken cancellationToken = default)
     {
         var options = await configurations.GetEffectiveAsync(cancellationToken);
-        if (!options.IsConfigured) return new(false, "Keine wirksame Paperless-Konfiguration vorhanden.", PaperlessFailure.Configuration);
+        if (!options.IsConfigured) return new(false, "No effective Paperless configuration is available.", PaperlessFailure.Configuration);
         try
         {
             using var response = await SendAsync(options, HttpMethod.Get, "api/documents/?page_size=1", null, cancellationToken);
-            return response.IsSuccessStatusCode ? new(true, "Verbindung und API-Berechtigung sind gültig.") : Failure(response.StatusCode);
+            return response.IsSuccessStatusCode ? new(true, "Connection and API permission are valid.") : Failure(response.StatusCode);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(false, "Paperless hat nicht rechtzeitig geantwortet.", PaperlessFailure.Network); }
-        catch (HttpRequestException) { return new(false, "Paperless ist über das Netzwerk nicht erreichbar.", PaperlessFailure.Network); }
+        catch (HttpRequestException) { return new(false, "Paperless cannot be reached over the network.", PaperlessFailure.Network); }
     }
 
     public async Task<(PaperlessResult Result, PaperlessMetadata? Metadata)> GetMetadataAsync(CancellationToken cancellationToken = default)
@@ -38,15 +38,15 @@ public sealed class PaperlessClient(HttpClient http, IProfileServiceConfiguratio
         }
         catch (PaperlessHttpException exception) { return (Failure(exception.StatusCode), null); }
         catch (HttpRequestException) { return (new(false, "Metadaten konnten wegen eines Netzwerkfehlers nicht geladen werden.", PaperlessFailure.Network), null); }
-        catch (JsonException) { return (new(false, "Paperless hat ungültige Metadaten geliefert.", PaperlessFailure.InvalidResponse), null); }
+        catch (JsonException) { return (new(false, "Paperless returned invalid metadata.", PaperlessFailure.InvalidResponse), null); }
     }
 
     public async Task<PaperlessResult> UploadAsync(PaperlessUploadRequest request, IProgress<int>? progress = null, CancellationToken cancellationToken = default)
     {
         var path = Path.Combine(Path.GetFullPath(storage.Path), request.SessionId.ToString("N"), "document.pdf");
-        if (!File.Exists(path)) return new(false, "Die erzeugte PDF ist nicht mehr vorhanden. Bitte erneut erstellen.", PaperlessFailure.FileMissing);
+        if (!File.Exists(path)) return new(false, "The generated PDF is no longer available. Create it again.", PaperlessFailure.FileMissing);
         var options = await configurations.GetEffectiveAsync(cancellationToken);
-        if (!options.IsConfigured) return new(false, "Keine wirksame Paperless-Konfiguration vorhanden.", PaperlessFailure.Configuration);
+        if (!options.IsConfigured) return new(false, "No effective Paperless configuration is available.", PaperlessFailure.Configuration);
         try
         {
             await using var stream = File.OpenRead(path);
@@ -61,7 +61,7 @@ public sealed class PaperlessClient(HttpClient http, IProfileServiceConfiguratio
             if (!response.IsSuccessStatusCode) return Failure(response.StatusCode);
             var taskId = (await response.Content.ReadAsStringAsync(cancellationToken)).Trim().Trim('"');
             logger.LogInformation("Paperless accepted upload for scan session {SessionId}.", request.SessionId);
-            return new(true, "Paperless hat das Dokument angenommen und verarbeitet es jetzt.", TaskId: string.IsNullOrWhiteSpace(taskId) ? null : taskId);
+            return new(true, "Paperless accepted the document and is processing it now.", TaskId: string.IsNullOrWhiteSpace(taskId) ? null : taskId);
         }
         catch (OperationCanceledException) { throw; }
         catch (HttpRequestException) { return new(false, "Upload wegen eines Netzwerkfehlers fehlgeschlagen; die PDF bleibt erhalten.", PaperlessFailure.Network); }
@@ -83,7 +83,7 @@ public sealed class PaperlessClient(HttpClient http, IProfileServiceConfiguratio
     }
     private static PaperlessResult Failure(HttpStatusCode status) => status switch
     {
-        HttpStatusCode.Unauthorized => new(false, "Authentifizierung fehlgeschlagen: API-Token prüfen.", PaperlessFailure.Authentication),
+        HttpStatusCode.Unauthorized => new(false, "Authentication failed. Check the API token.", PaperlessFailure.Authentication),
         HttpStatusCode.Forbidden => new(false, "Authentifiziert, aber die erforderliche Berechtigung fehlt.", PaperlessFailure.Authorization),
         >= HttpStatusCode.InternalServerError => new(false, $"Paperless meldet einen Serverfehler ({(int)status}).", PaperlessFailure.Server),
         _ => new(false, $"Paperless hat die Anfrage abgelehnt (HTTP {(int)status}).", PaperlessFailure.Unknown)

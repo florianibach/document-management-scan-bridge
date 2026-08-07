@@ -5,9 +5,9 @@
 @if (profile is not null)
 {
  <div class="profile-context small" role="status">
-  <span><span class="text-body-secondary">Profil:</span> @profile.DisplayName</span>
+  <span><span class="text-body-secondary">Profile:</span> @profile.DisplayName</span>
   @if (Options.Value.Mode == ProfileMode.OpenIdConnect)
-  { <form method="post" action="/signout" class="d-inline ms-2"><button class="btn btn-sm btn-outline-secondary">Abmelden</button></form> }
+  { <form method="post" action="/signout" class="d-inline ms-2"><button class="btn btn-sm btn-outline-secondary">Sign out</button></form> }
  </div>
 }
 

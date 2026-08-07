@@ -37,7 +37,7 @@ public sealed class SettingsPageTests : BunitContext
         Assert.Contains("PAPERLESS_TOKEN", page.Markup);
         Assert.DoesNotContain("environment-secret", page.Markup);
         Assert.DoesNotContain(page.FindAll("input"), input => input.Id == "replace-token");
-        Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Contains("Verbindung prüfen und aktivieren"));
+        Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Contains("Validate and activate connection"));
     }
 
     [Fact]
@@ -46,10 +46,10 @@ public sealed class SettingsPageTests : BunitContext
         AddAnonymousServices();
         var page = Render<Settings>();
         Assert.DoesNotContain(notifications.Invocations, invocation => invocation.Identifier == "enable");
-        await page.FindAll("button").Single(button => button.TextContent.Contains("Benachrichtigungen aktivieren")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Enable notifications")).ClickAsync(new());
         Assert.Single(notifications.Invocations, invocation => invocation.Identifier == "enable");
-        Assert.Contains("Benachrichtigungen ausschalten", page.Markup);
-        Assert.Contains("offenen Tab im Hintergrund", page.Markup);
+        Assert.Contains("Disable notifications", page.Markup);
+        Assert.Contains("open tab is in the background", page.Markup);
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class SettingsPageTests : BunitContext
         await page.Find("#toggle-paperless-token").ClickAsync(new());
         Assert.Equal("text", page.Find("#paperless-token").GetAttribute("type"));
         Assert.Equal("new-visible-token", page.Find("#paperless-token").GetAttribute("value"));
-        Assert.Contains("nicht wieder angezeigt", page.Markup);
+        Assert.Contains("cannot be displayed again", page.Markup);
     }
 
     private void AddAnonymousServices()

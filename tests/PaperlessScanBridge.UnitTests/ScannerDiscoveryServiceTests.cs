@@ -45,7 +45,7 @@ public sealed class ScannerDiscoveryServiceTests
         Assert.True(result.Succeeded);
         Assert.Equal(["https", "http"], validator.Protocols);
         Assert.Equal("http://192.168.1.20:80/eSCL", repository.Saved?.EsclUrl);
-        Assert.Contains("HTTP-eSCL-Endpunkt", result.Diagnostic);
+        Assert.Contains("HTTP eSCL endpoint", result.Diagnostic);
     }
 
     [Theory]

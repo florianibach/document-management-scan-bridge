@@ -27,16 +27,16 @@ public sealed class PaperlessConnectionTester(IHttpClientFactory clients) : IPap
                 return page.Results.OrderBy(x => x.Name).ToArray();
             }
             var metadata = new PaperlessMetadata(await Choices("api/correspondents/?page_size=100000"), await Choices("api/document_types/?page_size=100000"), await Choices("api/tags/?page_size=100000"));
-            return (new(true, "Verbindung, Authentifizierung, Berechtigungen und Metadaten sind gültig."), metadata);
+            return (new(true, "Connection, authentication, permissions, and metadata are valid."), metadata);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return (new(false, "Paperless hat nicht rechtzeitig geantwortet.", PaperlessFailure.Network), null); }
-        catch (HttpRequestException) { return (new(false, "Paperless oder die erforderlichen Metadaten sind nicht erreichbar.", PaperlessFailure.Network), null); }
+        catch (HttpRequestException) { return (new(false, "Paperless or the required metadata cannot be reached.", PaperlessFailure.Network), null); }
     }
     private static PaperlessResult Failure(System.Net.HttpStatusCode status) => status switch
     {
-        System.Net.HttpStatusCode.Unauthorized => new(false, "Authentifizierung fehlgeschlagen: API-Token prüfen.", PaperlessFailure.Authentication),
+        System.Net.HttpStatusCode.Unauthorized => new(false, "Authentication failed. Check the API token.", PaperlessFailure.Authentication),
         System.Net.HttpStatusCode.Forbidden => new(false, "Dem API-Token fehlen erforderliche Leseberechtigungen.", PaperlessFailure.Authorization),
-        _ => new(false, $"Paperless hat die Prüfung abgelehnt (HTTP {(int)status}).", PaperlessFailure.Server)
+        _ => new(false, $"Paperless rejected validation (HTTP {(int)status}).", PaperlessFailure.Server)
     };
     private sealed record Page(PaperlessChoice[] Results);
 }

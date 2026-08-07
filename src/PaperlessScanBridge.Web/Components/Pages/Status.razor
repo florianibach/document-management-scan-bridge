@@ -1,9 +1,9 @@
 @page "/status"
 @inject BuildInformation Build
 <PageTitle>Status</PageTitle>
-<header class="page-heading"><p class="eyebrow">Betrieb &amp; Diagnose</p><h1>Status</h1><p>Technische Informationen sind bewusst vom täglichen Scan-Ablauf getrennt.</p></header>
+<header class="page-heading"><p class="eyebrow">Operations &amp; diagnostics</p><h1>Status</h1><p>Technical information is intentionally separated from the daily scan workflow.</p></header>
 <div class="row g-3">
- <div class="col-12 col-lg-6"><AppStateCard Kind="success" Title="Anwendung bereit" Message="Der öffentliche Health-Endpunkt kann von Compose und Monitoring geprüft werden."><ChildContent><a class="btn btn-outline-primary" href="/health">Health-Check öffnen</a></ChildContent></AppStateCard></div>
- <div class="col-12 col-lg-6"><AppStateCard Kind="empty" Title="Version" Message="@($"Installierter Build: {Build.Commit}")"><TechnicalDetails>Der Wert entspricht dem beim Container-Build übergebenen Git-Commit.</TechnicalDetails></AppStateCard></div>
- <div class="col-12"><AppStateCard Kind="warning" Title="Netzwerkdiagnose" Message="Scanner-Erkennung benötigt mDNS im lokalen Netzwerk."><TechnicalDetails>UDP 5353 sowie der eSCL-Zugriff zum Scanner müssen erreichbar sein. Scannerfähigkeiten werden bei Auswahl validiert.</TechnicalDetails></AppStateCard></div>
+ <div class="col-12 col-lg-6"><AppStateCard Kind="success" Title="Application ready" Message="The public health endpoint can be checked by Compose and monitoring."><ChildContent><a class="btn btn-outline-primary" href="/health">Open health check</a></ChildContent></AppStateCard></div>
+ <div class="col-12 col-lg-6"><AppStateCard Kind="empty" Title="Version" Message="@($"Installed build: {Build.Commit}")"><TechnicalDetails>This value is the Git commit supplied during the container build.</TechnicalDetails></AppStateCard></div>
+ <div class="col-12"><AppStateCard Kind="warning" Title="Network diagnostics" Message="Scanner discovery requires mDNS on the local network."><TechnicalDetails>UDP 5353 and eSCL access to the scanner must be reachable. Capabilities are validated on selection.</TechnicalDetails></AppStateCard></div>
 </div>

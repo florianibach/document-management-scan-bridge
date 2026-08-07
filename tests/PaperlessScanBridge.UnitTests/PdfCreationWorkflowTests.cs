@@ -42,7 +42,7 @@ public sealed class PdfCreationWorkflowTests
         using var workflow = new PdfCreationWorkflow(new WriterStub(new InvalidDataException()));
         await workflow.CreateAsync(new(Guid.NewGuid(), [new(Guid.NewGuid(), 1, "page.png", 0, true, null)]));
         Assert.Equal(PdfCreationState.Failed, workflow.Current!.State);
-        Assert.Contains("Sitzung bleibt erhalten", workflow.Current.Message);
+        Assert.Contains("session remains available", workflow.Current.Message);
     }
 
     private sealed class WriterStub(Exception? failure = null) : IPdfDocumentWriter

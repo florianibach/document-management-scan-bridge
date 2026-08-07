@@ -45,18 +45,18 @@ public sealed class ProfileDefaultsService(
     {
         var errors = new List<string>();
         if (defaults.ResolutionDpi is not (100 or 200 or 300 or 600))
-            errors.Add("Die gewählte Auflösung wird nicht unterstützt.");
+            errors.Add("The selected resolution is not supported.");
 
         if (defaults.ScannerId is { } scannerId)
         {
             var scanner = await scanners.GetByIdAsync(scannerId, cancellationToken);
-            if (scanner is null) errors.Add("Der gespeicherte Standardscanner ist nicht mehr verfügbar.");
+            if (scanner is null) errors.Add("The saved default scanner is no longer available.");
             else
             {
                 if (string.IsNullOrWhiteSpace(defaults.Source) || scanner.Sources?.Contains(defaults.Source) != true)
-                    errors.Add("Die gespeicherte Scanquelle wird von diesem Scanner nicht mehr unterstützt.");
+                    errors.Add("The saved scan source is no longer supported by this scanner.");
                 if (scanner.Resolutions?.Contains(defaults.ResolutionDpi) != true)
-                    errors.Add("Die gespeicherte Auflösung wird von diesem Scanner nicht mehr unterstützt.");
+                    errors.Add("The saved resolution is no longer supported by this scanner.");
             }
         }
         else if (!string.IsNullOrWhiteSpace(defaults.Source))

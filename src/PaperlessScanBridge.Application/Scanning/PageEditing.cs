@@ -35,7 +35,7 @@ public sealed class PageEditingSession(TemporaryStorageOptions storage, ILogger<
             cancellationToken.ThrowIfCancellationRequested();
             loaded.Add(new(Guid.NewGuid(), Path.GetFileName(path), 0, await ValidatePngAsync(path, cancellationToken)));
         }
-        lock (gate) { pages = loaded; Current = Snapshot(sessionId, files.Length == 0 ? "Keine vollständigen Seiten für die Vorschau gefunden." : null); }
+        lock (gate) { pages = loaded; Current = Snapshot(sessionId, files.Length == 0 ? "No complete pages were found for review." : null); }
         logger.LogInformation("Preview session {SessionId} loaded {PageCount} page(s), including {ErrorCount} unavailable page(s)", sessionId, loaded.Count, loaded.Count(p => p.Error is not null));
         Changed?.Invoke();
     }
@@ -64,9 +64,9 @@ public sealed class PageEditingSession(TemporaryStorageOptions storage, ILogger<
         {
             await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 8, FileOptions.Asynchronous | FileOptions.SequentialScan);
             var signature = new byte[8];
-            return await stream.ReadAsync(signature, token) == 8 && signature.SequenceEqual(PngSignature) ? null : "Seitendaten fehlen oder sind beschädigt. Die übrigen Seiten können weiter bearbeitet werden.";
+            return await stream.ReadAsync(signature, token) == 8 && signature.SequenceEqual(PngSignature) ? null : "Page data is missing or damaged. The remaining pages can still be edited.";
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return "Seitendaten fehlen oder können nicht gelesen werden. Die übrigen Seiten können weiter bearbeitet werden."; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return "Page data is missing or unreadable. The remaining pages can still be edited."; }
     }
     private sealed class PageEntry(Guid id, string fileName, int rotation, string? error)
     { public Guid Id { get; } = id; public string FileName { get; } = fileName; public int Rotation { get; set; } = rotation; public string? Error { get; } = error; }
