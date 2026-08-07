@@ -44,6 +44,7 @@ public sealed class HomePageTests : BunitContext
         var page = Render<Home>();
         Assert.Contains("Vorbereiten", page.Markup);
         Assert.DoesNotContain("mDNS", page.Markup);
+        Assert.DoesNotContain("Täglicher Ablauf", page.Markup);
     }
 
     [Fact]
@@ -114,6 +115,7 @@ public sealed class HomePageTests : BunitContext
         Assert.DoesNotContain("Dokument scannen", page.Markup);
         Assert.DoesNotContain("Beidseitiges Dokument scannen", page.Markup);
         Assert.Contains("Zurück zur Vorschau", page.Markup);
+        Assert.DoesNotContain("ist mit gespeicherten Scannerwerten bereit", page.Markup);
         await page.FindAll("button").Single(button => button.TextContent.Contains("Metadaten laden")).ClickAsync(new());
         Assert.Contains("Example GmbH", page.Markup);
         await page.Find("#paperless-title").ChangeAsync("Rechnung August");
@@ -192,7 +194,7 @@ public sealed class HomePageTests : BunitContext
     }
 
     [Fact]
-    public void TimeoutDecisionOffersContinueAndAbort()
+    public async Task TimeoutDecisionOffersContinueAndAbort()
     {
         var workflow = new WorkflowStub();
         AddServices(new DiscoveryStub(new([], [])), workflow: workflow);
@@ -200,6 +202,10 @@ public sealed class HomePageTests : BunitContext
         workflow.SetState(ScanJobState.AwaitingUserDecision, "Scanner arbeitet möglicherweise noch.");
         page.WaitForAssertion(() => Assert.Contains("weiter warten", page.Markup));
         Assert.Contains("Scan jetzt abbrechen", page.Markup);
+        var previousNotifications = notifications.Invocations.Count();
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Scan jetzt abbrechen")).ClickAsync(new());
+        page.WaitForAssertion(() => Assert.Contains(notifications.Invocations.Skip(previousNotifications), invocation => invocation.Identifier == "show" && invocation.Arguments[0]?.ToString() == "Scan abgebrochen"));
+        Assert.DoesNotContain(notifications.Invocations.Skip(previousNotifications), invocation => invocation.Identifier == "show" && invocation.Arguments[0]?.ToString() == "Scan benötigt eine Rückmeldung");
     }
 
     [Fact]
@@ -280,7 +286,7 @@ public sealed class HomePageTests : BunitContext
         public event Action? Changed;
         public Task<ScanJobSnapshot> StartAsync(SimplexScanSettings settings, CancellationToken cancellationToken = default)
         { ReceivedSettings = settings; Current = new(Guid.NewGuid(), ScanJobState.Completed, 1, "Scan abgeschlossen: 1 Seite(n).", DateTimeOffset.UtcNow); Changed?.Invoke(); return Task.FromResult(Current); }
-        public Task CancelAsync() => Task.CompletedTask;
+        public Task CancelAsync() { if (Current is not null) { Current = Current with { State = ScanJobState.Cancelled, Message = "Scan wurde abgebrochen." }; Changed?.Invoke(); } return Task.CompletedTask; }
         public Task ContinueAsync() => Task.CompletedTask;
         public void SetState(ScanJobState state, string message)
         { Current = new(Guid.NewGuid(), state, 0, message, DateTimeOffset.UtcNow); Changed?.Invoke(); }

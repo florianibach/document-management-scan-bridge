@@ -19,9 +19,9 @@
 @rendermode InteractiveServer
 
 <PageTitle>Scan</PageTitle>
-<header class="page-heading"><p class="eyebrow">Täglicher Ablauf</p><h1>Scan</h1><p>Dokument vorbereiten, erfassen, prüfen und sicher übergeben.</p></header>
+<header class="page-heading"><h1>Scan</h1><p>Dokument vorbereiten, erfassen, prüfen und sicher übergeben.</p></header>
 <WorkflowStepper Current="@CurrentWorkflowStep" />
-@if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-info" role="status">@message</div> }
+@if (CurrentWorkflowStep == "Vorbereiten" && !string.IsNullOrWhiteSpace(message)) { <div class="alert alert-info" role="status">@message</div> }
 @if (CurrentWorkflowStep == "Vorbereiten")
 {
 <section class="card mt-4 scan-panel">
@@ -242,6 +242,8 @@ else if (CurrentWorkflowStep == "Prüfen")
     private string? paperlessMessage;
     private bool paperlessError;
     private bool paperlessLoading;
+    private Guid? cancellingScanSessionId;
+    private Guid? cancellingDuplexSessionId;
     private string? paperlessTitle;
     private string? paperlessBaseUrl;
     private int? paperlessCorrespondent;
@@ -310,22 +312,42 @@ else if (CurrentWorkflowStep == "Prüfen")
     private void ShowReview() => displayedStep = "Prüfen";
     private void ShowPreparation() => displayedStep = "Vorbereiten";
     private void StartNewDocument() { displayedStep = "Vorbereiten"; paperlessMetadata = null; paperlessMessage = null; }
-    private Task CancelActiveScanAsync() => ScanWorkflow.Current?.IsActive == true ? ScanWorkflow.CancelAsync() : DuplexWorkflow.CancelAsync();
+    private Task CancelActiveScanAsync() => ScanWorkflow.Current?.IsActive == true ? CancelScanAsync() : CancelDuplexAsync();
     private string PdfStatusLabel => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "Fertig", PdfCreationState.Cancelled => "Abgebrochen", PdfCreationState.Failed => "Fehlgeschlagen", _ => "Läuft" };
     private string PdfStatusClass => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "alert-success", PdfCreationState.Cancelled => "alert-warning", PdfCreationState.Failed => "alert-danger", _ => "alert-info" };
     private void RequestDelete(Guid id) => deleteCandidate = id;
     private void CancelDelete() => deleteCandidate = null;
     private void ConfirmDelete(Guid id) { PageEditor.Delete(id); deleteCandidate = null; }
-    private async Task StartScanAsync() { displayedStep = null; await ScanWorkflow.StartAsync(new(activeDeviceId!, scanSource, colorMode, resolution)); }
-    private Task CancelScanAsync() => ScanWorkflow.CancelAsync();
+    private async Task StartScanAsync() { cancellingScanSessionId = null; displayedStep = null; await ScanWorkflow.StartAsync(new(activeDeviceId!, scanSource, colorMode, resolution)); }
+    private async Task CancelScanAsync()
+    {
+        cancellingScanSessionId = ScanWorkflow.Current?.SessionId;
+        await ScanWorkflow.CancelAsync();
+    }
     private Task ContinueScanAsync() => ScanWorkflow.ContinueAsync();
-    private Task StartDuplexAsync() { displayedStep = null; return DuplexWorkflow.StartAsync(new(activeDeviceId!, DuplexSource!, colorMode, resolution)); }
+    private Task StartDuplexAsync() { cancellingDuplexSessionId = null; displayedStep = null; return DuplexWorkflow.StartAsync(new(activeDeviceId!, DuplexSource!, colorMode, resolution)); }
     private Task ConfirmFlipAsync() => DuplexWorkflow.ConfirmFlipAsync(finalBackIsBlank);
-    private Task CancelDuplexAsync() => DuplexWorkflow.CancelAsync();
+    private async Task CancelDuplexAsync()
+    {
+        cancellingDuplexSessionId = DuplexWorkflow.Current?.SessionId;
+        await DuplexWorkflow.CancelAsync();
+    }
     private Task RestartDuplexAsync() => DuplexWorkflow.RestartAsync();
     private async Task NotifyCurrentStateAsync()
     {
         if (notificationModule is null) return;
+        if (ScanWorkflow.Current is { } cancellingScan && cancellingScan.SessionId == cancellingScanSessionId)
+        {
+            if (cancellingScan.State == ScanJobState.Cancelled)
+                await ShowNotificationAsync(cancellingScan.SessionId, cancellingScan.State.ToString(), "Scan abgebrochen", cancellingScan.Message);
+            return;
+        }
+        if (DuplexWorkflow.Current is { } cancellingDuplex && cancellingDuplex.SessionId == cancellingDuplexSessionId)
+        {
+            if (cancellingDuplex.State == ManualDuplexState.Cancelled)
+                await ShowNotificationAsync(cancellingDuplex.SessionId, cancellingDuplex.State.ToString(), "Duplex-Scan abgebrochen", cancellingDuplex.Message);
+            return;
+        }
         if (ScanWorkflow.Current is { } scan && scan.State is ScanJobState.AwaitingUserDecision or ScanJobState.Completed or ScanJobState.Failed)
             await ShowNotificationAsync(scan.SessionId, scan.State.ToString(), scan.State == ScanJobState.Completed ? "Scan abgeschlossen" : scan.State == ScanJobState.Failed ? "Scan fehlgeschlagen" : "Scan benötigt eine Rückmeldung", scan.Message);
         if (DuplexWorkflow.Current is { } duplex && duplex.State is ManualDuplexState.AwaitingFlipConfirmation or ManualDuplexState.PageCountMismatch or ManualDuplexState.Completed or ManualDuplexState.Failed)
