@@ -42,3 +42,7 @@
 - Representative workflow evidence: the component suite covers scanner selection through existing scan, duplex, preview, PDF, and upload behaviors. Responsive rules were reviewed for mobile and desktop widths; Chromium screenshot capture was unavailable because this environment cannot run its snap package. No scanner hardware behavior changed in this shell-only story.
 - Not applicable: persistence migrations, external-boundary integration changes, configuration variables, logging, cleanup/recovery, and target-printer firmware validation, because this story changes presentation and placement only. Container startup remains subject to the local Docker environment.
 - Accepted follow-up: Documents intentionally shows a safe current-session explanation rather than introducing the session history planned outside this story; the more extensive diagnostics presentation remains US-017.
+
+### Follow-up: focused workflow stages
+
+The scan page now renders only the active stage's controls. Preparation choices disappear while scanning, reviewing, creating the PDF, or sending; the send and PDF stages provide explicit cancellation where an operation is active and a safe return to the review without discarding source pages. Component coverage verifies that preparation controls are absent after scanning and after PDF completion.

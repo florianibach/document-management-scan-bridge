@@ -111,6 +111,9 @@ public sealed class HomePageTests : BunitContext
         AddServices(new DiscoveryStub(new([], [])), editor: editor, paperless: paperless);
         var page = Render<Home>();
         await page.FindAll("button").Single(button => button.TextContent.Contains("PDF erstellen")).ClickAsync(new());
+        Assert.DoesNotContain("Dokument scannen", page.Markup);
+        Assert.DoesNotContain("Beidseitiges Dokument scannen", page.Markup);
+        Assert.Contains("Zurück zur Vorschau", page.Markup);
         await page.FindAll("button").Single(button => button.TextContent.Contains("Metadaten laden")).ClickAsync(new());
         Assert.Contains("Example GmbH", page.Markup);
         await page.Find("#paperless-title").ChangeAsync("Rechnung August");
@@ -128,8 +131,9 @@ public sealed class HomePageTests : BunitContext
         var page = Render<Home>();
         await page.Find("#saved-scanner").ChangeAsync("1");
         await page.Find("button.btn-primary.w-100.mt-4").ClickAsync(new());
-        Assert.Contains("Abgeschlossen", page.Find("[aria-live=polite]").TextContent);
-        Assert.Contains("1 Seite", page.Markup);
+        Assert.Contains("Prüfen", page.Markup);
+        Assert.DoesNotContain("Simplex-Scan starten", page.Markup);
+        Assert.DoesNotContain("Manuellen Duplex-Scan starten", page.Markup);
         Assert.Contains(notifications.Invocations, invocation => invocation.Identifier == "show"
             && invocation.Arguments[0]?.ToString() == "Scan abgeschlossen");
     }
