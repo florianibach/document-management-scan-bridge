@@ -17,7 +17,10 @@
 @implements IAsyncDisposable
 @rendermode InteractiveServer
 
-<PageTitle>Scanner auswählen</PageTitle>
+<PageTitle>Scan</PageTitle>
+<header class="page-heading"><p class="eyebrow">Täglicher Ablauf</p><h1>Scan</h1><p>Dokument vorbereiten, erfassen, prüfen und sicher übergeben.</p></header>
+<WorkflowStepper Current="@CurrentWorkflowStep" />
+@if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-info" role="status">@message</div> }
 <section class="card mt-4 scan-panel">
  <div class="card-body">
   <span class="badge text-bg-primary mb-2">Simplex</span>
@@ -158,61 +161,10 @@
  </section>
 }
 
-<div class="container-fluid px-0">
-    <div class="p-4 p-md-5 mb-4 rounded-3 bg-body-tertiary">
-        <span class="badge text-bg-primary mb-3">Scannerkonfiguration</span>
-        <h1 class="display-6 fw-bold">Netzwerkscanner auswählen</h1>
-        <p class="lead">Sucht eSCL/AirScan-Geräte direkt per mDNS und prüft den ausgewählten Scanner.</p>
-        <button class="btn btn-primary btn-lg w-100 w-md-auto" @onclick="DiscoverAsync" disabled="@loading">
-            @(loading ? "Suche läuft …" : "Scanner suchen")
-        </button>
-    </div>
-
-    @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert @(error ? "alert-warning" : "alert-success")" role="alert">@message</div> }
-    @if (result is null) { <div class="alert alert-info" role="status">Noch keine Suche ausgeführt.</div> }
-    else if (result.Devices.Count == 0) { <div class="alert alert-warning" role="alert">@string.Join(" ", result.Diagnostics)</div> }
-    else
-    {
-        @foreach (var diagnostic in result.Diagnostics) { <div class="alert alert-info" role="status">@diagnostic</div> }
-        <fieldset class="row g-3 mb-3">
-            <legend class="h4">Gefundene Scanner</legend>
-            @foreach (var device in result.Devices)
-            {
-                <div class="col-12 col-md-6">
-                    <label class="card h-100 scanner-choice @(selectedId == device.DiscoveryId ? "border-primary" : "")">
-                        <div class="card-body">
-                            <input type="radio" name="scanner" value="@device.DiscoveryId" checked="@(selectedId == device.DiscoveryId)" @onchange="() => selectedId = device.DiscoveryId" />
-                            <strong class="ms-2">@device.DisplayName</strong>
-                            <div class="mt-2"><span class="badge text-bg-secondary">@device.Protocol.ToUpperInvariant()</span> @device.IpAddress:@device.Port</div>
-                        </div>
-                    </label>
-                </div>
-            }
-        </fieldset>
-        <button class="btn btn-success btn-lg w-100" disabled="@(loading || selectedId is null)" @onclick="SelectAsync">Scanner auswählen</button>
-    }
-
-    @if (saneResult?.Succeeded == true)
-    {
-        <section class="card mt-4"><div class="card-body">
-            <h2 class="h4">@saneResult.SelectedDevice!.DisplayName</h2>
-            <div class="row g-3">
-                <Capability Title="Einzugsquellen" Values="saneResult.Capabilities!.Sources" />
-                <Capability Title="Formate" Values="saneResult.Capabilities.Formats" />
-                <Capability Title="Auflösungen" Values="ResolutionLabels" />
-                <Capability Title="Papiergrößen" Values="saneResult.Capabilities.PaperSizes" />
-            </div>
-        </div></section>
-    }
-</div>
 
 @code {
-    private ScannerNetworkDiscoveryResult? result;
     private ScannerDiscoveryResult? saneResult;
-    private string? selectedId;
     private string? message;
-    private bool error;
-    private bool loading;
     private bool scannerLoading;
     private IReadOnlyList<SelectedScanner> savedScanners = [];
     private IReadOnlyList<string> availableSources = [];
@@ -222,6 +174,7 @@
     private ScanColorMode colorMode = ScanColorMode.Color;
     private int resolution = 300;
     private bool IsScanning => ScanWorkflow.Current?.IsActive == true;
+    private string CurrentWorkflowStep => UploadWorkflow.Current is not null || paperlessMetadata is not null ? "Senden" : PdfWorkflow.Current is not null ? "PDF" : PageEditor.Current is not null ? "Prüfen" : IsScanning || DuplexWorkflow.Current?.IsActive == true ? "Scannen" : "Vorbereiten";
     private bool finalBackIsBlank;
     private Guid? deleteCandidate;
     private Guid? loadedPreviewSession;
@@ -255,7 +208,7 @@
         paperlessTitle = defaults.Title; paperlessCorrespondent = defaults.CorrespondentId;
         paperlessDocumentType = defaults.DocumentTypeId; paperlessTags.UnionWith(defaults.TagIds);
         var validation = await Profiles.ValidateAsync(defaults, CancellationToken.None);
-        if (!validation.IsValid) { error = true; message = string.Join(" ", validation.Errors) + " Bitte in den Einstellungen korrigieren."; }
+        if (!validation.IsValid) { message = string.Join(" ", validation.Errors) + " Bitte in den Einstellungen korrigieren."; }
         else if (defaults.ScannerId is { } scannerId)
         {
             await ActivateScannerAsync(scannerId);
@@ -334,12 +287,12 @@
         try
         {
             var activation = await Discovery.ActivateSavedAsync(id, CancellationToken.None);
-            if (!activation.Succeeded) { error = true; message = activation.Diagnostic; return; }
+            if (!activation.Succeeded) { message = activation.Diagnostic; return; }
             activeScannerId = id;
             if (!string.IsNullOrWhiteSpace(activation.Scanner!.SaneDeviceId) && activation.Scanner.Sources?.Count > 0)
             {
                 ApplyProfile(activation.Scanner);
-                error = false;
+
                 message = $"{activation.Scanner.DisplayName} ist mit gespeicherten Scannerwerten bereit.";
                 return;
             }
@@ -356,11 +309,11 @@
         {
             saneResult = await Scanner.DiscoverAsync(CancellationToken.None);
             if (!saneResult.Succeeded || saneResult.SelectedDevice is null || saneResult.Capabilities is null)
-            { error = true; message = saneResult.Diagnostic; activeDeviceId = null; availableSources = []; return; }
+            { message = saneResult.Diagnostic; activeDeviceId = null; availableSources = []; return; }
             var profile = await Discovery.SaveSaneProfileAsync(id, saneResult.SelectedDevice, saneResult.Capabilities, CancellationToken.None);
             savedScanners = savedScanners.Select(value => value.Id == id ? profile : value).ToArray();
             ApplyProfile(profile);
-            error = false;
+
             message = $"Scannerwerte für {profile.DisplayName} wurden aktualisiert.";
         }
         finally { scannerLoading = false; }
@@ -374,30 +327,5 @@
             ?? availableSources.FirstOrDefault() ?? "";
         if (scanner.Resolutions?.Contains(300) != true) resolution = scanner.Resolutions?.FirstOrDefault() ?? 300;
     }
-    private IReadOnlyList<string> ResolutionLabels => saneResult?.Capabilities?.Resolutions.Select(value => $"{value} dpi").ToArray() ?? [];
 
-    private async Task DiscoverAsync()
-    {
-        loading = true; message = null; selectedId = null;
-        try { result = await Discovery.DiscoverAsync(CancellationToken.None); }
-        finally { loading = false; }
-    }
-
-    private async Task SelectAsync()
-    {
-        loading = true; message = null;
-        try
-        {
-            var selection = await Discovery.SelectAsync(selectedId!, CancellationToken.None);
-            error = !selection.Succeeded;
-            message = selection.Succeeded ? selection.Diagnostic ?? $"{selection.Scanner!.DisplayName} wurde geprüft und gespeichert." : selection.Diagnostic;
-            if (selection.Succeeded)
-            {
-                savedScanners = await Discovery.GetSavedAsync(CancellationToken.None);
-                await ActivateScannerAsync(selection.Scanner!.Id);
-                message = selection.Diagnostic ?? $"{selection.Scanner.DisplayName} wurde geprüft und gespeichert und ist für den Scan aktiviert.";
-            }
-        }
-        finally { loading = false; }
-    }
 }

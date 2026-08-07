@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Components;
 using PaperlessScanBridge.Application.Scanning;
 using PaperlessScanBridge.Web.Components.Pages;
+using PaperlessScanBridge.Web.Components;
 using PaperlessScanBridge.Web.Components.Layout;
 using PaperlessScanBridge.Web;
 using PaperlessScanBridge.Application.Documents;
@@ -29,14 +30,20 @@ public sealed class HomePageTests : BunitContext
     {
         Services.AddSingleton(new BuildInformation("abc1234")); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions()));
         var layout = Render<MainLayout>(parameters => parameters.Add(value => value.Body, _ => { }));
-        Assert.Contains("abc1234", layout.Markup);
+        Assert.Contains("Scan", layout.Markup);
+        Assert.Contains("Dokumente", layout.Markup);
+        Assert.Contains("Einstellungen", layout.Markup);
+        Assert.Contains("Status", layout.Markup);
+        Assert.Contains("Profil:", layout.Markup);
     }
 
     [Fact]
     public void ShowsInitialEmptyState()
     {
         AddServices(new DiscoveryStub(new([], [])));
-        Assert.Contains("Noch keine Suche", Render<Home>().Markup);
+        var page = Render<Home>();
+        Assert.Contains("Vorbereiten", page.Markup);
+        Assert.DoesNotContain("mDNS", page.Markup);
     }
 
     [Fact]
@@ -45,12 +52,12 @@ public sealed class HomePageTests : BunitContext
         var devices = new[] { new DiscoveredScanner("one", "HP One", "10.0.0.1", 80, "http", "http://10.0.0.1/eSCL"),
             new DiscoveredScanner("two", "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL") };
         AddServices(new DiscoveryStub(new(devices, [])));
-        var page = Render<Home>();
-        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner suchen")).ClickAsync(new());
+        var page = Render<ScannerSetup>();
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner im Netzwerk suchen")).ClickAsync(new());
         Assert.Contains("HP One", page.Markup); Assert.Contains("HP Two", page.Markup);
-        Assert.True(page.FindAll("button").Single(button => button.TextContent.Contains("Scanner auswählen") && !button.TextContent.Contains("gespeichert", StringComparison.OrdinalIgnoreCase)).HasAttribute("disabled"));
+        Assert.True(page.FindAll("button").Single(button => button.TextContent.Contains("Auswählen und prüfen")).HasAttribute("disabled"));
         await page.Find("input[value=two]").ChangeAsync(new ChangeEventArgs { Value = "two" });
-        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner auswählen")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Auswählen und prüfen")).ClickAsync(new());
         Assert.Contains("geprüft und gespeichert", page.Markup);
     }
 
@@ -59,10 +66,10 @@ public sealed class HomePageTests : BunitContext
     {
         var device = new DiscoveredScanner("one", "HP", "10.0.0.1", 443, "https", "https://10.0.0.1/eSCL");
         AddServices(new DiscoveryStub(new([device], []), "HTTP-eSCL-Endpunkt wird verwendet."));
-        var page = Render<Home>();
-        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner suchen")).ClickAsync(new());
+        var page = Render<ScannerSetup>();
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner im Netzwerk suchen")).ClickAsync(new());
         await page.Find("input").ChangeAsync(new ChangeEventArgs { Value = "one" });
-        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner auswählen")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Auswählen und prüfen")).ClickAsync(new());
         Assert.Contains("HTTP-eSCL-Endpunkt", page.Find("[role=alert]").TextContent);
     }
 

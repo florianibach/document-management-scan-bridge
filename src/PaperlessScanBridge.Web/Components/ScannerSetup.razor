@@ -1,0 +1,17 @@
+@using PaperlessScanBridge.Application.Scanning
+@inject IScannerDiscoveryService Discovery
+<section class="card"><div class="card-body">
+ <h2 class="h4">Scanner einrichten</h2><p>Kompatible eSCL/AirScan-Geräte im lokalen Netzwerk suchen und sicher auswählen.</p>
+ <button class="btn btn-primary btn-lg w-100" @onclick="DiscoverAsync" disabled="@loading">@(loading ? "Suche läuft …" : "Scanner im Netzwerk suchen")</button>
+ @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert @(error ? "alert-warning" : "alert-success") mt-3" role="alert">@message</div> }
+ @if (result is not null)
+ {
+  @if (result.Devices.Count == 0) { <AppStateCard Kind="warning" Title="Kein Scanner gefunden" Message="Gerät und Netzwerk prüfen und die Suche erneut starten."><TechnicalDetails>@string.Join(" ", result.Diagnostics)</TechnicalDetails></AppStateCard> }
+  else { <fieldset class="row g-3 mt-1"><legend class="h5">Gefundene Scanner</legend>@foreach (var device in result.Devices) { <div class="col-12 col-lg-6"><label class="card h-100 scanner-choice @(selectedId == device.DiscoveryId ? "border-primary" : "")"><div class="card-body"><input type="radio" name="scanner" value="@device.DiscoveryId" @onchange="() => selectedId=device.DiscoveryId" /><strong class="ms-2">@device.DisplayName</strong><div class="text-body-secondary small mt-2">@device.Protocol.ToUpperInvariant() · @device.IpAddress</div></div></label></div> }</fieldset><button class="btn btn-success btn-lg w-100 mt-3" disabled="@(loading || selectedId is null)" @onclick="SelectAsync">Auswählen und prüfen</button> }
+ }
+</div></section>
+@code {
+ private ScannerNetworkDiscoveryResult? result; private string? selectedId,message; private bool loading,error;
+ private async Task DiscoverAsync(){loading=true;message=null;selectedId=null;try{result=await Discovery.DiscoverAsync(default);}finally{loading=false;}}
+ private async Task SelectAsync(){loading=true;message=null;try{var selection=await Discovery.SelectAsync(selectedId!,default);error=!selection.Succeeded;message=selection.Succeeded?selection.Diagnostic ?? $"{selection.Scanner!.DisplayName} wurde geprüft und gespeichert.":selection.Diagnostic;}finally{loading=false;}}
+}

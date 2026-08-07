@@ -30,3 +30,15 @@
 
 - US-010
 - US-011 for authenticated profile display and protected navigation behavior
+
+## Completion evidence
+
+- The responsive shell exposes Scan, Documents, Settings, and Status through the same links; CSS changes the desktop sidebar into a touch-sized mobile bottom bar without changing information architecture.
+- The Scan page derives one current step from real workflow state and renders Prepare, Scan, Review, PDF, and Send without marking unknown steps complete.
+- Scanner discovery moved to Settings. Health, build version, mDNS prerequisites, and capability-validation guidance are available on Status rather than in the daily scan path.
+- The shell displays the resolved anonymous or authenticated profile and preserves the existing sign-out action and server-side authorization policy.
+- `AppStateCard` provides empty, loading, success, warning, and error variants, optional large actions, and disclosure-only technical detail. Documents uses the explicit empty state until a later story adds a persisted list.
+- Component coverage verifies the four destinations, profile context, workflow stepper, separation of mDNS details, scanner selection, and controlled HTTP fallback. Existing workflow, isolation, integration, and unit suites remain enabled and pass.
+- Representative workflow evidence: the component suite covers scanner selection through existing scan, duplex, preview, PDF, and upload behaviors. Responsive rules were reviewed for mobile and desktop widths; Chromium screenshot capture was unavailable because this environment cannot run its snap package. No scanner hardware behavior changed in this shell-only story.
+- Not applicable: persistence migrations, external-boundary integration changes, configuration variables, logging, cleanup/recovery, and target-printer firmware validation, because this story changes presentation and placement only. Container startup remains subject to the local Docker environment.
+- Accepted follow-up: Documents intentionally shows a safe current-session explanation rather than introducing the session history planned outside this story; the more extensive diagnostics presentation remains US-017.

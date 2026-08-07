@@ -15,8 +15,8 @@ main {
 .top-row {
     background-color: #f7f7f7;
     border-bottom: 1px solid #d6d5d5;
-    justify-content: flex-end;
-    height: 3.5rem;
+    justify-content: space-between;
+    min-height: 4rem;
     display: flex;
     align-items: center;
 }
@@ -36,7 +36,11 @@ main {
         text-overflow: ellipsis;
     }
 
+ .app-wordmark { color: var(--bs-body-color); font-weight: 750; text-decoration: none; }
+
 @media (max-width: 640.98px) {
+    .page { padding-bottom: 5.25rem; }
+    .sidebar { position: fixed; inset: auto 0 0; z-index: 1020; }
     .top-row {
         justify-content: space-between;
     }
@@ -52,7 +56,7 @@ main {
     }
 
     .sidebar {
-        width: 250px;
+        width: 230px;
         height: 100vh;
         position: sticky;
         top: 0;
