@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
 using PaperlessScanBridge.Application.Configuration;
 using PaperlessScanBridge.Application.Paperless;
+using PaperlessScanBridge.Application.Profiles;
 using PaperlessScanBridge.Infrastructure.Paperless;
 
 namespace PaperlessScanBridge.IntegrationTests;
@@ -27,7 +28,14 @@ public sealed class PaperlessClientTests : IDisposable
     public async Task ConnectivityDistinguishesHttpFailures(HttpStatusCode status, PaperlessFailure expected)
     { var result = await Create(new Handler(status)).CheckConnectivityAsync(); Assert.Equal(expected, result.Failure); }
 
-    private PaperlessClient Create(HttpMessageHandler handler) => new(new HttpClient(handler) { BaseAddress = new("http://paperless/") }, new() { BaseUrl = "http://paperless", ApiToken = "secret-token" }, new() { Path = root }, NullLogger<PaperlessClient>.Instance);
+    private PaperlessClient Create(HttpMessageHandler handler) => new(new HttpClient(handler) { BaseAddress = new("http://paperless/") }, new ConfigurationStub(), new() { Path = root }, NullLogger<PaperlessClient>.Instance);
+    private sealed class ConfigurationStub : IProfileServiceConfigurationService
+    {
+        public Task<EffectivePaperlessConfiguration> GetEffectiveAsync(CancellationToken cancellationToken = default) => Task.FromResult(new EffectivePaperlessConfiguration("http://paperless", "secret-token", PaperlessConfigurationSource.Deployment, PaperlessConfigurationSource.Deployment));
+        public Task<ProfileServiceConfiguration> GetAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ProfileServiceConfigurationResult> ValidateAndSaveAsync(ProfileServiceConfigurationInput input, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeleteAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
     public void Dispose() { if (Directory.Exists(root)) Directory.Delete(root, true); }
     private sealed class Handler(HttpStatusCode? failure = null) : HttpMessageHandler
     {

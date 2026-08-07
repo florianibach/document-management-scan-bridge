@@ -8,11 +8,15 @@ public sealed class BridgeDbContext(DbContextOptions<BridgeDbContext> options) :
     public DbSet<SelectedScannerEntity> SelectedScanners => Set<SelectedScannerEntity>();
     public DbSet<ProfileDefaultsEntity> ProfileDefaults => Set<ProfileDefaultsEntity>();
     public DbSet<UserProfileEntity> UserProfiles => Set<UserProfileEntity>();
+    public DbSet<ProfileServiceConfigurationEntity> ProfileServiceConfigurations => Set<ProfileServiceConfigurationEntity>();
+    public DbSet<ScanSessionOwnerEntity> ScanSessionOwners => Set<ScanSessionOwnerEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ProfileDefaultsEntity>().HasIndex(value => value.ProfileId).IsUnique();
         modelBuilder.Entity<UserProfileEntity>().HasIndex(value => new { value.Issuer, value.Subject }).IsUnique();
+        modelBuilder.Entity<ProfileServiceConfigurationEntity>().HasIndex(value => value.ProfileId).IsUnique();
+        modelBuilder.Entity<ScanSessionOwnerEntity>().HasKey(value => value.SessionId);
     }
 }
 
@@ -59,4 +63,21 @@ public sealed class UserProfileEntity
     public required string DisplayName { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset LastSeenAt { get; set; }
+}
+
+public sealed class ProfileServiceConfigurationEntity
+{
+    public int Id { get; set; }
+    public required string ProfileId { get; set; }
+    public string? BaseUrl { get; set; }
+    public string? ProtectedApiToken { get; set; }
+    public bool UseDeploymentToken { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class ScanSessionOwnerEntity
+{
+    public Guid SessionId { get; set; }
+    public required string ProfileId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
 }

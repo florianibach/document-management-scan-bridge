@@ -88,6 +88,46 @@ public sealed class SqlitePersistenceTests
         finally { if (File.Exists(file)) File.Delete(file); }
     }
 
+    [Fact]
+    public async Task ProfileServiceTokensAreEncryptedAndIsolatedAtRest()
+    {
+        var file = Path.Combine(Path.GetTempPath(), "profile-secret-" + Guid.NewGuid().ToString("N") + ".db");
+        var keys = Path.Combine(Path.GetTempPath(), "profile-keys-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var options = new DbContextOptionsBuilder<BridgeDbContext>().UseSqlite("Data Source=" + file).Options;
+            await using (var context = new BridgeDbContext(options)) await context.Database.MigrateAsync();
+            var provider = Microsoft.AspNetCore.DataProtection.DataProtectionProvider.Create(new DirectoryInfo(keys));
+            var repository = new ProfileServiceConfigurationRepository(new TestFactory(options), provider);
+            await repository.SaveAsync("user-one", "https://one.test", "token-one", false, false);
+            await repository.SaveAsync("user-two", "https://two.test", "token-two", false, false);
+            await using (var context = new BridgeDbContext(options))
+            {
+                var raw = await context.ProfileServiceConfigurations.AsNoTracking().ToListAsync();
+                Assert.DoesNotContain(raw, x => x.ProtectedApiToken is "token-one" or "token-two");
+            }
+            Assert.Equal("token-one", (await repository.GetSecretAsync("user-one"))!.Value.ApiToken);
+            Assert.Equal("token-two", (await repository.GetSecretAsync("user-two"))!.Value.ApiToken);
+            await repository.DeleteAsync("user-one"); Assert.Null(await repository.GetSecretAsync("user-one"));
+            Assert.Equal("token-two", (await repository.GetSecretAsync("user-two"))!.Value.ApiToken);
+        }
+        finally { if(File.Exists(file)) File.Delete(file); if(Directory.Exists(keys)) Directory.Delete(keys,true); }
+    }
+
+    [Fact]
+    public async Task ScanSessionsCannotBeClaimedReadOrInferredByAnotherProfile()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:"); await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<BridgeDbContext>().UseSqlite(connection).Options;
+        await using (var context = new BridgeDbContext(options)) await context.Database.MigrateAsync();
+        var repository = new ScanSessionOwnerRepository(new TestFactory(options)); var session = Guid.NewGuid();
+        await repository.ClaimAsync(session, "user-one");
+        Assert.True(await repository.IsOwnedByAsync(session, "user-one"));
+        Assert.False(await repository.IsOwnedByAsync(session, "user-two"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => repository.ClaimAsync(session, "user-two"));
+        Assert.False(await repository.IsOwnedByAsync(Guid.NewGuid(), "user-two"));
+    }
+
     private sealed class TestFactory(DbContextOptions<BridgeDbContext> options) : IDbContextFactory<BridgeDbContext>
     {
         public BridgeDbContext CreateDbContext() => new(options);

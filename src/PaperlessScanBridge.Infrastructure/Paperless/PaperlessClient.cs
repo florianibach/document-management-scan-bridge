@@ -5,17 +5,19 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using PaperlessScanBridge.Application.Configuration;
 using PaperlessScanBridge.Application.Paperless;
+using PaperlessScanBridge.Application.Profiles;
 
 namespace PaperlessScanBridge.Infrastructure.Paperless;
 
-public sealed class PaperlessClient(HttpClient http, PaperlessOptions options, TemporaryStorageOptions storage, ILogger<PaperlessClient> logger) : IPaperlessClient
+public sealed class PaperlessClient(HttpClient http, IProfileServiceConfigurationService configurations, TemporaryStorageOptions storage, ILogger<PaperlessClient> logger) : IPaperlessClient
 {
     public async Task<PaperlessResult> CheckConnectivityAsync(CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(options.ApiToken)) return new(false, "Kein Paperless-API-Token konfiguriert.", PaperlessFailure.Configuration);
+        var options = await configurations.GetEffectiveAsync(cancellationToken);
+        if (!options.IsConfigured) return new(false, "Keine wirksame Paperless-Konfiguration vorhanden.", PaperlessFailure.Configuration);
         try
         {
-            using var response = await SendAsync(HttpMethod.Get, "api/documents/?page_size=1", null, cancellationToken);
+            using var response = await SendAsync(options, HttpMethod.Get, "api/documents/?page_size=1", null, cancellationToken);
             return response.IsSuccessStatusCode ? new(true, "Verbindung und API-Berechtigung sind gültig.") : Failure(response.StatusCode);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(false, "Paperless hat nicht rechtzeitig geantwortet.", PaperlessFailure.Network); }
@@ -26,11 +28,12 @@ public sealed class PaperlessClient(HttpClient http, PaperlessOptions options, T
     {
         var check = await CheckConnectivityAsync(cancellationToken);
         if (!check.Succeeded) return (check, null);
+        var options = await configurations.GetEffectiveAsync(cancellationToken);
         try
         {
-            var correspondents = await GetChoicesAsync("api/correspondents/?page_size=100000", cancellationToken);
-            var types = await GetChoicesAsync("api/document_types/?page_size=100000", cancellationToken);
-            var tags = await GetChoicesAsync("api/tags/?page_size=100000", cancellationToken);
+            var correspondents = await GetChoicesAsync(options, "api/correspondents/?page_size=100000", cancellationToken);
+            var types = await GetChoicesAsync(options, "api/document_types/?page_size=100000", cancellationToken);
+            var tags = await GetChoicesAsync(options, "api/tags/?page_size=100000", cancellationToken);
             return (new(true, "Metadaten wurden geladen."), new(correspondents, types, tags));
         }
         catch (PaperlessHttpException exception) { return (Failure(exception.StatusCode), null); }
@@ -42,7 +45,8 @@ public sealed class PaperlessClient(HttpClient http, PaperlessOptions options, T
     {
         var path = Path.Combine(Path.GetFullPath(storage.Path), request.SessionId.ToString("N"), "document.pdf");
         if (!File.Exists(path)) return new(false, "Die erzeugte PDF ist nicht mehr vorhanden. Bitte erneut erstellen.", PaperlessFailure.FileMissing);
-        if (string.IsNullOrWhiteSpace(options.ApiToken)) return new(false, "Kein Paperless-API-Token konfiguriert.", PaperlessFailure.Configuration);
+        var options = await configurations.GetEffectiveAsync(cancellationToken);
+        if (!options.IsConfigured) return new(false, "Keine wirksame Paperless-Konfiguration vorhanden.", PaperlessFailure.Configuration);
         try
         {
             await using var stream = File.OpenRead(path);
@@ -53,7 +57,7 @@ public sealed class PaperlessClient(HttpClient http, PaperlessOptions options, T
             if (request.DocumentTypeId is { } type) multipart.Add(new StringContent(type.ToString()), "document_type");
             foreach (var tag in request.TagIds.Distinct()) multipart.Add(new StringContent(tag.ToString()), "tags");
             using var content = new ProgressContent(multipart, progress);
-            using var response = await SendAsync(HttpMethod.Post, "api/documents/post_document/", content, cancellationToken);
+            using var response = await SendAsync(options, HttpMethod.Post, "api/documents/post_document/", content, cancellationToken);
             if (!response.IsSuccessStatusCode) return Failure(response.StatusCode);
             var taskId = (await response.Content.ReadAsStringAsync(cancellationToken)).Trim().Trim('"');
             logger.LogInformation("Paperless accepted upload for scan session {SessionId}.", request.SessionId);
@@ -63,17 +67,17 @@ public sealed class PaperlessClient(HttpClient http, PaperlessOptions options, T
         catch (HttpRequestException) { return new(false, "Upload wegen eines Netzwerkfehlers fehlgeschlagen; die PDF bleibt erhalten.", PaperlessFailure.Network); }
     }
 
-    private async Task<IReadOnlyList<PaperlessChoice>> GetChoicesAsync(string uri, CancellationToken token)
+    private async Task<IReadOnlyList<PaperlessChoice>> GetChoicesAsync(EffectivePaperlessConfiguration options, string uri, CancellationToken token)
     {
-        using var response = await SendAsync(HttpMethod.Get, uri, null, token);
+        using var response = await SendAsync(options, HttpMethod.Get, uri, null, token);
         if (!response.IsSuccessStatusCode) throw new PaperlessHttpException(response.StatusCode);
         using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(token), cancellationToken: token);
         return json.RootElement.GetProperty("results").EnumerateArray().Select(item => new PaperlessChoice(item.GetProperty("id").GetInt32(), item.GetProperty("name").GetString() ?? "")).OrderBy(x => x.Name).ToArray();
     }
 
-    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string uri, HttpContent? content, CancellationToken token)
+    private async Task<HttpResponseMessage> SendAsync(EffectivePaperlessConfiguration options, HttpMethod method, string uri, HttpContent? content, CancellationToken token)
     {
-        using var request = new HttpRequestMessage(method, uri) { Content = content };
+        using var request = new HttpRequestMessage(method, new Uri(new Uri(options.BaseUrl!.TrimEnd('/') + "/"), uri)) { Content = content };
         request.Headers.Authorization = new("Token", options.ApiToken);
         return await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
     }
