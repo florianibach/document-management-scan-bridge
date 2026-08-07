@@ -1,0 +1,4 @@
+<nav class="workflow-stepper" aria-label="Scan-Ablauf">
+ @foreach (var item in Steps) { <div class="workflow-step @(item == Current ? "current" : null)" aria-current="@(item == Current ? "step" : null)"><span class="step-dot" aria-hidden="true"></span><span>@item</span></div> }
+</nav>
+@code { [Parameter] public string Current { get; set; } = "Vorbereiten"; private static readonly string[] Steps = ["Vorbereiten", "Scannen", "Prüfen", "PDF", "Senden"]; }

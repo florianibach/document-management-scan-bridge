@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Components;
 using PaperlessScanBridge.Application.Scanning;
 using PaperlessScanBridge.Web.Components.Pages;
+using PaperlessScanBridge.Web.Components;
 using PaperlessScanBridge.Web.Components.Layout;
 using PaperlessScanBridge.Web;
 using PaperlessScanBridge.Application.Documents;
@@ -29,14 +30,21 @@ public sealed class HomePageTests : BunitContext
     {
         Services.AddSingleton(new BuildInformation("abc1234")); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions()));
         var layout = Render<MainLayout>(parameters => parameters.Add(value => value.Body, _ => { }));
-        Assert.Contains("abc1234", layout.Markup);
+        Assert.Contains("Scan", layout.Markup);
+        Assert.Contains("Dokumente", layout.Markup);
+        Assert.Contains("Einstellungen", layout.Markup);
+        Assert.Contains("Status", layout.Markup);
+        Assert.Contains("Profil:", layout.Markup);
     }
 
     [Fact]
     public void ShowsInitialEmptyState()
     {
         AddServices(new DiscoveryStub(new([], [])));
-        Assert.Contains("Noch keine Suche", Render<Home>().Markup);
+        var page = Render<Home>();
+        Assert.Contains("Vorbereiten", page.Markup);
+        Assert.DoesNotContain("mDNS", page.Markup);
+        Assert.DoesNotContain("Täglicher Ablauf", page.Markup);
     }
 
     [Fact]
@@ -45,12 +53,12 @@ public sealed class HomePageTests : BunitContext
         var devices = new[] { new DiscoveredScanner("one", "HP One", "10.0.0.1", 80, "http", "http://10.0.0.1/eSCL"),
             new DiscoveredScanner("two", "HP Two", "10.0.0.2", 443, "https", "https://10.0.0.2/eSCL") };
         AddServices(new DiscoveryStub(new(devices, [])));
-        var page = Render<Home>();
-        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner suchen")).ClickAsync(new());
+        var page = Render<ScannerSetup>();
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner im Netzwerk suchen")).ClickAsync(new());
         Assert.Contains("HP One", page.Markup); Assert.Contains("HP Two", page.Markup);
-        Assert.True(page.FindAll("button").Single(button => button.TextContent.Contains("Scanner auswählen") && !button.TextContent.Contains("gespeichert", StringComparison.OrdinalIgnoreCase)).HasAttribute("disabled"));
+        Assert.True(page.FindAll("button").Single(button => button.TextContent.Contains("Auswählen und prüfen")).HasAttribute("disabled"));
         await page.Find("input[value=two]").ChangeAsync(new ChangeEventArgs { Value = "two" });
-        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner auswählen")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Auswählen und prüfen")).ClickAsync(new());
         Assert.Contains("geprüft und gespeichert", page.Markup);
     }
 
@@ -59,10 +67,10 @@ public sealed class HomePageTests : BunitContext
     {
         var device = new DiscoveredScanner("one", "HP", "10.0.0.1", 443, "https", "https://10.0.0.1/eSCL");
         AddServices(new DiscoveryStub(new([device], []), "HTTP-eSCL-Endpunkt wird verwendet."));
-        var page = Render<Home>();
-        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner suchen")).ClickAsync(new());
+        var page = Render<ScannerSetup>();
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner im Netzwerk suchen")).ClickAsync(new());
         await page.Find("input").ChangeAsync(new ChangeEventArgs { Value = "one" });
-        await page.FindAll("button").Single(button => button.TextContent.Contains("Scanner auswählen")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Auswählen und prüfen")).ClickAsync(new());
         Assert.Contains("HTTP-eSCL-Endpunkt", page.Find("[role=alert]").TextContent);
     }
 
@@ -104,14 +112,22 @@ public sealed class HomePageTests : BunitContext
         AddServices(new DiscoveryStub(new([], [])), editor: editor, paperless: paperless);
         var page = Render<Home>();
         await page.FindAll("button").Single(button => button.TextContent.Contains("PDF erstellen")).ClickAsync(new());
+        Assert.DoesNotContain("Dokument scannen", page.Markup);
+        Assert.DoesNotContain("Beidseitiges Dokument scannen", page.Markup);
+        Assert.Contains("Zurück zur Vorschau", page.Markup);
+        Assert.DoesNotContain("ist mit gespeicherten Scannerwerten bereit", page.Markup);
         await page.FindAll("button").Single(button => button.TextContent.Contains("Metadaten laden")).ClickAsync(new());
         Assert.Contains("Example GmbH", page.Markup);
         await page.Find("#paperless-title").ChangeAsync("Rechnung August");
         await page.FindAll("button").Single(button => button.TextContent.Contains("An Paperless senden")).ClickAsync(new());
-        var acceptedButton = page.FindAll("button").Single(button => button.TextContent.Contains("An Paperless senden"));
-        Assert.True(acceptedButton.HasAttribute("disabled"));
+        page.WaitForAssertion(() => Assert.Contains("Dokument wurde übergeben", page.Markup));
+        Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Contains("An Paperless senden"));
+        Assert.Equal("https://paperless.example.test", page.FindAll("a").Single(link => link.TextContent.Contains("Paperless öffnen")).GetAttribute("href"));
+        Assert.Equal("_blank", page.FindAll("a").Single(link => link.TextContent.Contains("Paperless öffnen")).GetAttribute("target"));
         Assert.Equal(1, paperless.UploadCalls);
-        page.WaitForAssertion(() => Assert.Contains("angenommen", page.Markup));
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Zur Startseite")).ClickAsync(new());
+        Assert.Contains("Simplex-Scan starten", page.Markup);
+        Assert.DoesNotContain("Dokument wurde übergeben", page.Markup);
     }
 
     [Fact]
@@ -121,8 +137,9 @@ public sealed class HomePageTests : BunitContext
         var page = Render<Home>();
         await page.Find("#saved-scanner").ChangeAsync("1");
         await page.Find("button.btn-primary.w-100.mt-4").ClickAsync(new());
-        Assert.Contains("Abgeschlossen", page.Find("[aria-live=polite]").TextContent);
-        Assert.Contains("1 Seite", page.Markup);
+        Assert.Contains("Prüfen", page.Markup);
+        Assert.DoesNotContain("Simplex-Scan starten", page.Markup);
+        Assert.DoesNotContain("Manuellen Duplex-Scan starten", page.Markup);
         Assert.Contains(notifications.Invocations, invocation => invocation.Identifier == "show"
             && invocation.Arguments[0]?.ToString() == "Scan abgeschlossen");
     }
@@ -177,7 +194,7 @@ public sealed class HomePageTests : BunitContext
     }
 
     [Fact]
-    public void TimeoutDecisionOffersContinueAndAbort()
+    public async Task TimeoutDecisionOffersContinueAndAbort()
     {
         var workflow = new WorkflowStub();
         AddServices(new DiscoveryStub(new([], [])), workflow: workflow);
@@ -185,6 +202,10 @@ public sealed class HomePageTests : BunitContext
         workflow.SetState(ScanJobState.AwaitingUserDecision, "Scanner arbeitet möglicherweise noch.");
         page.WaitForAssertion(() => Assert.Contains("weiter warten", page.Markup));
         Assert.Contains("Scan jetzt abbrechen", page.Markup);
+        var previousNotifications = notifications.Invocations.Count();
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Scan jetzt abbrechen")).ClickAsync(new());
+        page.WaitForAssertion(() => Assert.Contains(notifications.Invocations.Skip(previousNotifications), invocation => invocation.Identifier == "show" && invocation.Arguments[0]?.ToString() == "Scan abgebrochen"));
+        Assert.DoesNotContain(notifications.Invocations.Skip(previousNotifications), invocation => invocation.Identifier == "show" && invocation.Arguments[0]?.ToString() == "Scan benötigt eine Rückmeldung");
     }
 
     [Fact]
@@ -220,7 +241,14 @@ public sealed class HomePageTests : BunitContext
     }
 
     private void AddServices(DiscoveryStub discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null, PageEditorStub? editor = null, PaperlessStub? paperless = null)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); Services.AddSingleton<IProfileDefaultsService>(new ProfileStub()); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions())); }
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); Services.AddSingleton<IProfileDefaultsService>(new ProfileStub()); Services.AddSingleton<IProfileServiceConfigurationService>(new ServiceConfigurationStub()); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions())); }
+    private sealed class ServiceConfigurationStub : IProfileServiceConfigurationService
+    {
+        public Task<ProfileServiceConfiguration> GetAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<EffectivePaperlessConfiguration> GetEffectiveAsync(CancellationToken cancellationToken = default) => Task.FromResult(new EffectivePaperlessConfiguration("https://paperless.example.test", "secret", PaperlessConfigurationSource.Profile, PaperlessConfigurationSource.Profile));
+        public Task<ProfileServiceConfigurationResult> ValidateAndSaveAsync(ProfileServiceConfigurationInput input, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeleteAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
     private sealed class CurrentProfileStub : ICurrentProfileAccessor
     {
         public Task<UserProfile> GetRequiredAsync(CancellationToken cancellationToken = default) => Task.FromResult(new UserProfile("test-profile", "test", "subject", "Test", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
@@ -258,7 +286,7 @@ public sealed class HomePageTests : BunitContext
         public event Action? Changed;
         public Task<ScanJobSnapshot> StartAsync(SimplexScanSettings settings, CancellationToken cancellationToken = default)
         { ReceivedSettings = settings; Current = new(Guid.NewGuid(), ScanJobState.Completed, 1, "Scan abgeschlossen: 1 Seite(n).", DateTimeOffset.UtcNow); Changed?.Invoke(); return Task.FromResult(Current); }
-        public Task CancelAsync() => Task.CompletedTask;
+        public Task CancelAsync() { if (Current is not null) { Current = Current with { State = ScanJobState.Cancelled, Message = "Scan wurde abgebrochen." }; Changed?.Invoke(); } return Task.CompletedTask; }
         public Task ContinueAsync() => Task.CompletedTask;
         public void SetState(ScanJobState state, string message)
         { Current = new(Guid.NewGuid(), state, 0, message, DateTimeOffset.UtcNow); Changed?.Invoke(); }

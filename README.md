@@ -6,6 +6,12 @@ The guided workflow will support simplex scans and manual duplex scans, put page
 
 The project discovers eSCL/AirScan scanners directly with DNS-SD/mDNS, validates a selected device through its `ScannerCapabilities` endpoint, and then exposes it to the SANE adapter. The selected scanner can capture simplex documents from a touch-friendly screen using the platen or automatic document feeder. Each job is written to its own temporary session directory; later stories add preview, editing, PDF creation, and upload.
 
+## Mobile-first application shell
+
+The protected application uses the same four destinations on every viewport: **Scan**, **Documents**, **Settings**, and **Status**. On phones they form a touch-sized bottom navigation; from tablet/desktop widths they use the persistent sidebar. The shell always identifies the resolved shared-household or authenticated profile.
+
+**Scan** keeps the existing workflow behavior and shows only the current known step in the ordered sequence Prepare, Scan, Review, PDF, and Send. Scanner discovery and selection now live in **Settings**. Build, health, mDNS, capability-validation, and deployment guidance are separated under **Status**. **Documents** currently explains that active artifacts remain in the protected scan workflow; it does not promise a persisted history. State cards use concise messages and keep technical detail behind an explicit disclosure.
+
 ## Local development
 
 Install the .NET SDK version selected by `global.json`, then run:

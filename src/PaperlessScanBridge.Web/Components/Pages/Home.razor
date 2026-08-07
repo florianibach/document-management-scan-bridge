@@ -12,12 +12,18 @@
 @inject IPaperlessClient PaperlessClient
 @inject IPaperlessUploadWorkflow UploadWorkflow
 @inject IProfileDefaultsService Profiles
+@inject IProfileServiceConfigurationService ServiceConfiguration
 @inject IScanSessionAccessService SessionAccess
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 @rendermode InteractiveServer
 
-<PageTitle>Scanner auswählen</PageTitle>
+<PageTitle>Scan</PageTitle>
+<header class="page-heading"><h1>Scan</h1><p>Dokument vorbereiten, erfassen, prüfen und sicher übergeben.</p></header>
+<WorkflowStepper Current="@CurrentWorkflowStep" />
+@if (CurrentWorkflowStep == "Vorbereiten" && !string.IsNullOrWhiteSpace(message)) { <div class="alert alert-info" role="status">@message</div> }
+@if (CurrentWorkflowStep == "Vorbereiten")
+{
 <section class="card mt-4 scan-panel">
  <div class="card-body">
   <span class="badge text-bg-primary mb-2">Simplex</span>
@@ -48,7 +54,7 @@
    <button class="btn btn-success btn-lg w-100 mt-2" @onclick="ContinueScanAsync">Scanner arbeitet noch – weiter warten</button>
    <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan jetzt abbrechen</button>
   }
-  else if (IsScanning) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan abbrechen</button> }
+  else if (IsScanning) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan jetzt abbrechen</button> }
   @if (ScanWorkflow.Current is { } job) { <div class="alert @StatusClass mt-3 mb-0" role="status" aria-live="polite"><strong>@StatusLabel:</strong> @job.Message</div> }
  </div>
 </section>
@@ -86,9 +92,33 @@
   @if (DuplexWorkflow.Current is { } duplex) { <div class="alert @DuplexStatusClass mt-3 mb-0" role="status" aria-live="polite"><strong>@DuplexStatusLabel:</strong> @duplex.Message</div> }
  </div>
 </section>
+}
 
+@if (CurrentWorkflowStep == "Scannen")
+{
+ <AppStateCard Kind="loading" Title="Scan läuft" Message="Der Scanner arbeitet. Bitte lasse dieses Browserfenster geöffnet." Loading="true">
+  <ChildContent>
+   @if (ScanWorkflow.Current?.State == ScanJobState.AwaitingUserDecision)
+   {
+    <button class="btn btn-primary btn-lg w-100" @onclick="ContinueScanAsync">Scanner arbeitet noch – weiter warten</button>
+    <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan jetzt abbrechen</button>
+   }
+   else if (DuplexWorkflow.Current?.State == ManualDuplexState.AwaitingFlipConfirmation)
+   {
+    <p><strong>Stapel jetzt wenden:</strong> geschlossen wenden, die Reihenfolge nicht verändern und wieder in derselben Einzugsrichtung einlegen.</p>
+    <button class="btn btn-success btn-lg w-100" @onclick="ConfirmFlipAsync">Rückseiten scannen</button>
+    <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelDuplexAsync">Duplex-Scan abbrechen</button>
+   }
+   else
+   {
+    <p class="mb-2">@(ScanWorkflow.Current?.Message ?? DuplexWorkflow.Current?.Message)</p>
+    <button class="btn btn-outline-danger btn-lg w-100" @onclick="CancelActiveScanAsync">Scan jetzt abbrechen</button>
+   }
+  </ChildContent>
+ </AppStateCard>
+}
 
-@if (PageEditor.Current is { } preview)
+@if (CurrentWorkflowStep == "Prüfen" && PageEditor.Current is { } preview)
 {
  <section class="card mt-4 preview-panel" aria-labelledby="preview-title">
   <div class="card-body">
@@ -126,93 +156,72 @@
      }
     </div>
     <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="CreatePdfAsync" disabled="@(PdfWorkflow.Current?.IsActive == true || preview.Pages.Any(page => !page.IsAvailable))">PDF erstellen</button>
+    <button class="btn btn-outline-secondary btn-lg w-100 mt-2" @onclick="ShowPreparation">Zurück zur Vorbereitung</button>
     @if (PdfWorkflow.Current?.IsActive == true)
     {
      <button class="btn btn-outline-danger w-100 mt-2" @onclick="CancelPdfAsync">PDF-Erstellung abbrechen</button>
-    }
-    @if (PdfWorkflow.Current is { } pdf)
-    {
-     <div class="alert @PdfStatusClass mt-3 mb-0" role="status" aria-live="polite"><strong>@PdfStatusLabel:</strong> @pdf.Message
-      @if (pdf.State == PdfCreationState.Completed) { <a class="btn btn-success w-100 mt-2" href="@PdfUrl(pdf.SessionId)">PDF herunterladen</a> }
-     </div>
-    }
-    @if (PdfWorkflow.Current is { State: PdfCreationState.Completed } completed)
-    {
-     <hr class="my-4" />
-     <h3 class="h4">An Paperless-ngx senden</h3>
-     <button class="btn btn-outline-primary w-100" @onclick="LoadPaperlessAsync" disabled="@paperlessLoading">@(paperlessLoading ? "Verbindung wird geprüft …" : "Verbindung prüfen und Metadaten laden")</button>
-     @if (!string.IsNullOrWhiteSpace(paperlessMessage)) { <div class="alert @(paperlessError ? "alert-danger" : "alert-success") mt-2" role="status">@paperlessMessage</div> }
-     @if (paperlessMetadata is not null)
-     {
-      <div class="mt-3"><label class="form-label" for="paperless-title">Titel (optional)</label><input id="paperless-title" class="form-control form-control-lg" maxlength="256" @bind="paperlessTitle" /></div>
-      <div class="mt-3"><label class="form-label" for="paperless-correspondent">Korrespondent (optional)</label><select id="paperless-correspondent" class="form-select form-select-lg" @bind="paperlessCorrespondent"><option value="">Nicht festlegen</option>@foreach (var choice in paperlessMetadata.Correspondents) { <option value="@choice.Id">@choice.Name</option> }</select></div>
-      <div class="mt-3"><label class="form-label" for="paperless-type">Dokumenttyp (optional)</label><select id="paperless-type" class="form-select form-select-lg" @bind="paperlessDocumentType"><option value="">Nicht festlegen</option>@foreach (var choice in paperlessMetadata.DocumentTypes) { <option value="@choice.Id">@choice.Name</option> }</select></div>
-      <fieldset class="mt-3"><legend class="h6">Tags (optional)</legend>@if (paperlessMetadata.Tags.Count == 0) { <p class="text-body-secondary">Keine Tags vorhanden.</p> }@foreach (var choice in paperlessMetadata.Tags) { <div class="form-check"><input class="form-check-input" id="paperless-tag-@choice.Id" type="checkbox" checked="@paperlessTags.Contains(choice.Id)" @onchange="args => ToggleTag(choice.Id, args)" /><label class="form-check-label" for="paperless-tag-@choice.Id">@choice.Name</label></div> }</fieldset>
-      <button class="btn btn-success btn-lg w-100 mt-4" @onclick="() => UploadAsync(completed.SessionId)" disabled="@(UploadWorkflow.Current?.IsActive == true || UploadWorkflow.Current is { State: PaperlessUploadState.Accepted, SessionId: var accepted } && accepted == completed.SessionId)">An Paperless senden</button>
-      @if (UploadWorkflow.Current?.IsActive == true) { <progress class="w-100 mt-3" max="100" value="@UploadWorkflow.Current.ProgressPercent">@UploadWorkflow.Current.ProgressPercent%</progress><button class="btn btn-outline-danger w-100 mt-2" @onclick="UploadWorkflow.CancelAsync">Upload abbrechen</button> }
-      @if (UploadWorkflow.Current is { } upload) { <div class="alert @(upload.State == PaperlessUploadState.Accepted ? "alert-success" : upload.State == PaperlessUploadState.Failed ? "alert-danger" : "alert-info") mt-3" role="status">@upload.Message@if (!string.IsNullOrWhiteSpace(upload.TaskId)) { <div><small>Paperless-Auftrags-ID: @upload.TaskId</small></div> }</div> }
-     }
     }
    }
   </div>
  </section>
 }
+else if (CurrentWorkflowStep == "Prüfen")
+{
+ <AppStateCard Kind="success" Title="Scan abgeschlossen" Message="@(ScanWorkflow.Current?.Message ?? DuplexWorkflow.Current?.Message ?? "Die Seiten werden für die Vorschau vorbereitet.")">
+  <ChildContent><span aria-live="polite">Abgeschlossen</span></ChildContent>
+ </AppStateCard>
+}
 
-<div class="container-fluid px-0">
-    <div class="p-4 p-md-5 mb-4 rounded-3 bg-body-tertiary">
-        <span class="badge text-bg-primary mb-3">Scannerkonfiguration</span>
-        <h1 class="display-6 fw-bold">Netzwerkscanner auswählen</h1>
-        <p class="lead">Sucht eSCL/AirScan-Geräte direkt per mDNS und prüft den ausgewählten Scanner.</p>
-        <button class="btn btn-primary btn-lg w-100 w-md-auto" @onclick="DiscoverAsync" disabled="@loading">
-            @(loading ? "Suche läuft …" : "Scanner suchen")
-        </button>
-    </div>
+@if (CurrentWorkflowStep == "PDF" && PdfWorkflow.Current is { } currentPdf)
+{
+ <AppStateCard Kind="@(currentPdf.State == PdfCreationState.Failed ? "error" : "loading")" Title="PDF wird erstellt" Message="@currentPdf.Message" Loading="@currentPdf.IsActive">
+  <ChildContent>
+   @if (currentPdf.IsActive) { <button class="btn btn-outline-danger btn-lg w-100" @onclick="CancelPdfAsync">PDF-Erstellung abbrechen</button> }
+   <button class="btn btn-outline-secondary btn-lg w-100 mt-2" @onclick="ShowReview">Zurück zur Vorschau</button>
+  </ChildContent>
+ </AppStateCard>
+}
 
-    @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert @(error ? "alert-warning" : "alert-success")" role="alert">@message</div> }
-    @if (result is null) { <div class="alert alert-info" role="status">Noch keine Suche ausgeführt.</div> }
-    else if (result.Devices.Count == 0) { <div class="alert alert-warning" role="alert">@string.Join(" ", result.Diagnostics)</div> }
-    else
-    {
-        @foreach (var diagnostic in result.Diagnostics) { <div class="alert alert-info" role="status">@diagnostic</div> }
-        <fieldset class="row g-3 mb-3">
-            <legend class="h4">Gefundene Scanner</legend>
-            @foreach (var device in result.Devices)
-            {
-                <div class="col-12 col-md-6">
-                    <label class="card h-100 scanner-choice @(selectedId == device.DiscoveryId ? "border-primary" : "")">
-                        <div class="card-body">
-                            <input type="radio" name="scanner" value="@device.DiscoveryId" checked="@(selectedId == device.DiscoveryId)" @onchange="() => selectedId = device.DiscoveryId" />
-                            <strong class="ms-2">@device.DisplayName</strong>
-                            <div class="mt-2"><span class="badge text-bg-secondary">@device.Protocol.ToUpperInvariant()</span> @device.IpAddress:@device.Port</div>
-                        </div>
-                    </label>
-                </div>
-            }
-        </fieldset>
-        <button class="btn btn-success btn-lg w-100" disabled="@(loading || selectedId is null)" @onclick="SelectAsync">Scanner auswählen</button>
-    }
+@if (CurrentWorkflowStep == "Senden" && PdfWorkflow.Current is { State: PdfCreationState.Completed } completedPdf)
+{
+ <section class="card mt-4"><div class="card-body">
+  <span class="badge text-bg-success mb-2">PDF fertig</span>
+  <h2 class="h3">An Paperless-ngx senden</h2>
+  @if (UploadWorkflow.Current is { State: PaperlessUploadState.Accepted } acceptedUpload && acceptedUpload.SessionId == completedPdf.SessionId)
+  {
+   <AppStateCard Kind="success" Title="Dokument wurde übergeben" Message="@acceptedUpload.Message">
+    <ChildContent>
+     @if (!string.IsNullOrWhiteSpace(acceptedUpload.TaskId)) { <p class="small">Paperless-Auftrags-ID: @acceptedUpload.TaskId</p> }
+     <button class="btn btn-primary btn-lg w-100" @onclick="StartNewDocument">Zur Startseite – neues Dokument</button>
+     @if (PaperlessHomeUrl is not null) { <a class="btn btn-outline-primary btn-lg w-100 mt-2" href="@PaperlessHomeUrl" target="_blank" rel="noopener noreferrer">Paperless öffnen</a> }
+     <a class="btn btn-outline-success w-100 mt-2" href="@PdfUrl(completedPdf.SessionId)">PDF herunterladen</a>
+    </ChildContent>
+   </AppStateCard>
+  }
+  else
+  {
+  <a class="btn btn-outline-success btn-lg w-100" href="@PdfUrl(completedPdf.SessionId)">PDF herunterladen</a>
+  <button class="btn btn-outline-primary btn-lg w-100 mt-2" @onclick="LoadPaperlessAsync" disabled="@paperlessLoading">@(paperlessLoading ? "Verbindung wird geprüft …" : "Verbindung prüfen und Metadaten laden")</button>
+  @if (!string.IsNullOrWhiteSpace(paperlessMessage)) { <div class="alert @(paperlessError ? "alert-danger" : "alert-success") mt-2" role="status">@paperlessMessage</div> }
+  @if (paperlessMetadata is not null)
+  {
+   <div class="mt-3"><label class="form-label" for="paperless-title">Titel (optional)</label><input id="paperless-title" class="form-control form-control-lg" maxlength="256" @bind="paperlessTitle" /></div>
+   <div class="mt-3"><label class="form-label" for="send-correspondent">Korrespondent (optional)</label><select id="send-correspondent" class="form-select form-select-lg" @bind="paperlessCorrespondent"><option value="">Nicht festlegen</option>@foreach (var choice in paperlessMetadata.Correspondents) { <option value="@choice.Id">@choice.Name</option> }</select></div>
+   <div class="mt-3"><label class="form-label" for="send-type">Dokumenttyp (optional)</label><select id="send-type" class="form-select form-select-lg" @bind="paperlessDocumentType"><option value="">Nicht festlegen</option>@foreach (var choice in paperlessMetadata.DocumentTypes) { <option value="@choice.Id">@choice.Name</option> }</select></div>
+   <fieldset class="mt-3"><legend class="h6">Tags (optional)</legend>@foreach (var choice in paperlessMetadata.Tags) { <div class="form-check"><input class="form-check-input" id="send-tag-@choice.Id" type="checkbox" checked="@paperlessTags.Contains(choice.Id)" @onchange="args => ToggleTag(choice.Id, args)" /><label class="form-check-label" for="send-tag-@choice.Id">@choice.Name</label></div> }</fieldset>
+   <button class="btn btn-success btn-lg w-100 mt-3" @onclick="() => UploadAsync(completedPdf.SessionId)" disabled="@(UploadWorkflow.Current?.IsActive == true || UploadWorkflow.Current is { State: PaperlessUploadState.Accepted, SessionId: var acceptedSession } && acceptedSession == completedPdf.SessionId)">An Paperless senden</button>
+  }
+  @if (UploadWorkflow.Current is { } upload) { <div class="alert @(upload.State == PaperlessUploadState.Accepted ? "alert-success" : upload.State == PaperlessUploadState.Failed ? "alert-danger" : "alert-info") mt-3" role="status">@upload.Message</div> }
+  <button class="btn btn-outline-secondary btn-lg w-100 mt-3" @onclick="ShowReview">Zurück zur Vorschau</button>
+  @if (UploadWorkflow.Current?.IsActive == true) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="UploadWorkflow.CancelAsync">Senden abbrechen</button> }
+  }
+ </div></section>
+}
 
-    @if (saneResult?.Succeeded == true)
-    {
-        <section class="card mt-4"><div class="card-body">
-            <h2 class="h4">@saneResult.SelectedDevice!.DisplayName</h2>
-            <div class="row g-3">
-                <Capability Title="Einzugsquellen" Values="saneResult.Capabilities!.Sources" />
-                <Capability Title="Formate" Values="saneResult.Capabilities.Formats" />
-                <Capability Title="Auflösungen" Values="ResolutionLabels" />
-                <Capability Title="Papiergrößen" Values="saneResult.Capabilities.PaperSizes" />
-            </div>
-        </div></section>
-    }
-</div>
 
 @code {
-    private ScannerNetworkDiscoveryResult? result;
     private ScannerDiscoveryResult? saneResult;
-    private string? selectedId;
     private string? message;
-    private bool error;
-    private bool loading;
     private bool scannerLoading;
     private IReadOnlyList<SelectedScanner> savedScanners = [];
     private IReadOnlyList<string> availableSources = [];
@@ -222,6 +231,9 @@
     private ScanColorMode colorMode = ScanColorMode.Color;
     private int resolution = 300;
     private bool IsScanning => ScanWorkflow.Current?.IsActive == true;
+    private string? displayedStep;
+    private PdfCreationSnapshot? RelevantPdf => PageEditor.Current is { } editor && PdfWorkflow.Current is { } pdf && editor.SessionId == pdf.SessionId ? pdf : null;
+    private string CurrentWorkflowStep => displayedStep ?? (IsScanning || DuplexWorkflow.Current?.IsActive == true ? "Scannen" : RelevantPdf?.State == PdfCreationState.Completed ? "Senden" : RelevantPdf is not null ? "PDF" : PageEditor.Current is not null || ScanWorkflow.Current?.State == ScanJobState.Completed || DuplexWorkflow.Current?.State == ManualDuplexState.Completed ? "Prüfen" : "Vorbereiten");
     private bool finalBackIsBlank;
     private Guid? deleteCandidate;
     private Guid? loadedPreviewSession;
@@ -230,10 +242,14 @@
     private string? paperlessMessage;
     private bool paperlessError;
     private bool paperlessLoading;
+    private Guid? cancellingScanSessionId;
+    private Guid? cancellingDuplexSessionId;
     private string? paperlessTitle;
+    private string? paperlessBaseUrl;
     private int? paperlessCorrespondent;
     private int? paperlessDocumentType;
     private readonly HashSet<int> paperlessTags = [];
+    private string? PaperlessHomeUrl => Uri.TryCreate(paperlessBaseUrl, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" ? uri.GetLeftPart(UriPartial.Authority) + uri.AbsolutePath.TrimEnd('/') : null;
     private string? DuplexSource => availableSources.FirstOrDefault(IsFeederSource);
     private bool HasAdf => !string.IsNullOrWhiteSpace(activeDeviceId) && DuplexSource is not null;
     private string ColorModeLabel => colorMode switch { ScanColorMode.Color => "Farbe", ScanColorMode.Grayscale => "Graustufen", _ => "Schwarzweiß" };
@@ -251,11 +267,12 @@
         UploadWorkflow.Changed += OnUploadChanged;
         savedScanners = await Discovery.GetSavedAsync(CancellationToken.None);
         var defaults = await Profiles.GetAsync(CancellationToken.None);
+        paperlessBaseUrl = (await ServiceConfiguration.GetEffectiveAsync(CancellationToken.None)).BaseUrl;
         colorMode = defaults.ColorMode; resolution = defaults.ResolutionDpi;
         paperlessTitle = defaults.Title; paperlessCorrespondent = defaults.CorrespondentId;
         paperlessDocumentType = defaults.DocumentTypeId; paperlessTags.UnionWith(defaults.TagIds);
         var validation = await Profiles.ValidateAsync(defaults, CancellationToken.None);
-        if (!validation.IsValid) { error = true; message = string.Join(" ", validation.Errors) + " Bitte in den Einstellungen korrigieren."; }
+        if (!validation.IsValid) { message = string.Join(" ", validation.Errors) + " Bitte in den Einstellungen korrigieren."; }
         else if (defaults.ScannerId is { } scannerId)
         {
             await ActivateScannerAsync(scannerId);
@@ -290,23 +307,47 @@
     private Task UploadAsync(Guid sessionId) => UploadWorkflow.UploadAsync(new(sessionId, paperlessTitle, paperlessCorrespondent, paperlessDocumentType, paperlessTags.ToArray()));
     private static string PageUrl(Guid sessionId, string fileName) => $"/api/scan-sessions/{sessionId:D}/pages/{Uri.EscapeDataString(fileName)}";
     private static string PdfUrl(Guid sessionId) => $"/api/scan-sessions/{sessionId:D}/document";
-    private Task CreatePdfAsync() => PageEditor.Current is { } session ? PdfWorkflow.CreateAsync(session) : Task.CompletedTask;
+    private async Task CreatePdfAsync() { displayedStep = null; if (PageEditor.Current is { } session) await PdfWorkflow.CreateAsync(session); }
     private Task CancelPdfAsync() => PdfWorkflow.CancelAsync();
+    private void ShowReview() => displayedStep = "Prüfen";
+    private void ShowPreparation() => displayedStep = "Vorbereiten";
+    private void StartNewDocument() { displayedStep = "Vorbereiten"; paperlessMetadata = null; paperlessMessage = null; }
+    private Task CancelActiveScanAsync() => ScanWorkflow.Current?.IsActive == true ? CancelScanAsync() : CancelDuplexAsync();
     private string PdfStatusLabel => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "Fertig", PdfCreationState.Cancelled => "Abgebrochen", PdfCreationState.Failed => "Fehlgeschlagen", _ => "Läuft" };
     private string PdfStatusClass => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "alert-success", PdfCreationState.Cancelled => "alert-warning", PdfCreationState.Failed => "alert-danger", _ => "alert-info" };
     private void RequestDelete(Guid id) => deleteCandidate = id;
     private void CancelDelete() => deleteCandidate = null;
     private void ConfirmDelete(Guid id) { PageEditor.Delete(id); deleteCandidate = null; }
-    private async Task StartScanAsync() => await ScanWorkflow.StartAsync(new(activeDeviceId!, scanSource, colorMode, resolution));
-    private Task CancelScanAsync() => ScanWorkflow.CancelAsync();
+    private async Task StartScanAsync() { cancellingScanSessionId = null; displayedStep = null; await ScanWorkflow.StartAsync(new(activeDeviceId!, scanSource, colorMode, resolution)); }
+    private async Task CancelScanAsync()
+    {
+        cancellingScanSessionId = ScanWorkflow.Current?.SessionId;
+        await ScanWorkflow.CancelAsync();
+    }
     private Task ContinueScanAsync() => ScanWorkflow.ContinueAsync();
-    private Task StartDuplexAsync() => DuplexWorkflow.StartAsync(new(activeDeviceId!, DuplexSource!, colorMode, resolution));
+    private Task StartDuplexAsync() { cancellingDuplexSessionId = null; displayedStep = null; return DuplexWorkflow.StartAsync(new(activeDeviceId!, DuplexSource!, colorMode, resolution)); }
     private Task ConfirmFlipAsync() => DuplexWorkflow.ConfirmFlipAsync(finalBackIsBlank);
-    private Task CancelDuplexAsync() => DuplexWorkflow.CancelAsync();
+    private async Task CancelDuplexAsync()
+    {
+        cancellingDuplexSessionId = DuplexWorkflow.Current?.SessionId;
+        await DuplexWorkflow.CancelAsync();
+    }
     private Task RestartDuplexAsync() => DuplexWorkflow.RestartAsync();
     private async Task NotifyCurrentStateAsync()
     {
         if (notificationModule is null) return;
+        if (ScanWorkflow.Current is { } cancellingScan && cancellingScan.SessionId == cancellingScanSessionId)
+        {
+            if (cancellingScan.State == ScanJobState.Cancelled)
+                await ShowNotificationAsync(cancellingScan.SessionId, cancellingScan.State.ToString(), "Scan abgebrochen", cancellingScan.Message);
+            return;
+        }
+        if (DuplexWorkflow.Current is { } cancellingDuplex && cancellingDuplex.SessionId == cancellingDuplexSessionId)
+        {
+            if (cancellingDuplex.State == ManualDuplexState.Cancelled)
+                await ShowNotificationAsync(cancellingDuplex.SessionId, cancellingDuplex.State.ToString(), "Duplex-Scan abgebrochen", cancellingDuplex.Message);
+            return;
+        }
         if (ScanWorkflow.Current is { } scan && scan.State is ScanJobState.AwaitingUserDecision or ScanJobState.Completed or ScanJobState.Failed)
             await ShowNotificationAsync(scan.SessionId, scan.State.ToString(), scan.State == ScanJobState.Completed ? "Scan abgeschlossen" : scan.State == ScanJobState.Failed ? "Scan fehlgeschlagen" : "Scan benötigt eine Rückmeldung", scan.Message);
         if (DuplexWorkflow.Current is { } duplex && duplex.State is ManualDuplexState.AwaitingFlipConfirmation or ManualDuplexState.PageCountMismatch or ManualDuplexState.Completed or ManualDuplexState.Failed)
@@ -334,12 +375,12 @@
         try
         {
             var activation = await Discovery.ActivateSavedAsync(id, CancellationToken.None);
-            if (!activation.Succeeded) { error = true; message = activation.Diagnostic; return; }
+            if (!activation.Succeeded) { message = activation.Diagnostic; return; }
             activeScannerId = id;
             if (!string.IsNullOrWhiteSpace(activation.Scanner!.SaneDeviceId) && activation.Scanner.Sources?.Count > 0)
             {
                 ApplyProfile(activation.Scanner);
-                error = false;
+
                 message = $"{activation.Scanner.DisplayName} ist mit gespeicherten Scannerwerten bereit.";
                 return;
             }
@@ -356,11 +397,11 @@
         {
             saneResult = await Scanner.DiscoverAsync(CancellationToken.None);
             if (!saneResult.Succeeded || saneResult.SelectedDevice is null || saneResult.Capabilities is null)
-            { error = true; message = saneResult.Diagnostic; activeDeviceId = null; availableSources = []; return; }
+            { message = saneResult.Diagnostic; activeDeviceId = null; availableSources = []; return; }
             var profile = await Discovery.SaveSaneProfileAsync(id, saneResult.SelectedDevice, saneResult.Capabilities, CancellationToken.None);
             savedScanners = savedScanners.Select(value => value.Id == id ? profile : value).ToArray();
             ApplyProfile(profile);
-            error = false;
+
             message = $"Scannerwerte für {profile.DisplayName} wurden aktualisiert.";
         }
         finally { scannerLoading = false; }
@@ -374,30 +415,5 @@
             ?? availableSources.FirstOrDefault() ?? "";
         if (scanner.Resolutions?.Contains(300) != true) resolution = scanner.Resolutions?.FirstOrDefault() ?? 300;
     }
-    private IReadOnlyList<string> ResolutionLabels => saneResult?.Capabilities?.Resolutions.Select(value => $"{value} dpi").ToArray() ?? [];
 
-    private async Task DiscoverAsync()
-    {
-        loading = true; message = null; selectedId = null;
-        try { result = await Discovery.DiscoverAsync(CancellationToken.None); }
-        finally { loading = false; }
-    }
-
-    private async Task SelectAsync()
-    {
-        loading = true; message = null;
-        try
-        {
-            var selection = await Discovery.SelectAsync(selectedId!, CancellationToken.None);
-            error = !selection.Succeeded;
-            message = selection.Succeeded ? selection.Diagnostic ?? $"{selection.Scanner!.DisplayName} wurde geprüft und gespeichert." : selection.Diagnostic;
-            if (selection.Succeeded)
-            {
-                savedScanners = await Discovery.GetSavedAsync(CancellationToken.None);
-                await ActivateScannerAsync(selection.Scanner!.Id);
-                message = selection.Diagnostic ?? $"{selection.Scanner.DisplayName} wurde geprüft und gespeichert und ist für den Scan aktiviert.";
-            }
-        }
-        finally { loading = false; }
-    }
 }

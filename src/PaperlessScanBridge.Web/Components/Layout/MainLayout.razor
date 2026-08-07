@@ -1,4 +1,4 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @inject BuildInformation Build
 
 <div class="page">
@@ -7,12 +7,12 @@
     </div>
 
     <main>
-        <div class="top-row px-4">
-            <span class="text-body-secondary small" title="Git commit">Version <code>@Build.Commit</code></span>
+        <div class="top-row px-3 px-md-4">
+            <a class="app-wordmark" href="/">Scan Bridge</a>
+            <ProfileBanner />
         </div>
 
-        <article class="content px-4">
-            <ProfileBanner />
+        <article class="content px-3 px-md-4">
             @Body
         </article>
     </main>
