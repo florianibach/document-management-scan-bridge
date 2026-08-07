@@ -6,6 +6,8 @@
 @inject IProfileServiceConfigurationService ServiceConfiguration
 @inject IScannerDiscoveryService Discovery
 @inject IPaperlessClient Paperless
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 @rendermode InteractiveServer
 
 <PageTitle>Profil-Einstellungen</PageTitle>
@@ -59,13 +61,27 @@
   }
  </div>
 </section>
+<section class="card mt-4 notification-panel">
+ <div class="card-body">
+  <h2 class="h4">Browser-Benachrichtigungen</h2>
+  <p>Meldet bei einem offenen Tab im Hintergrund, wenn der Stapel gewendet werden muss, eine Rückfrage ansteht oder ein Scan beendet ist. Die Freigabe gilt nur für diesen Browser-Tab.</p>
+  @if (notificationState == "enabled") { <button class="btn btn-outline-secondary w-100" @onclick="DisableNotificationsAsync">Benachrichtigungen ausschalten</button> }
+  else { <button class="btn btn-outline-primary w-100" disabled="@(notificationState is "unsupported" or "denied")" @onclick="EnableNotificationsAsync">Benachrichtigungen aktivieren</button> }
+  @if (notificationState == "denied") { <div class="alert alert-warning mt-3 mb-0">Benachrichtigungen wurden im Browser blockiert. Bitte in den Website-Einstellungen freigeben.</div> }
+  else if (notificationState == "unsupported") { <div class="alert alert-warning mt-3 mb-0">Dieser Browser unterstützt keine Benachrichtigungen.</div> }
+ </div>
+</section>
 
 @code {
  private bool loading = true, metadataLoading, serviceSaving, replaceToken, deleteToken, useDeploymentToken, showPaperlessToken; private string? message, source, title; private long? scannerId; private int resolution = 300; private ScanColorMode colorMode = ScanColorMode.Color;
- private string? paperlessUrl, paperlessToken; private ProfileServiceConfiguration serviceConfiguration = new(null,false,false,true,DateTimeOffset.MinValue); private EffectivePaperlessConfiguration? effective;
+ private string? paperlessUrl, paperlessToken; private string notificationState = "disabled"; private IJSObjectReference? notificationModule; private ProfileServiceConfiguration serviceConfiguration = new(null,false,false,true,DateTimeOffset.MinValue); private EffectivePaperlessConfiguration? effective;
  private int? correspondentId, documentTypeId; private readonly HashSet<int> tagIds = []; private IReadOnlyList<string> errors = []; private IReadOnlyList<SelectedScanner> scanners = []; private PaperlessMetadata? metadata;
  private SelectedScanner? SelectedScanner => scanners.FirstOrDefault(value => value.Id == scannerId);
  protected override async Task OnInitializedAsync() { scanners = await Discovery.GetSavedAsync(default); Apply(await Profiles.GetAsync()); serviceConfiguration = await ServiceConfiguration.GetAsync(); effective = await ServiceConfiguration.GetEffectiveAsync(); paperlessUrl=serviceConfiguration.BaseUrl; useDeploymentToken=serviceConfiguration.UseDeploymentToken; loading = false; }
+ protected override async Task OnAfterRenderAsync(bool firstRender) { if (!firstRender) return; notificationModule = await JS.InvokeAsync<IJSObjectReference>("import", "./scanNotifications.js"); notificationState = await notificationModule.InvokeAsync<string>("getState"); StateHasChanged(); }
+ private async Task EnableNotificationsAsync() { if (notificationModule is not null) notificationState = await notificationModule.InvokeAsync<string>("enable"); }
+ private async Task DisableNotificationsAsync() { if (notificationModule is not null) notificationState = await notificationModule.InvokeAsync<string>("disable"); }
+ public async ValueTask DisposeAsync() { if (notificationModule is not null) try { await notificationModule.DisposeAsync(); } catch (JSDisconnectedException) { } }
  private void Apply(ProfileDefaults value) { scannerId=value.ScannerId; source=value.Source; colorMode=value.ColorMode; resolution=value.ResolutionDpi; title=value.Title; correspondentId=value.CorrespondentId; documentTypeId=value.DocumentTypeId; tagIds.Clear(); tagIds.UnionWith(value.TagIds); }
  private void ScannerChanged() { source = SelectedScanner?.Sources?.FirstOrDefault(); resolution = SelectedScanner?.Resolutions?.Contains(300) == true ? 300 : SelectedScanner?.Resolutions?.FirstOrDefault() ?? 300; }
  private async Task SaveServiceAsync() { serviceSaving=true; message=null; errors=[]; var result=await ServiceConfiguration.ValidateAndSaveAsync(new(paperlessUrl,paperlessToken,replaceToken,deleteToken,useDeploymentToken)); errors=result.Errors; if(result.Succeeded){ serviceConfiguration=result.Configuration; effective=await ServiceConfiguration.GetEffectiveAsync(); metadata=result.Metadata; paperlessToken=null; showPaperlessToken=false; replaceToken=false; deleteToken=false; message="Paperless-Konfiguration wurde geprüft und aktiviert."; } serviceSaving=false; }

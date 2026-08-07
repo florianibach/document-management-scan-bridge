@@ -9,6 +9,14 @@ namespace PaperlessScanBridge.ComponentTests;
 
 public sealed class SettingsPageTests : BunitContext
 {
+    private readonly BunitJSModuleInterop notifications;
+    public SettingsPageTests()
+    {
+        notifications = JSInterop.SetupModule("./scanNotifications.js");
+        notifications.Setup<string>("getState").SetResult("disabled");
+        notifications.Setup<string>("enable").SetResult("enabled");
+        notifications.Setup<string>("disable").SetResult("disabled");
+    }
     [Fact]
     public void AnonymousPaperlessEnvironmentValuesAreReadOnlyAndTokenIsNotExposed()
     {
@@ -29,7 +37,19 @@ public sealed class SettingsPageTests : BunitContext
         Assert.Contains("PAPERLESS_TOKEN", page.Markup);
         Assert.DoesNotContain("environment-secret", page.Markup);
         Assert.DoesNotContain(page.FindAll("input"), input => input.Id == "replace-token");
-        Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Contains("aktivieren"));
+        Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Contains("Verbindung prüfen und aktivieren"));
+    }
+
+    [Fact]
+    public async Task NotificationPermissionIsManagedOnlyFromSettingsAfterExplicitAction()
+    {
+        AddAnonymousServices();
+        var page = Render<Settings>();
+        Assert.DoesNotContain(notifications.Invocations, invocation => invocation.Identifier == "enable");
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Benachrichtigungen aktivieren")).ClickAsync(new());
+        Assert.Single(notifications.Invocations, invocation => invocation.Identifier == "enable");
+        Assert.Contains("Benachrichtigungen ausschalten", page.Markup);
+        Assert.Contains("offenen Tab im Hintergrund", page.Markup);
     }
 
     [Fact]
@@ -48,6 +68,14 @@ public sealed class SettingsPageTests : BunitContext
         Assert.Equal("text", page.Find("#paperless-token").GetAttribute("type"));
         Assert.Equal("new-visible-token", page.Find("#paperless-token").GetAttribute("value"));
         Assert.Contains("nicht wieder angezeigt", page.Markup);
+    }
+
+    private void AddAnonymousServices()
+    {
+        Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
+        Services.AddSingleton<IScannerDiscoveryService>(new DiscoveryStub());
+        Services.AddSingleton<IProfileServiceConfigurationService>(new AnonymousConfigurationStub());
+        Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
     }
 
     private sealed class AuthenticatedConfigurationStub : IProfileServiceConfigurationService
