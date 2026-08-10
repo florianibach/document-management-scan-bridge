@@ -433,14 +433,26 @@ else if (CurrentWorkflowStep == "Send" && PdfWorkflow.Current is { State: PdfCre
     private void CancelDelete() => deleteCandidate = null;
     private void ConfirmDelete(Guid id) { PageEditor.Delete(id); deleteCandidate = null; _ = ReloadBatchAsync(); }
     private async Task ReloadBatchAsync() { if (PageEditor.Current is { } pages) await BatchWorkflow.LoadAsync(pages, (await CurrentProfile.GetRequiredAsync()).Id); }
-    private async Task StartScanAsync() { cancellingScanSessionId = null; displayedStep = null; await ScanWorkflow.StartAsync(new(activeDeviceId!, scanSource, colorMode, resolution)); }
+    private async Task StartScanAsync()
+    {
+        if (!ScanSettingsSelection.TryCreate(activeDeviceId, scanSource, availableSources, colorMode, resolution, out var settings, out var validationError))
+        { message = validationError; return; }
+        cancellingScanSessionId = null; displayedStep = null;
+        await ScanWorkflow.StartAsync(settings!);
+    }
     private async Task CancelScanAsync()
     {
         cancellingScanSessionId = ScanWorkflow.Current?.SessionId;
         await ScanWorkflow.CancelAsync();
     }
     private Task ContinueScanAsync() => ScanWorkflow.ContinueAsync();
-    private Task StartDuplexAsync() { cancellingDuplexSessionId = null; displayedStep = null; return DuplexWorkflow.StartAsync(new(activeDeviceId!, DuplexSource!, colorMode, resolution)); }
+    private Task StartDuplexAsync()
+    {
+        if (!ScanSettingsSelection.TryCreate(activeDeviceId, DuplexSource, availableSources, colorMode, resolution, out var settings, out var validationError))
+        { message = validationError; return Task.CompletedTask; }
+        cancellingDuplexSessionId = null; displayedStep = null;
+        return DuplexWorkflow.StartAsync(settings!);
+    }
     private Task ConfirmFlipAsync() => DuplexWorkflow.ConfirmFlipAsync(finalBackIsBlank);
     private async Task CancelDuplexAsync()
     {

@@ -223,7 +223,7 @@ public sealed class HomePageTests : BunitContext
     }
 
     [Fact]
-    public async Task InitialVisibleSourceIsForwardedWithoutAChangeEvent()
+    public async Task FirstSimplexScanAfterFreshRenderForwardsVisibleAdfWithoutAChangeEvent()
     {
         var workflow = new WorkflowStub();
         AddServices(new DiscoveryStub(new([], [])), workflow: workflow);
@@ -239,6 +239,19 @@ public sealed class HomePageTests : BunitContext
         Assert.Equal("ADF Simplex", workflow.ReceivedSettings!.Source);
         Assert.Equal(ScanColorMode.Color, workflow.ReceivedSettings.ColorMode);
         Assert.Equal(300, workflow.ReceivedSettings.ResolutionDpi);
+    }
+
+    [Fact]
+    public async Task FirstManualDuplexScanAfterFreshRenderForwardsTheCachedAdfSource()
+    {
+        var duplex = new DuplexWorkflowStub();
+        AddServices(new DiscoveryStub(new([], [])), duplex: duplex);
+        var page = Render<Home>();
+
+        Assert.Equal("ADF Simplex", page.Find("#source option[selected]").GetAttribute("value"));
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Start manual duplex scan")).ClickAsync(new());
+
+        Assert.Equal("ADF Simplex", duplex.ReceivedSettings!.Source);
     }
 
     [Fact]

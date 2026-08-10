@@ -5,6 +5,28 @@ namespace PaperlessScanBridge.UnitTests;
 
 public sealed class SimplexScanWorkflowTests : IDisposable
 {
+    [Fact]
+    public void InitialAdfSelectionCreatesSettingsWithTheExactBackendSource()
+    {
+        var created = ScanSettingsSelection.TryCreate("airscan:test", "ADF Simplex", ["Flatbed", "ADF Simplex"],
+            ScanColorMode.Color, 300, out var settings, out var error);
+
+        Assert.True(created);
+        Assert.Null(error);
+        Assert.Equal("ADF Simplex", settings!.Source);
+    }
+
+    [Fact]
+    public void StaleSourceIsRejectedInsteadOfSubstitutingFlatbed()
+    {
+        var created = ScanSettingsSelection.TryCreate("airscan:test", "ADF Simplex", ["Flatbed"],
+            ScanColorMode.Color, 300, out var settings, out var error);
+
+        Assert.False(created);
+        Assert.Null(settings);
+        Assert.Contains("no longer available", error);
+    }
+
     private readonly string storage = Path.Combine(Path.GetTempPath(), "scan-workflow-" + Guid.NewGuid().ToString("N"));
 
     [Fact]

@@ -8,6 +8,36 @@ public enum ScanColorMode { Color, Grayscale, BlackAndWhite }
 public enum ScanJobState { Queued, Running, AwaitingUserDecision, Completed, Cancelled, Failed }
 
 public sealed record SimplexScanSettings(string DeviceId, string Source, ScanColorMode ColorMode, int ResolutionDpi);
+
+public static class ScanSettingsSelection
+{
+    public static bool TryCreate(
+        string? deviceId,
+        string? source,
+        IReadOnlyList<string> availableSources,
+        ScanColorMode colorMode,
+        int resolutionDpi,
+        out SimplexScanSettings? settings,
+        out string? error)
+    {
+        settings = null;
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            error = "Select a ready scanner before starting the scan.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(source) || !availableSources.Contains(source, StringComparer.Ordinal))
+        {
+            error = "The selected scan source is no longer available. Refresh the scanner capabilities and select a supported source.";
+            return false;
+        }
+
+        settings = new(deviceId, source, colorMode, resolutionDpi);
+        error = null;
+        return true;
+    }
+}
 public sealed record ScanCaptureResult(IReadOnlyList<string> PageFiles);
 
 public interface ISimplexScannerAdapter
