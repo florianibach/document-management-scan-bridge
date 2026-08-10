@@ -137,7 +137,7 @@
    }
    else
    {
-    <div class="preview-grid">
+    <div class="preview-grid @(ActiveBatchDocument is null ? "split-layout" : "document-layout")">
      @foreach (var scannedPage in VisibleReviewPages)
      {
       <article class="preview-page" aria-label="@("Page " + scannedPage.Number)">

@@ -117,6 +117,8 @@ public sealed class HomePageTests : BunitContext
         await page.FindAll("button").Single(button => button.TextContent.Contains("Continue with document 1")).ClickAsync(new());
         Assert.Contains("Review document 1 of 2", page.Markup);
         Assert.Contains("1/2", page.Find(".workflow-stepper").TextContent);
+        Assert.Contains("document-layout", page.Find(".preview-grid").ClassList);
+        Assert.DoesNotContain("split-layout", page.Find(".preview-grid").ClassList);
     }
 
     [Fact]
@@ -141,6 +143,21 @@ public sealed class HomePageTests : BunitContext
         Assert.Contains("Review document 2 of 2", page.Markup);
         Assert.Contains("2/2", page.Find(".workflow-stepper").TextContent);
         Assert.Equal(1, paperless.UploadCalls);
+    }
+
+    [Fact]
+    public async Task FinalDocumentReviewUsesRegularPageColumnsWithoutSplitSlots()
+    {
+        var editor = new PageEditorStub(new(Guid.NewGuid(),
+            [new(Guid.NewGuid(), 1, "page-1.png", 0, true, null), new(Guid.NewGuid(), 2, "page-2.png", 0, true, null), new(Guid.NewGuid(), 3, "page-3.png", 0, true, null)]));
+        AddServices(new DiscoveryStub(new([], [])), editor: editor);
+        var page = Render<Home>();
+        await page.FindAll(".split-control")[1].ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue with document 1")).ClickAsync(new());
+
+        Assert.Equal(2, page.FindAll(".preview-page").Count);
+        Assert.Contains("document-layout", page.Find(".preview-grid").ClassList);
+        Assert.Empty(page.FindAll(".split-control"));
     }
 
     [Fact]
