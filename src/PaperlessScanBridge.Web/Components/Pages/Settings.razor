@@ -43,6 +43,32 @@
     }
    </fieldset>
    <fieldset class="mt-4"><legend class="h4">Scan defaults</legend>
+    @if (scanners.Count > 0)
+    {
+     <div class="mb-4" aria-labelledby="saved-scanners-title">
+      <h2 id="saved-scanners-title" class="h5">Saved scanners</h2>
+      @foreach (var scanner in scanners)
+      {
+       <article class="border rounded p-3 mb-2" aria-busy="@(forgettingId == scanner.Id)">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
+         <div><strong>@scanner.DisplayName</strong><div class="text-body-secondary">@scanner.IpAddress · @scanner.Protocol.ToUpperInvariant()</div></div>
+         <button class="btn btn-outline-danger" disabled="@(forgettingId is not null)" @onclick="() => confirmForgetId = scanner.Id">Forget scanner</button>
+        </div>
+        @if (confirmForgetId == scanner.Id)
+        {
+         <div class="alert alert-warning mt-3 mb-0" role="alert">
+          <p><strong>Forget @scanner.DisplayName?</strong></p>
+          <p>This clears its saved selection and cached capabilities, repairs every profile default that references it, and removes or updates Scan Bridge's generated scanner-backend configuration. Other scanners and unrelated system configuration are not changed.</p>
+          <button class="btn btn-danger me-2" disabled="@(forgettingId is not null)" @onclick="() => ForgetAsync(scanner.Id)">
+           @if (forgettingId == scanner.Id) { <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> }@(forgettingId == scanner.Id ? "Forgetting scanner …" : "Confirm forget")
+          </button>
+          <button class="btn btn-outline-secondary" disabled="@(forgettingId is not null)" @onclick="() => confirmForgetId = null">Keep scanner</button>
+         </div>
+        }
+       </article>
+      }
+     </div>
+    }
     <div class="mb-3"><label class="form-label" for="default-scanner">Scanner</label><select id="default-scanner" class="form-select form-select-lg" @bind="scannerId" @bind:after="ScannerChanged"><option value="">No default scanner</option>@foreach (var scanner in scanners) { <option value="@scanner.Id">@scanner.DisplayName (@scanner.IpAddress)</option> }</select></div>
     <div class="mb-3"><label class="form-label" for="default-source">Source</label><select id="default-source" class="form-select form-select-lg" @bind="source" disabled="@(SelectedScanner is null)"><option value="">Select a source …</option>@foreach (var item in SelectedScanner?.Sources ?? []) { <option value="@item">@item</option> }</select></div>
     <div class="row g-3"><div class="col-12 col-md-6"><label class="form-label" for="default-color">Color mode</label><select id="default-color" class="form-select form-select-lg" @bind="colorMode"><option value="Color">Color</option><option value="Grayscale">Grayscale</option><option value="BlackAndWhite">Black and white</option></select></div>
@@ -75,7 +101,7 @@
 </section>
 
 @code {
- private bool loading = true, metadataLoading, serviceSaving, replaceToken, deleteToken, useDeploymentToken, showPaperlessToken; private string? message, source, title; private long? scannerId; private int resolution = 300; private ScanColorMode colorMode = ScanColorMode.Color;
+ private bool loading = true, metadataLoading, serviceSaving, replaceToken, deleteToken, useDeploymentToken, showPaperlessToken; private string? message, source, title; private long? scannerId, confirmForgetId, forgettingId; private int resolution = 300; private ScanColorMode colorMode = ScanColorMode.Color;
  private string? paperlessUrl, paperlessToken; private string notificationState = "disabled"; private IJSObjectReference? notificationModule; private ProfileServiceConfiguration serviceConfiguration = new(null,false,false,true,DateTimeOffset.MinValue); private EffectivePaperlessConfiguration? effective;
  private int? correspondentId, documentTypeId; private readonly HashSet<int> tagIds = []; private IReadOnlyList<string> errors = []; private IReadOnlyList<SelectedScanner> scanners = []; private PaperlessMetadata? metadata;
  private SelectedScanner? SelectedScanner => scanners.FirstOrDefault(value => value.Id == scannerId);
@@ -93,4 +119,5 @@
  private void ToggleTag(int id, ChangeEventArgs args) { if(args.Value is true) tagIds.Add(id); else tagIds.Remove(id); }
  private async Task SaveAsync() { message=null; ValidatePaperlessChoices(); if(errors.Count>0)return; var result=await Profiles.SaveAsync(new(scannerId,source,colorMode,resolution,title,correspondentId,documentTypeId,tagIds.ToArray(),DateTimeOffset.UtcNow)); errors=result.Errors; if(result.IsValid)message="The defaults were saved."; }
  private async Task ResetAsync() { await Profiles.ResetAsync(); Apply(await Profiles.GetAsync()); metadata=null; errors=[]; message="All defaults were reset."; }
+ private async Task ForgetAsync(long id) { forgettingId=id; message=null; errors=[]; try { var result=await Discovery.ForgetAsync(id,default); if(result.Succeeded){ scanners=await Discovery.GetSavedAsync(default); Apply(await Profiles.GetAsync()); confirmForgetId=null; message=result.Message; } else errors=[result.Message]; } finally { forgettingId=null; } }
 }

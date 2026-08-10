@@ -74,6 +74,7 @@ builder.Services.AddDataProtection()
     .SetApplicationName("PaperlessScanBridge");
 builder.Services.AddSingleton(new BuildInformation(builder.Configuration["Build:Commit"] ?? "unknown"));
 builder.Services.AddSingleton<IProcessRunner, SystemProcessRunner>();
+builder.Services.AddSingleton<IScannerOperationGuard, ScannerOperationGuard>();
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ScannerOptions>>().Value);
 builder.Services.AddSingleton<IScanner, SaneScanner>();
 builder.Services.AddSingleton<ISimplexScannerAdapter, SaneSimplexScannerAdapter>();

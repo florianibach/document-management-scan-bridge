@@ -2,10 +2,13 @@ using PaperlessScanBridge.Application.Configuration;
 
 namespace PaperlessScanBridge.Application.Scanning;
 
-public sealed class SaneSimplexScannerAdapter(IProcessRunner processRunner, ScannerOptions options) : ISimplexScannerAdapter
+public sealed class SaneSimplexScannerAdapter(IProcessRunner processRunner, ScannerOptions options, IScannerOperationGuard? operationGuard = null) : ISimplexScannerAdapter
 {
+    private readonly IScannerOperationGuard operationGuard = operationGuard ?? new ScannerOperationGuard();
+
     public async Task<ScanCaptureResult> CaptureAsync(string sessionDirectory, SimplexScanSettings settings, CancellationToken cancellationToken)
     {
+        using var scanLease = operationGuard.BeginScan(settings.DeviceId);
         var pattern = Path.Combine(sessionDirectory, "page-%04d.png");
         var arguments = new List<string>
         {

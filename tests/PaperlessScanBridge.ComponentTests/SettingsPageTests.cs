@@ -70,6 +70,23 @@ public sealed class SettingsPageTests : BunitContext
         Assert.Contains("cannot be displayed again", page.Markup);
     }
 
+    [Fact]
+    public async Task SavedScannerRequiresConfirmationAndReportsActiveScanConflict()
+    {
+        Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
+        Services.AddSingleton<IScannerDiscoveryService>(new SavedScannerDiscoveryStub());
+        Services.AddSingleton<IProfileServiceConfigurationService>(new AnonymousConfigurationStub());
+        Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
+        var page = Render<Settings>();
+
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Forget scanner")).ClickAsync(new());
+        Assert.Contains("repairs every profile default", page.Markup);
+        Assert.Contains("unrelated system configuration are not changed", page.Markup);
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Confirm forget")).ClickAsync(new());
+        Assert.Contains("A scan is active", page.Markup);
+        Assert.Contains("Finish or cancel it", page.Markup);
+    }
+
     private void AddAnonymousServices()
     {
         Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
@@ -109,6 +126,17 @@ public sealed class SettingsPageTests : BunitContext
         public Task<IReadOnlyList<SelectedScanner>> GetSavedAsync(CancellationToken cancellationToken=default)=>Task.FromResult<IReadOnlyList<SelectedScanner>>([]);
         public Task<ScannerSelectionResult> ActivateSavedAsync(long scannerId,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
         public Task<SelectedScanner> SaveSaneProfileAsync(long scannerId,ScannerDevice device,ScannerCapabilities capabilities,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
+    }
+    private sealed class SavedScannerDiscoveryStub : IScannerDiscoveryService
+    {
+        private readonly SelectedScanner scanner = new(3,"Office scanner","192.0.2.10",443,"https","https://192.0.2.10/eSCL",DateTimeOffset.UtcNow,"airscan:office",["ADF"],[300]);
+        public Task<IReadOnlyList<SelectedScanner>> GetSavedAsync(CancellationToken cancellationToken=default)=>Task.FromResult<IReadOnlyList<SelectedScanner>>([scanner]);
+        public Task<SelectedScanner?> GetSelectedAsync(CancellationToken cancellationToken=default)=>Task.FromResult<SelectedScanner?>(scanner);
+        public Task<ForgetScannerResult> ForgetAsync(long scannerId,CancellationToken cancellationToken=default)=>Task.FromResult(new ForgetScannerResult(false,scanner,"A scan is active on this scanner. Finish or cancel it, then try again.",true));
+        public Task<ScannerNetworkDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken)=>throw new NotSupportedException();
+        public Task<ScannerSelectionResult> SelectAsync(string discoveryId,CancellationToken cancellationToken)=>throw new NotSupportedException();
+        public Task<ScannerSelectionResult> ActivateSavedAsync(long scannerId,CancellationToken cancellationToken)=>throw new NotSupportedException();
+        public Task<SelectedScanner> SaveSaneProfileAsync(long scannerId,ScannerDevice device,ScannerCapabilities capabilities,CancellationToken cancellationToken)=>throw new NotSupportedException();
     }
     private sealed class PaperlessStub : IPaperlessClient
     {

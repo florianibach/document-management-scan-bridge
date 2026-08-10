@@ -158,6 +158,10 @@ Vor dem Speichern werden Scannerquelle und Auflösung gegen die gespeicherten F�
 
 US-008 führte lokale Vorgaben ein. Die abgeschlossenen [US-011](docs/user-stories/done/011-authenticated-user-profiles.md) und [US-012](docs/user-stories/done/012-profile-service-configuration.md) ergänzen OpenID-Connect-Anmeldung, Benutzerisolation und verschlüsselt gespeicherte Paperless-URL und API-Token; Bereitstellungswerte bleiben als kontrollierbarer Fallback verfügbar.
 
+### Forgetting a saved scanner
+
+Under **Settings → Saved scanners**, choose **Forget scanner** and review the device-specific confirmation. Scan Bridge removes only its own saved scanner record and cached capabilities, clears the scanner and source from every profile default that referenced that record, and updates or removes its generated `airscan.conf`. Other profile fields, saved scanners, and package-managed SANE configuration remain unchanged. If that scanner is actively capturing pages, finish or cancel the scan and safely retry. A failed or interrupted cleanup can also be retried; forgetting does not create a denylist, so normal discovery can offer the same physical device again.
+
 ## Per-profile Paperless configuration
 
 The settings page can validate and activate a profile-specific Paperless URL and API token. Activation checks the HTTPS URL policy (plain HTTP is accepted only for loopback development), connectivity, authentication, document-list permission, and the correspondent, document-type, and tag endpoints. A profile value takes precedence over the optional deployment fallback; the page identifies the effective source. Operators can disable URL overrides with `PROFILE_ALLOW_PAPERLESS_URL_OVERRIDE=false`. Anonymous mode has exactly one shared profile and always uses the read-only `PAPERLESS_URL` and `PAPERLESS_TOKEN` deployment values without prompting; this provides no per-person separation.
