@@ -1,0 +1,157 @@
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Options
+@using PaperlessScanBridge.Application.Profiles
+@implements IAsyncDisposable
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ICurrentProfileAccessor CurrentProfile
+@inject IOptions<ProfileOptions> Options
+@inject IJSRuntime JS
+
+<div class="account-menu" @ref="menuElement">
+    <button type="button" class="account-trigger" aria-label="@AccessibleName" aria-haspopup="menu"
+            aria-expanded="@menuOpen.ToString().ToLowerInvariant()" @onclick="ToggleAsync">
+        <span class="account-avatar" aria-hidden="true">
+            @if (identity?.ImageUrl is not null)
+            {
+                <img src="@identity.ImageUrl" alt="" referrerpolicy="no-referrer" />
+            }
+            else if (!string.IsNullOrEmpty(identity?.Initials))
+            {
+                <span>@identity.Initials</span>
+            }
+            else
+            {
+                <span class="account-neutral">●</span>
+            }
+        </span>
+        <span class="account-trigger-label">@(identity?.DisplayName ?? "Profil")</span>
+        <span aria-hidden="true">▾</span>
+    </button>
+
+    @if (menuOpen)
+    {
+        <section class="account-panel" role="menu" aria-label="Profile and account">
+            @if (identity?.Kind == AccountKind.Anonymous)
+            {
+                <p class="account-heading">Anonymous household profile</p>
+                <p>This profile and its settings are shared by everyone in this household.</p>
+            }
+            else if (identity?.Kind == AccountKind.Authenticated)
+            {
+                <p class="account-heading">@identity.DisplayName</p>
+                <form method="post" action="/signout">
+                    <button class="btn btn-outline-secondary account-action" role="menuitem">Sign out</button>
+                </form>
+            }
+            else
+            {
+                <p class="account-heading">Not signed in</p>
+                <p>Sign-in is required for this protected profile.</p>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private ElementReference menuElement;
+    private AccountIdentity? identity;
+    private bool menuOpen;
+    private IJSObjectReference? module;
+    private DotNetObjectReference<AccountMenu>? dotNetReference;
+
+    private string AccessibleName => identity switch
+    {
+        { Kind: AccountKind.Anonymous } => "Open account menu for anonymous household profile",
+        { Kind: AccountKind.Authenticated } value => $"Open account menu for {value.DisplayName}",
+        _ => "Open account menu; not signed in"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged += AuthenticationStateChanged;
+        await RefreshIdentityAsync(await AuthenticationStateProvider.GetAuthenticationStateAsync());
+    }
+
+    private async void AuthenticationStateChanged(Task<AuthenticationState> stateTask)
+    {
+        try
+        {
+            await RefreshIdentityAsync(await stateTask);
+            menuOpen = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private async Task RefreshIdentityAsync(AuthenticationState state)
+    {
+        var principal = state.User;
+        if (Options.Value.Mode == ProfileMode.Anonymous)
+        {
+            var anonymousProfile = await CurrentProfile.GetRequiredAsync();
+            identity = new(AccountKind.Anonymous, anonymousProfile.DisplayName, null, Initials(anonymousProfile.DisplayName));
+            return;
+        }
+
+        if (principal.Identity?.IsAuthenticated != true)
+        {
+            identity = new(AccountKind.SignedOut, "Not signed in", null, null);
+            return;
+        }
+
+        var profile = await CurrentProfile.GetRequiredAsync();
+        identity = new(AccountKind.Authenticated, profile.DisplayName, SafeImageUrl(principal), Initials(profile.DisplayName));
+    }
+
+    private async Task ToggleAsync()
+    {
+        menuOpen = !menuOpen;
+        if (menuOpen)
+        {
+            module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./Components/AccountMenu.razor.js");
+            dotNetReference ??= DotNetObjectReference.Create(this);
+            await module.InvokeVoidAsync("open", menuElement, dotNetReference);
+        }
+        else if (module is not null)
+        {
+            await module.InvokeVoidAsync("close");
+        }
+    }
+
+    [JSInvokable]
+    public Task DismissAsync()
+    {
+        if (!menuOpen) return Task.CompletedTask;
+        menuOpen = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private static string? SafeImageUrl(ClaimsPrincipal principal)
+    {
+        var value = principal.FindFirst("picture")?.Value;
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && string.IsNullOrEmpty(uri.UserInfo)
+            ? uri.AbsoluteUri : null;
+    }
+
+    private static string? Initials(string value)
+    {
+        var words = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (words.Length == 0) return null;
+        return string.Concat(words.Take(2).Select(word => char.ToUpperInvariant(word[0])));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged -= AuthenticationStateChanged;
+        if (module is not null)
+        {
+            try { await module.InvokeVoidAsync("close"); await module.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+        }
+        dotNetReference?.Dispose();
+    }
+
+    private enum AccountKind { Anonymous, Authenticated, SignedOut }
+    private sealed record AccountIdentity(AccountKind Kind, string DisplayName, string? ImageUrl, string? Initials);
+}
