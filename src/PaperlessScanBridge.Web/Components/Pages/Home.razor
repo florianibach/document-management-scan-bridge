@@ -431,7 +431,7 @@ else if (CurrentWorkflowStep == "Send" && PdfWorkflow.Current is { State: PdfCre
     private string PdfStatusClass => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "alert-success", PdfCreationState.Cancelled => "alert-warning", PdfCreationState.Failed => "alert-danger", _ => "alert-info" };
     private void RequestDelete(Guid id) => deleteCandidate = id;
     private void CancelDelete() => deleteCandidate = null;
-    private void ConfirmDelete(Guid id) { PageEditor.Delete(id); deleteCandidate = null; _ = ReloadBatchAsync(); }
+    private async Task ConfirmDelete(Guid id) { PageEditor.Delete(id); deleteCandidate = null; await ReloadBatchAsync(); }
     private async Task ReloadBatchAsync() { if (PageEditor.Current is { } pages) await BatchWorkflow.LoadAsync(pages, (await CurrentProfile.GetRequiredAsync()).Id); }
     private async Task StartScanAsync() { cancellingScanSessionId = null; displayedStep = null; await ScanWorkflow.StartAsync(new(activeDeviceId!, scanSource, colorMode, resolution)); }
     private async Task CancelScanAsync()

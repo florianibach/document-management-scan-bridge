@@ -43,6 +43,22 @@ public sealed class PageEditingSessionTests : IDisposable
         Assert.True(editor.Current.Pages[1].IsAvailable);
     }
 
+    [Fact]
+    public async Task ReloadKeepsStablePageIdentityForPersistedBoundaries()
+    {
+        var id = Guid.NewGuid();
+        var directory = Path.Combine(root, id.ToString("N"));
+        Directory.CreateDirectory(directory);
+        await File.WriteAllBytesAsync(Path.Combine(directory, "page-0001.png"), Png());
+        var editor = new PageEditingSession(new TemporaryStorageOptions { Path = root });
+        await editor.LoadAsync(id, false);
+        var pageId = editor.Current!.Pages.Single().Id;
+
+        await editor.LoadAsync(id, false);
+
+        Assert.Equal(pageId, editor.Current!.Pages.Single().Id);
+    }
+
     private static byte[] Png() => [137, 80, 78, 71, 13, 10, 26, 10, 1];
     public void Dispose() { if (Directory.Exists(root)) Directory.Delete(root, true); }
 }

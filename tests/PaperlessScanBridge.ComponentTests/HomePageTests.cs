@@ -134,6 +134,25 @@ public sealed class HomePageTests : BunitContext
     }
 
     [Fact]
+    public async Task RemovingPageBeforeBoundaryImmediatelyRenumbersMarkerAndDocuments()
+    {
+        var pages = new[] { new EditablePage(Guid.NewGuid(), 1, "page-1.png", 0, true, null), new(Guid.NewGuid(), 2, "page-2.png", 0, true, null), new(Guid.NewGuid(), 3, "page-3.png", 0, true, null) };
+        AddServices(new DiscoveryStub(new([], [])), editor: new PageEditorStub(new(Guid.NewGuid(), pages)));
+        var page = Render<Home>();
+        await page.FindAll(".split-control")[1].ClickAsync(new());
+        await page.FindAll("button").First(button => button.TextContent.Contains("Remove page")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Confirm removal")).ClickAsync(new());
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal(2, page.FindAll(".preview-page").Count);
+            Assert.Equal("Remove document boundary after page 1", page.Find(".split-control").GetAttribute("aria-label"));
+            Assert.Contains("2 documents from 2 pages", page.Markup);
+            Assert.All(page.FindAll(".batch-document"), document => Assert.Contains("1 page(s)", document.TextContent));
+        });
+    }
+
+    [Fact]
     public async Task SplitDocumentsEachFollowReviewPdfAndSendBeforeAdvancing()
     {
         var paperless = new PaperlessStub();
@@ -325,7 +344,11 @@ public sealed class HomePageTests : BunitContext
     private void AddServices(IScannerDiscoveryService discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null, PageEditorStub? editor = null, PaperlessStub? paperless = null)
     { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); Services.AddSingleton<IScanBatchWorkflow>(new ScanBatchWorkflow(new BatchStoreStub(), new BatchProcessorStub(client))); Services.AddSingleton<IProfileDefaultsService>(new ProfileStub()); Services.AddSingleton<IProfileServiceConfigurationService>(new ServiceConfigurationStub()); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions())); }
     private sealed class BatchStoreStub : IScanBatchStore
-    { public Task<ScanBatchSnapshot?> LoadAsync(Guid id,string profile,CancellationToken token=default)=>Task.FromResult<ScanBatchSnapshot?>(null); public Task SaveAsync(ScanBatchSnapshot batch,string profile,CancellationToken token=default)=>Task.CompletedTask; }
+    {
+        private readonly Dictionary<(Guid, string), ScanBatchSnapshot> batches = [];
+        public Task<ScanBatchSnapshot?> LoadAsync(Guid id,string profile,CancellationToken token=default)=>Task.FromResult(batches.GetValueOrDefault((id, profile)));
+        public Task SaveAsync(ScanBatchSnapshot batch,string profile,CancellationToken token=default) { batches[(batch.SessionId, profile)] = batch; return Task.CompletedTask; }
+    }
     private sealed class BatchProcessorStub(IPaperlessClient client) : IScanBatchProcessor
     { public Task CreatePdfAsync(Guid session,BatchDocument document,CancellationToken token)=>Task.CompletedTask; public Task<PaperlessResult> UploadAsync(Guid session,BatchDocument document,CancellationToken token)=>client.UploadAsync(new(document.Id, document.Metadata.Title, document.Metadata.CorrespondentId, document.Metadata.DocumentTypeId, document.Metadata.Tags), cancellationToken: token); }
     private sealed class ServiceConfigurationStub : IProfileServiceConfigurationService
