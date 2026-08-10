@@ -26,7 +26,7 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-020](done/020-account-menu-and-profile-context.md) | Account menu and profile context (done) | Anonymous and authenticated identity information has one consistent home |
 | [US-021](done/021-forget-a-saved-scanner.md) | Forget a saved scanner (done) | Retired scanners can be removed safely without blocking rediscovery |
 | [US-022](022-scanner-operation-loading-states.md) | Scanner operation loading states | Slow scanner and API operations provide visible, blocking feedback |
-| [US-023](023-configurable-application-http-port.md) | Configurable application HTTP port | Host-network deployments can choose the application's listening port |
+| [US-023](done/023-configurable-application-http-port.md) | Configurable application HTTP port (done) | Host-network deployments can choose the application's listening port |
 | [US-024](024-multiple-parallel-login-providers.md) | Multiple parallel login providers | Household members can choose among configured identity providers |
 | [US-025](025-paperless-processing-hint-after-upload.md) | Paperless processing hint after upload | Accepted uploads clearly explain that Paperless processing may continue |
 | [US-026](026-notify-scan-timeout-decision.md) | Notify scan timeout decision | Background users are called back when an active scan needs a timeout decision |
