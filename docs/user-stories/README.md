@@ -28,7 +28,7 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-022](022-scanner-operation-loading-states.md) | Scanner operation loading states | Slow scanner and API operations provide visible, blocking feedback |
 | [US-023](done/023-configurable-application-http-port.md) | Configurable application HTTP port (done) | Host-network deployments can choose the application's listening port |
 | [US-024](024-multiple-parallel-login-providers.md) | Multiple parallel login providers | Household members can choose among configured identity providers |
-| [US-025](025-paperless-processing-hint-after-upload.md) | Paperless processing hint after upload | Accepted uploads clearly explain that Paperless processing may continue |
+| [US-025](done/025-paperless-processing-hint-after-upload.md) | Paperless processing hint after upload (done) | Accepted uploads clearly explain that Paperless processing may continue |
 | [US-026](done/026-notify-scan-timeout-decision.md) | Notify scan timeout decision (done) | Background users are called back when an active scan needs a timeout decision |
 | [US-027](done/027-preserve-split-boundaries-after-page-removal.md) | Preserve split boundaries after page removal (done) | Page removal keeps the intended document split valid and consistent |
 | [US-028](028-apply-default-tags-to-split-documents.md) | Apply default tags to split documents | Every split document starts with an isolated snapshot of the session's default tags |

@@ -234,6 +234,9 @@ else if (CurrentWorkflowStep == "PDF" && PdfWorkflow.Current is { } currentPdf)
    <AppStateCard Kind="success" Title="Document submitted" Message="@(batchSend.Message ?? "Paperless accepted the document.")">
     <ChildContent>
      @if (!string.IsNullOrWhiteSpace(batchSend.TaskId)) { <p class="small">Paperless task ID: @batchSend.TaskId</p> }
+     <div class="alert alert-info mt-3" role="status" data-testid="paperless-processing-hint">
+      <strong>Paperless may still be processing this document.</strong> Processing can take some time. Check <strong>File Tasks</strong> in Paperless-ngx for progress.
+     </div>
      <a class="btn btn-outline-success w-100" href="@BatchPdfUrl(PageEditor.Current!.SessionId, batchSend.Id)">Download PDF</a>
      @if (NextBatchDocument is not null) { <button class="btn btn-primary btn-lg w-100 mt-2" @onclick="ContinueNextBatchDocument">Review next document (@NextBatchDocument.Number of @ActiveBatchDocumentCount)</button> }
      else { <button class="btn btn-primary btn-lg w-100 mt-2" @onclick="StartNewDocument">Finish batch and scan another</button> }
@@ -267,6 +270,9 @@ else if (CurrentWorkflowStep == "Send" && PdfWorkflow.Current is { State: PdfCre
    <AppStateCard Kind="success" Title="Document submitted" Message="@acceptedUpload.Message">
     <ChildContent>
      @if (!string.IsNullOrWhiteSpace(acceptedUpload.TaskId)) { <p class="small">Paperless task ID: @acceptedUpload.TaskId</p> }
+     <div class="alert alert-info mt-3" role="status" data-testid="paperless-processing-hint">
+      <strong>Paperless may still be processing this document.</strong> Processing can take some time. Check <strong>File Tasks</strong> in Paperless-ngx for progress.
+     </div>
      <button class="btn btn-primary btn-lg w-100" @onclick="StartNewDocument">New document</button>
      @if (PaperlessHomeUrl is not null) { <a class="btn btn-outline-primary btn-lg w-100 mt-2" href="@PaperlessHomeUrl" target="_blank" rel="noopener noreferrer">Open Paperless</a> }
      <a class="btn btn-outline-success w-100 mt-2" href="@PdfUrl(completedPdf.SessionId)">Download PDF</a>
