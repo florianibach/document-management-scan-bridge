@@ -100,16 +100,78 @@ public sealed class HomePageTests : BunitContext
     }
 
     [Fact]
+    public async Task ReviewCanSplitBatchAndShowsDocumentAndPageProgress()
+    {
+        var editor = new PageEditorStub(new(Guid.NewGuid(),
+            [new(Guid.NewGuid(), 1, "page-1.png", 0, true, null), new(Guid.NewGuid(), 2, "page-2.png", 0, true, null), new(Guid.NewGuid(), 3, "page-3.png", 0, true, null)]));
+        AddServices(new DiscoveryStub(new([], [])), editor: editor);
+        var page = Render<Home>();
+
+        Assert.Contains("1 documents from 3 pages", page.Markup);
+        await page.FindAll(".split-control").First().ClickAsync(new());
+
+        page.WaitForAssertion(() => Assert.Contains("2 documents from 3 pages", page.Markup));
+        Assert.Equal(2, page.FindAll(".batch-document").Count);
+        Assert.Equal("Remove document boundary after page 1", page.Find(".split-control").GetAttribute("aria-label"));
+        Assert.Contains("Continue with document 1", page.Markup);
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue with document 1")).ClickAsync(new());
+        Assert.Contains("Review document 1 of 2", page.Markup);
+        Assert.Contains("1/2", page.Find(".workflow-stepper").TextContent);
+        Assert.Contains("document-layout", page.Find(".preview-grid").ClassList);
+        Assert.DoesNotContain("split-layout", page.Find(".preview-grid").ClassList);
+    }
+
+    [Fact]
+    public async Task SplitDocumentsEachFollowReviewPdfAndSendBeforeAdvancing()
+    {
+        var paperless = new PaperlessStub();
+        var editor = new PageEditorStub(new(Guid.NewGuid(),
+            [new(Guid.NewGuid(), 1, "page-1.png", 0, true, null), new(Guid.NewGuid(), 2, "page-2.png", 0, true, null)]));
+        AddServices(new DiscoveryStub(new([], [])), editor: editor, paperless: paperless);
+        var page = Render<Home>();
+        await page.Find(".split-control").ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue with document 1")).ClickAsync(new());
+        Assert.Contains("Review document 1 of 2", page.Markup);
+
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue to PDF")).ClickAsync(new());
+        Assert.Contains("PDF · document 1 of 2", page.Markup);
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue to Send")).ClickAsync(new());
+        await page.Find("button.btn-outline-primary").ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Send to Paperless")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Review next document")).ClickAsync(new());
+
+        Assert.Contains("Review document 2 of 2", page.Markup);
+        Assert.Contains("2/2", page.Find(".workflow-stepper").TextContent);
+        Assert.Equal(1, paperless.UploadCalls);
+    }
+
+    [Fact]
+    public async Task FinalDocumentReviewUsesRegularPageColumnsWithoutSplitSlots()
+    {
+        var editor = new PageEditorStub(new(Guid.NewGuid(),
+            [new(Guid.NewGuid(), 1, "page-1.png", 0, true, null), new(Guid.NewGuid(), 2, "page-2.png", 0, true, null), new(Guid.NewGuid(), 3, "page-3.png", 0, true, null)]));
+        AddServices(new DiscoveryStub(new([], [])), editor: editor);
+        var page = Render<Home>();
+        await page.FindAll(".split-control")[1].ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue with document 1")).ClickAsync(new());
+
+        Assert.Equal(2, page.FindAll(".preview-page").Count);
+        Assert.Contains("document-layout", page.Find(".preview-grid").ClassList);
+        Assert.Empty(page.FindAll(".split-control"));
+    }
+
+    [Fact]
     public async Task ReviewedPagesCanCreateAndDownloadPdf()
     {
         var editor = new PageEditorStub(new(Guid.NewGuid(), [new(Guid.NewGuid(), 1, "page-0001.png", 90, true, null)]));
         AddServices(new DiscoveryStub(new([], [])), editor: editor);
         var page = Render<Home>();
 
-        await page.FindAll("button").Single(button => button.TextContent.Contains("Create PDF")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue with document")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue to PDF")).ClickAsync(new());
 
         Assert.Contains("Download PDF", page.Markup);
-        Assert.Contains("/document", page.Find("a[href$='/document']").GetAttribute("href"));
+        Assert.Contains("/documents/", page.Find("a[href*='/documents/']").GetAttribute("href"));
     }
 
     [Fact]
@@ -119,21 +181,21 @@ public sealed class HomePageTests : BunitContext
         var paperless = new PaperlessStub();
         AddServices(new DiscoveryStub(new([], [])), editor: editor, paperless: paperless);
         var page = Render<Home>();
-        await page.FindAll("button").Single(button => button.TextContent.Contains("Create PDF")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue with document")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue to PDF")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue to Send")).ClickAsync(new());
         Assert.DoesNotContain("Scan a document", page.Markup);
         Assert.DoesNotContain("Beidseitiges Scan a document", page.Markup);
         Assert.Contains("Back to review", page.Markup);
         Assert.DoesNotContain("is ready with saved scanner capabilities", page.Markup);
-        await page.FindAll("button").Single(button => button.TextContent.Contains("load metadata")).ClickAsync(new());
+        await page.Find("button.btn-outline-primary").ClickAsync(new());
         Assert.Contains("Example GmbH", page.Markup);
-        await page.Find("#paperless-title").ChangeAsync("August invoice");
+        await page.Find("input[id^='batch-title-']").ChangeAsync("August invoice");
         await page.FindAll("button").Single(button => button.TextContent.Contains("Send to Paperless")).ClickAsync(new());
         page.WaitForAssertion(() => Assert.Contains("Document submitted", page.Markup));
         Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Contains("Send to Paperless"));
-        Assert.Equal("https://paperless.example.test", page.FindAll("a").Single(link => link.TextContent.Contains("Open Paperless")).GetAttribute("href"));
-        Assert.Equal("_blank", page.FindAll("a").Single(link => link.TextContent.Contains("Open Paperless")).GetAttribute("target"));
         Assert.Equal(1, paperless.UploadCalls);
-        await page.FindAll("button").Single(button => button.TextContent.Contains("New document")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Finish batch")).ClickAsync(new());
         Assert.Contains("Start simplex scan", page.Markup);
         Assert.DoesNotContain("Document submitted", page.Markup);
     }
@@ -148,8 +210,8 @@ public sealed class HomePageTests : BunitContext
         Assert.Contains("Review", page.Markup);
         Assert.DoesNotContain("Start simplex scan", page.Markup);
         Assert.DoesNotContain("Start manual duplex scan", page.Markup);
-        Assert.Contains(notifications.Invocations, invocation => invocation.Identifier == "show"
-            && invocation.Arguments[0]?.ToString() == "Scan completed");
+        page.WaitForAssertion(() => Assert.Contains(notifications.Invocations, invocation => invocation.Identifier == "show"
+            && invocation.Arguments[0]?.ToString() == "Scan completed"));
     }
 
     [Fact]
@@ -249,7 +311,11 @@ public sealed class HomePageTests : BunitContext
     }
 
     private void AddServices(IScannerDiscoveryService discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null, PageEditorStub? editor = null, PaperlessStub? paperless = null)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); Services.AddSingleton<IProfileDefaultsService>(new ProfileStub()); Services.AddSingleton<IProfileServiceConfigurationService>(new ServiceConfigurationStub()); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions())); }
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); Services.AddSingleton<IScanBatchWorkflow>(new ScanBatchWorkflow(new BatchStoreStub(), new BatchProcessorStub(client))); Services.AddSingleton<IProfileDefaultsService>(new ProfileStub()); Services.AddSingleton<IProfileServiceConfigurationService>(new ServiceConfigurationStub()); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions())); }
+    private sealed class BatchStoreStub : IScanBatchStore
+    { public Task<ScanBatchSnapshot?> LoadAsync(Guid id,string profile,CancellationToken token=default)=>Task.FromResult<ScanBatchSnapshot?>(null); public Task SaveAsync(ScanBatchSnapshot batch,string profile,CancellationToken token=default)=>Task.CompletedTask; }
+    private sealed class BatchProcessorStub(IPaperlessClient client) : IScanBatchProcessor
+    { public Task CreatePdfAsync(Guid session,BatchDocument document,CancellationToken token)=>Task.CompletedTask; public Task<PaperlessResult> UploadAsync(Guid session,BatchDocument document,CancellationToken token)=>client.UploadAsync(new(document.Id, document.Metadata.Title, document.Metadata.CorrespondentId, document.Metadata.DocumentTypeId, document.Metadata.Tags), cancellationToken: token); }
     private sealed class ServiceConfigurationStub : IProfileServiceConfigurationService
     {
         public Task<ProfileServiceConfiguration> GetAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();

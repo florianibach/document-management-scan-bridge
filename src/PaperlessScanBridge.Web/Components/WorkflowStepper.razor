@@ -1,4 +1,9 @@
 <nav class="workflow-stepper" aria-label="Scan workflow">
- @foreach (var item in Steps) { <div class="workflow-step @(item == Current ? "current" : null)" aria-current="@(item == Current ? "step" : null)"><span class="step-dot" aria-hidden="true"></span><span>@item</span></div> }
+ @foreach (var item in Steps) { <div class="workflow-step @(item == Current ? "current" : null)" aria-current="@(item == Current ? "step" : null)"><span class="step-dot" aria-hidden="true"></span><span>@item@if (DocumentCount > 1 && item is "Review" or "PDF" or "Send") { <small class="document-step-count">@DocumentNumber/@DocumentCount</small> }</span></div> }
 </nav>
-@code { [Parameter] public string Current { get; set; } = "Prepare"; private static readonly string[] Steps = ["Prepare", "Scan", "Review", "PDF", "Send"]; }
+@code {
+ [Parameter] public string Current { get; set; } = "Prepare";
+ [Parameter] public int DocumentNumber { get; set; } = 1;
+ [Parameter] public int DocumentCount { get; set; } = 1;
+ private static readonly string[] Steps = ["Prepare", "Scan", "Review", "PDF", "Send"];
+}

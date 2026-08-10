@@ -84,6 +84,9 @@ builder.Services.AddScoped<IManualDuplexWorkflow, ManualDuplexWorkflow>();
 builder.Services.AddScoped<IPageEditingSession, PageEditingSession>();
 builder.Services.AddScoped<IPdfCreationWorkflow, PdfCreationWorkflow>();
 builder.Services.AddSingleton<IPdfDocumentWriter, PdfSharpDocumentWriter>();
+builder.Services.AddSingleton<IScanBatchStore, FileScanBatchStore>();
+builder.Services.AddScoped<IScanBatchProcessor, ScanBatchProcessor>();
+builder.Services.AddScoped<IScanBatchWorkflow, ScanBatchWorkflow>();
 builder.Services.AddScoped<IPaperlessUploadWorkflow, PaperlessUploadWorkflow>();
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ProfileServiceOptions>>().Value);
 builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaperlessOptions>>().Value);
@@ -175,6 +178,12 @@ app.MapGet("/api/scan-sessions/{sessionId:guid}/document", async (Guid sessionId
     if (!await access.CanAccessAsync(sessionId)) return Results.NotFound();
     var path = Path.Combine(Path.GetFullPath(storage.Path), sessionId.ToString("N"), "document.pdf");
     return File.Exists(path) ? Results.File(path, "application/pdf", "scan.pdf", enableRangeProcessing: true) : Results.NotFound();
+});
+app.MapGet("/api/scan-sessions/{sessionId:guid}/documents/{documentId:guid}", async (Guid sessionId, Guid documentId, TemporaryStorageOptions storage, IScanSessionAccessService access) =>
+{
+    if (!await access.CanAccessAsync(sessionId)) return Results.NotFound();
+    var path = Path.Combine(Path.GetFullPath(storage.Path), documentId.ToString("N"), "document.pdf");
+    return File.Exists(path) ? Results.File(path, "application/pdf", $"scan-document-{documentId:N}.pdf", enableRangeProcessing: true) : Results.NotFound();
 });
 
 app.Run();
