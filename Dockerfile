@@ -19,10 +19,11 @@ RUN apt-get update \
  && chown -R "$APP_UID:$APP_UID" /app
 COPY --from=build --chown=$APP_UID:$APP_UID /app .
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-ENV ASPNETCORE_URLS=http://+:8080
+COPY --chmod=755 scripts/configure-http-port.sh /usr/local/lib/scan-bridge/configure-http-port.sh
+ENV APPLICATION_HTTP_PORT=8080
 ENV Build__Commit=$GIT_COMMIT
 LABEL org.opencontainers.image.revision=$GIT_COMMIT
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD curl --fail --silent --show-error http://127.0.0.1:8080/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD-SHELL curl --fail --silent --show-error "http://127.0.0.1:${APPLICATION_HTTP_PORT}/health" || exit 1
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["dotnet", "PaperlessScanBridge.Web.dll"]

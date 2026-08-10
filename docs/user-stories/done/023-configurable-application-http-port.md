@@ -21,3 +21,11 @@
 ## Dependencies
 
 - US-009
+
+## Completion evidence
+
+- Compose passes `APPLICATION_HTTP_PORT` to the container with `8080` as its default, retains host networking without port publishing, and resolves the same value into its health check.
+- The container entrypoint validates integer syntax and the TCP range, checks Linux IPv4 and IPv6 listener tables for conflicts, and configures ASP.NET Core's HTTP listener only after validation.
+- `scripts/test-http-port-configuration.sh` covers the default, a valid override, malformed and out-of-range inputs, generated default and overridden Compose configurations, matching health URLs, and absence of published ports.
+- Operator documentation records the non-secret variable, default, host-network semantics, recreation procedure, validation commands, conflict diagnosis, and the documented bind-race limitation.
+- UI, workflow, persistence, scanner hardware, cancellation, retry, temporary-data cleanup, component tests, and viewport checks are not applicable because this story changes only container startup configuration. The existing readiness endpoint supplies the representative operational end-to-end check.

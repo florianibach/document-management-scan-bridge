@@ -29,7 +29,7 @@ Open the URL printed by the application. The health endpoint is `/health`. SQLit
 
 ```bash
 docker compose up --detach --build
-curl --fail http://localhost:8080/health
+curl --fail "http://localhost:${APPLICATION_HTTP_PORT:-8080}/health"
 docker compose logs scan-bridge
 docker compose down
 ```
@@ -41,7 +41,7 @@ export GIT_COMMIT="$(git rev-parse --short HEAD)"
 docker compose up --detach --build
 ```
 
-The image installs `sane-utils` and `sane-airscan` for both AMD64 and ARM64. Compose uses the Linux host network so multicast scanner discovery reaches the container; port `8080` is therefore opened directly by the application rather than published through Docker. The bind mounts `./app/data:/app/data` and `./app/temp:/app/temp` keep the selected scanner, generated SANE configuration, and temporary storage directly accessible on the host. Override `PAPERLESS_URL` and `PAPERLESS_TOKEN` through the environment; never commit the token.
+The image installs `sane-utils` and `sane-airscan` for both AMD64 and ARM64. Compose uses the Linux host network so multicast scanner discovery reaches the container; the configured `APPLICATION_HTTP_PORT` (default `8080`) is therefore opened directly by the application rather than published through Docker. The bind mounts `./app/data:/app/data` and `./app/temp:/app/temp` keep the selected scanner, generated SANE configuration, and temporary storage directly accessible on the host. Override `PAPERLESS_URL` and `PAPERLESS_TOKEN` through the environment; never commit the token.
 
 No UID or GID configuration and no manual directory creation are required. Like many third-party images, the container starts through a small entrypoint: it creates the mounted directories when necessary, gives the image's built-in unprivileged .NET user access, and then immediately drops root privileges before starting the application. `APP_UID` is an internal variable supplied by Microsoft's ASP.NET base image, not a setting that users need to provide in Compose.
 
@@ -67,6 +67,7 @@ Example `.env`:
 
 ```dotenv
 GIT_COMMIT=local-dev
+APPLICATION_HTTP_PORT=8080
 PAPERLESS_URL=https://paperless.example.test
 PAPERLESS_TOKEN=replace-with-a-paperless-api-token
 PAPERLESS_TIMEOUT_SECONDS=60
@@ -79,6 +80,7 @@ Do not commit `.env`, API tokens, client secrets, private scanner IDs, or privat
 | Compose variable | Container key | Default | Meaning |
 | --- | --- | --- | --- |
 | `GIT_COMMIT` | `Build__Commit` image build argument and label | `unknown` | Shows the running source revision in the UI and OCI metadata. |
+| `APPLICATION_HTTP_PORT` | `ASPNETCORE_HTTP_PORTS` (set by the entrypoint) | `8080` | HTTP port listened on directly through Linux host networking. Integer from `1` to `65535`; not secret. |
 | `PAPERLESS_URL` | `Paperless__BaseUrl` | `http://paperless:8000` | Deployment-wide Paperless-ngx base URL used by the current upload flow and by later fallback/anonymous profile modes. |
 | `PAPERLESS_TOKEN` | `Paperless__ApiToken` | empty | Deployment-wide Paperless API token. Treat it as a secret; later profile stories may replace it with encrypted per-profile tokens. |
 | `PAPERLESS_TIMEOUT_SECONDS` | `Paperless__TimeoutSeconds` | `60` | HTTP timeout for Paperless connectivity, metadata loading, and upload calls. |
@@ -101,6 +103,17 @@ Do not commit `.env`, API tokens, client secrets, private scanner IDs, or privat
 
 
 Advanced ASP.NET Core configuration keys can also be set directly with double underscores, but prefer the documented Compose variables above for supported deployments.
+
+To change the listener, set `APPLICATION_HTTP_PORT` in `.env` (for example, `APPLICATION_HTTP_PORT=8090`) and recreate the container; a restart without recreation does not apply changed Compose environment values. The application listens on that port in the host network namespace, and Compose deliberately adds no `ports` mapping. Validate the resolved listener and health-check URL before starting:
+
+```bash
+docker compose config
+APPLICATION_HTTP_PORT=8090 docker compose config
+docker compose up --detach --build --force-recreate
+curl --fail "http://127.0.0.1:${APPLICATION_HTTP_PORT:-8080}/health"
+```
+
+Startup rejects blank, malformed, zero, negative, and above-`65535` values with an `APPLICATION_HTTP_PORT` diagnostic. It also checks the Linux TCP listener tables before launching ASP.NET Core and reports when another process already owns the port. If startup fails, inspect `docker compose logs scan-bridge`, find the conflicting host service with `sudo ss -ltnp | grep ":${APPLICATION_HTTP_PORT:-8080} "`, choose a free port, then recreate the service. There is a small unavoidable race between the preflight check and Kestrel binding; if another process claims the port in that interval, Kestrel fails startup rather than switching ports.
 
 ## Simplex scanning
 
@@ -237,7 +250,7 @@ Restore by stopping the container, replacing `./app/data` from the backup, optio
 
 ### Readiness, logs, and resource expectations
 
-The container image and Compose file define a health check against `http://127.0.0.1:8080/health`. The endpoint verifies application readiness for SQLite plus writable temporary and data-protection storage. It deliberately does not require the scanner or Paperless-ngx to be online, because those are workflow dependencies that may be unavailable while the bridge should still start and show diagnostics.
+The container image and Compose file define a health check against `http://127.0.0.1:${APPLICATION_HTTP_PORT}/health`, using port `8080` by default. The endpoint verifies application readiness for SQLite plus writable temporary and data-protection storage. It deliberately does not require the scanner or Paperless-ngx to be online, because those are workflow dependencies that may be unavailable while the bridge should still start and show diagnostics.
 
 Use structured container logs for operations:
 
@@ -260,7 +273,7 @@ docker compose down
 rsync -a ./app/data/ /backup/paperless-scan-bridge/data-before-upgrade/
 export GIT_COMMIT="$(git rev-parse --short HEAD)"
 docker compose up --detach --build
-curl --fail http://127.0.0.1:8080/health
+curl --fail "http://127.0.0.1:${APPLICATION_HTTP_PORT:-8080}/health"
 ```
 
 For rollback, check out the previous revision, restore the matching data backup if the migration is not backward-compatible, and run `docker compose up --detach --build`. Graceful `docker compose down` lets the Blazor Server process stop cleanly; active scanner processes and in-flight uploads are cancelled, partial PDF files remain hidden by the atomic `.partial` to final-file rename, and completed PDFs in `./app/temp` can be retried after restart.

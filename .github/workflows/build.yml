@@ -62,3 +62,4 @@ jobs:
             exit 1
           fi
           docker compose --file "$compose_file" config --quiet
+          ./scripts/test-http-port-configuration.sh
