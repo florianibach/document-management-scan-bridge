@@ -14,6 +14,8 @@
 @inject IProfileDefaultsService Profiles
 @inject IProfileServiceConfigurationService ServiceConfiguration
 @inject IScanSessionAccessService SessionAccess
+@inject IScanBatchWorkflow BatchWorkflow
+@inject ICurrentProfileAccessor CurrentProfile
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 @rendermode InteractiveServer
@@ -158,9 +160,49 @@
         <button class="btn btn-outline-danger w-100 mt-2" @onclick="() => RequestDelete(scannedPage.Id)">Remove page …</button>
        }
       </article>
+      @if (scannedPage.Number < preview.Pages.Count)
+      {
+       var hasSplit = BatchWorkflow.Current?.SplitPoints.Contains(scannedPage.Number) == true;
+       <button class="btn @(hasSplit ? "btn-warning" : "btn-outline-secondary") w-100 my-2 split-control" @onclick="() => ToggleSplitAsync(scannedPage.Id)">
+        @(hasSplit ? "Remove document boundary" : "Split document here")
+       </button>
+      }
      }
     </div>
-    <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="CreatePdfAsync" disabled="@(PdfWorkflow.Current?.IsActive == true || preview.Pages.Any(page => !page.IsAvailable))">Create PDF</button>
+    @if (BatchWorkflow.Current is { } batch)
+    {
+     <section class="batch-summary mt-4" aria-labelledby="batch-title">
+      <h3 id="batch-title" class="h4">@batch.Documents.Count documents from @batch.PageCount pages</h3>
+      <p aria-live="polite">@batch.CompletedCount of @batch.Documents.Count documents sent.</p>
+      @foreach (var document in batch.Documents)
+      {
+       <article class="card mb-3 batch-document"><div class="card-body">
+        <h4 class="h5">Document @document.Number · @document.Pages.Count page(s)</h4>
+        <p>Pages @string.Join(", ", document.Pages.Select(page => page.Number))</p>
+        <label class="form-label" for="batch-title-@document.Id">Title (optional)</label>
+        <input id="batch-title-@document.Id" class="form-control" value="@document.Metadata.Title" @onchange="args => SetBatchTitleAsync(document.Id, args.Value?.ToString())" disabled="@(document.State == BatchDocumentState.Uploaded)" />
+        @if (paperlessMetadata is null)
+        { <button class="btn btn-outline-secondary w-100 mt-2" @onclick="LoadPaperlessAsync">Load Paperless metadata</button> }
+        else
+        {
+         <label class="form-label mt-2" for="batch-correspondent-@document.Id">Correspondent</label>
+         <select id="batch-correspondent-@document.Id" class="form-select" value="@document.Metadata.CorrespondentId" @onchange="args => SetBatchCorrespondentAsync(document.Id, args.Value?.ToString())" disabled="@(document.State == BatchDocumentState.Uploaded)"><option value="">Do not set</option>@foreach (var choice in paperlessMetadata.Correspondents) { <option value="@choice.Id">@choice.Name</option> }</select>
+         <label class="form-label mt-2" for="batch-type-@document.Id">Document type</label>
+         <select id="batch-type-@document.Id" class="form-select" value="@document.Metadata.DocumentTypeId" @onchange="args => SetBatchTypeAsync(document.Id, args.Value?.ToString())" disabled="@(document.State == BatchDocumentState.Uploaded)"><option value="">Do not set</option>@foreach (var choice in paperlessMetadata.DocumentTypes) { <option value="@choice.Id">@choice.Name</option> }</select>
+         <fieldset class="mt-2"><legend class="h6">Tags</legend>@foreach (var choice in paperlessMetadata.Tags) { <label class="form-check"><input class="form-check-input" type="checkbox" checked="@document.Metadata.Tags.Contains(choice.Id)" @onchange="args => ToggleBatchTagAsync(document.Id, choice.Id, args.Value is true)" disabled="@(document.State == BatchDocumentState.Uploaded)" /> @choice.Name</label> }</fieldset>
+        }
+        <button class="btn btn-primary w-100 mt-2" @onclick="() => CreateBatchPdfAsync(document.Id)" disabled="@(document.State is BatchDocumentState.CreatingPdf or BatchDocumentState.Uploading or BatchDocumentState.Uploaded || document.Pages.Any(page => !page.IsAvailable))">@(document.State == BatchDocumentState.Failed ? "Retry document PDF" : "Prepare document PDF")</button>
+        @if (document.State is BatchDocumentState.Ready or BatchDocumentState.Failed)
+        { <button class="btn btn-success w-100 mt-2" @onclick="() => UploadBatchAsync(document.Id)">@(document.State == BatchDocumentState.Failed ? "Retry send" : "Send to Paperless")</button> }
+        @if (document.State is BatchDocumentState.Ready or BatchDocumentState.Uploaded)
+        { <a class="btn btn-outline-success w-100 mt-2" href="@BatchPdfUrl(preview.SessionId, document.Id)">Download PDF</a> }
+        @if (!string.IsNullOrWhiteSpace(document.Message)) { <div class="alert @(document.State == BatchDocumentState.Uploaded ? "alert-success" : document.State == BatchDocumentState.Failed ? "alert-danger" : "alert-info") mt-2 mb-0">@document.Message</div> }
+       </div></article>
+      }
+     </section>
+    }
+    @if (BatchWorkflow.Current?.Documents.Count == 1)
+    { <button class="btn btn-outline-primary btn-lg w-100 mt-2" @onclick="CreatePdfAsync" disabled="@(PdfWorkflow.Current?.IsActive == true || preview.Pages.Any(page => !page.IsAvailable))">Create PDF (single document)</button> }
     <button class="btn btn-outline-secondary btn-lg w-100 mt-2" @onclick="ShowPreparation">Back to preparation</button>
     @if (PdfWorkflow.Current?.IsActive == true)
     {
@@ -287,6 +329,8 @@ else if (CurrentWorkflowStep == "Review")
         }
         else if (savedScanners is [{ SaneDeviceId: not null } cached] && cached.Sources?.Count > 0)
             await ActivateScannerAsync(cached.Id);
+        if (PageEditor.Current is { } existingPages)
+            await BatchWorkflow.LoadAsync(existingPages, (await CurrentProfile.GetRequiredAsync()).Id);
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -295,11 +339,15 @@ else if (CurrentWorkflowStep == "Review")
     }
     private void OnScanChanged() => _ = InvokeAsync(async () =>
     {
+        StateHasChanged();
+        await NotifyCurrentStateAsync();
         if (ScanWorkflow.Current is { State: ScanJobState.Completed } scan && loadedPreviewSession != scan.SessionId)
         { await SessionAccess.ClaimAsync(scan.SessionId); loadedPreviewSession = scan.SessionId; await PageEditor.LoadAsync(scan.SessionId, false); }
         if (DuplexWorkflow.Current is { State: ManualDuplexState.Completed } duplex && loadedPreviewSession != duplex.SessionId)
         { await SessionAccess.ClaimAsync(duplex.SessionId); loadedPreviewSession = duplex.SessionId; await PageEditor.LoadAsync(duplex.SessionId, true); }
-        StateHasChanged(); await NotifyCurrentStateAsync();
+        if (PageEditor.Current is { } pages && BatchWorkflow.Current?.SessionId != pages.SessionId)
+        { var profile = await CurrentProfile.GetRequiredAsync(); await BatchWorkflow.LoadAsync(pages, profile.Id); }
+        StateHasChanged();
     });
     private void OnEditorChanged() => _ = InvokeAsync(StateHasChanged);
     private void OnPdfChanged() => _ = InvokeAsync(StateHasChanged);
@@ -314,6 +362,22 @@ else if (CurrentWorkflowStep == "Review")
     private Task UploadAsync(Guid sessionId) => UploadWorkflow.UploadAsync(new(sessionId, paperlessTitle, paperlessCorrespondent, paperlessDocumentType, paperlessTags.ToArray()));
     private static string PageUrl(Guid sessionId, string fileName) => $"/api/scan-sessions/{sessionId:D}/pages/{Uri.EscapeDataString(fileName)}";
     private static string PdfUrl(Guid sessionId) => $"/api/scan-sessions/{sessionId:D}/document";
+    private static string BatchPdfUrl(Guid sessionId, Guid documentId) => $"/api/scan-sessions/{sessionId:D}/documents/{documentId:D}";
+    private Task ToggleSplitAsync(Guid pageId) => BatchWorkflow.ToggleSplitAfterAsync(pageId);
+    private Task SetBatchTitleAsync(Guid documentId, string? title)
+    { var document = BatchWorkflow.Current!.Documents.Single(value => value.Id == documentId); return BatchWorkflow.SetMetadataAsync(documentId, document.Metadata with { Title = title }); }
+    private Task SetBatchCorrespondentAsync(Guid id, string? value)
+    { var document = BatchWorkflow.Current!.Documents.Single(item => item.Id == id); return BatchWorkflow.SetMetadataAsync(id, document.Metadata with { CorrespondentId = int.TryParse(value, out var parsed) ? parsed : null }); }
+    private Task SetBatchTypeAsync(Guid id, string? value)
+    { var document = BatchWorkflow.Current!.Documents.Single(item => item.Id == id); return BatchWorkflow.SetMetadataAsync(id, document.Metadata with { DocumentTypeId = int.TryParse(value, out var parsed) ? parsed : null }); }
+    private Task ToggleBatchTagAsync(Guid id, int tag, bool selected)
+    { var document = BatchWorkflow.Current!.Documents.Single(item => item.Id == id); var tags = document.Metadata.Tags.ToHashSet(); if (selected) tags.Add(tag); else tags.Remove(tag); return BatchWorkflow.SetMetadataAsync(id, document.Metadata with { TagIds = tags.ToArray() }); }
+    private Task CreateBatchPdfAsync(Guid documentId) => BatchWorkflow.CreatePdfAsync(documentId);
+    private async Task UploadBatchAsync(Guid documentId)
+    {
+        if (paperlessMetadata is null) await LoadPaperlessAsync();
+        if (!paperlessError) await BatchWorkflow.UploadAsync(documentId);
+    }
     private async Task CreatePdfAsync() { displayedStep = null; if (PageEditor.Current is { } session) await PdfWorkflow.CreateAsync(session); }
     private Task CancelPdfAsync() => PdfWorkflow.CancelAsync();
     private void ShowReview() => displayedStep = "Review";
@@ -324,7 +388,8 @@ else if (CurrentWorkflowStep == "Review")
     private string PdfStatusClass => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "alert-success", PdfCreationState.Cancelled => "alert-warning", PdfCreationState.Failed => "alert-danger", _ => "alert-info" };
     private void RequestDelete(Guid id) => deleteCandidate = id;
     private void CancelDelete() => deleteCandidate = null;
-    private void ConfirmDelete(Guid id) { PageEditor.Delete(id); deleteCandidate = null; }
+    private void ConfirmDelete(Guid id) { PageEditor.Delete(id); deleteCandidate = null; _ = ReloadBatchAsync(); }
+    private async Task ReloadBatchAsync() { if (PageEditor.Current is { } pages) await BatchWorkflow.LoadAsync(pages, (await CurrentProfile.GetRequiredAsync()).Id); }
     private async Task StartScanAsync() { cancellingScanSessionId = null; displayedStep = null; await ScanWorkflow.StartAsync(new(activeDeviceId!, scanSource, colorMode, resolution)); }
     private async Task CancelScanAsync()
     {

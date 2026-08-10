@@ -304,3 +304,11 @@ This is the only outstanding hardware-dependent verification; discovery, parsing
 ## Continuous integration
 
 The [GitHub Actions build workflow](.github/workflows/build.yml) validates documentation, restores locked dependencies, builds and tests the solution, builds the container, and validates Compose.
+
+## Splitting scan batches into documents
+
+After either a simplex or manual-duplex acquisition, the Review step treats all captured pages as one batch. Use **Split document here** between thumbnails to add a boundary; the same control removes it again. The resulting document cards always cover the pages once, in visible order. Rotations and confirmed removals remain page edits, so moving a boundary changes only which document receives those edited pages.
+
+Each card has independent title metadata, PDF preparation, download, upload result, and retry controls. The batch header reports real document and page counts rather than an estimated percentage. A successful document is immutable and is not regenerated or uploaded when another document is retried. Splitting disables the legacy whole-session PDF action, so a split batch cannot accidentally be submitted as one Paperless document.
+
+Boundary, metadata, PDF, and upload state is atomically stored next to the temporary scan pages using a non-reversible profile key. An ordinary Blazor reconnect keeps the scoped workflow, while a refresh reloads the matching profile's batch state from temporary storage. Clearing `TemporaryStorage:Path` removes this recovery data under the same lifetime policy as source pages and PDFs. The document download route authorizes the parent scan session before serving a generated child PDF; another profile receives not-found.

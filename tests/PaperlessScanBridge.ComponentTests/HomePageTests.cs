@@ -100,6 +100,22 @@ public sealed class HomePageTests : BunitContext
     }
 
     [Fact]
+    public async Task ReviewCanSplitBatchAndShowsDocumentAndPageProgress()
+    {
+        var editor = new PageEditorStub(new(Guid.NewGuid(),
+            [new(Guid.NewGuid(), 1, "page-1.png", 0, true, null), new(Guid.NewGuid(), 2, "page-2.png", 0, true, null), new(Guid.NewGuid(), 3, "page-3.png", 0, true, null)]));
+        AddServices(new DiscoveryStub(new([], [])), editor: editor);
+        var page = Render<Home>();
+
+        Assert.Contains("1 documents from 3 pages", page.Markup);
+        await page.FindAll(".split-control").First().ClickAsync(new());
+
+        page.WaitForAssertion(() => Assert.Contains("2 documents from 3 pages", page.Markup));
+        Assert.Equal(2, page.FindAll(".batch-document").Count);
+        Assert.Contains("Remove document boundary", page.Markup);
+    }
+
+    [Fact]
     public async Task ReviewedPagesCanCreateAndDownloadPdf()
     {
         var editor = new PageEditorStub(new(Guid.NewGuid(), [new(Guid.NewGuid(), 1, "page-0001.png", 90, true, null)]));
@@ -148,8 +164,8 @@ public sealed class HomePageTests : BunitContext
         Assert.Contains("Review", page.Markup);
         Assert.DoesNotContain("Start simplex scan", page.Markup);
         Assert.DoesNotContain("Start manual duplex scan", page.Markup);
-        Assert.Contains(notifications.Invocations, invocation => invocation.Identifier == "show"
-            && invocation.Arguments[0]?.ToString() == "Scan completed");
+        page.WaitForAssertion(() => Assert.Contains(notifications.Invocations, invocation => invocation.Identifier == "show"
+            && invocation.Arguments[0]?.ToString() == "Scan completed"));
     }
 
     [Fact]
@@ -249,7 +265,11 @@ public sealed class HomePageTests : BunitContext
     }
 
     private void AddServices(IScannerDiscoveryService discovery, SaneStub? scanner = null, WorkflowStub? workflow = null, DuplexWorkflowStub? duplex = null, PageEditorStub? editor = null, PaperlessStub? paperless = null)
-    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); Services.AddSingleton<IProfileDefaultsService>(new ProfileStub()); Services.AddSingleton<IProfileServiceConfigurationService>(new ServiceConfigurationStub()); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions())); }
+    { Services.AddSingleton<IScannerDiscoveryService>(discovery); Services.AddSingleton<IScanner>(scanner ?? new SaneStub()); Services.AddSingleton<ISimplexScanWorkflow>(workflow ?? new WorkflowStub()); Services.AddSingleton<IManualDuplexWorkflow>(duplex ?? new DuplexWorkflowStub()); Services.AddSingleton<IPageEditingSession>(editor ?? new PageEditorStub()); Services.AddSingleton<IPdfCreationWorkflow>(new PdfWorkflowStub()); var client = paperless ?? new PaperlessStub(); Services.AddSingleton<IPaperlessClient>(client); Services.AddSingleton<IPaperlessUploadWorkflow>(new PaperlessUploadWorkflow(client)); Services.AddSingleton<IScanBatchWorkflow>(new ScanBatchWorkflow(new BatchStoreStub(), new BatchProcessorStub())); Services.AddSingleton<IProfileDefaultsService>(new ProfileStub()); Services.AddSingleton<IProfileServiceConfigurationService>(new ServiceConfigurationStub()); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions())); }
+    private sealed class BatchStoreStub : IScanBatchStore
+    { public Task<ScanBatchSnapshot?> LoadAsync(Guid id,string profile,CancellationToken token=default)=>Task.FromResult<ScanBatchSnapshot?>(null); public Task SaveAsync(ScanBatchSnapshot batch,string profile,CancellationToken token=default)=>Task.CompletedTask; }
+    private sealed class BatchProcessorStub : IScanBatchProcessor
+    { public Task CreatePdfAsync(Guid session,BatchDocument document,CancellationToken token)=>Task.CompletedTask; public Task<PaperlessResult> UploadAsync(Guid session,BatchDocument document,CancellationToken token)=>Task.FromResult(new PaperlessResult(true,"accepted")); }
     private sealed class ServiceConfigurationStub : IProfileServiceConfigurationService
     {
         public Task<ProfileServiceConfiguration> GetAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();

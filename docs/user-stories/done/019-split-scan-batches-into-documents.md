@@ -26,3 +26,12 @@
 
 - US-015
 - US-016
+
+## Verification record
+
+- `ScanBatchWorkflowTests` cover simplex/manual-duplex inputs, add/move/remove boundaries, complete page coverage, removal near a boundary, rotation retention, independent metadata, partial success, idempotent successful uploads, retry state, refresh recovery, and profile isolation.
+- `HomePageTests.ReviewCanSplitBatchAndShowsDocumentAndPageProgress` covers the accessible boundary control, ordered document preview, and count-only batch progress.
+- Existing scanner, manual-duplex, page-editing, PDF, Paperless client, ownership-route, and component suites provide regression coverage for the unchanged acquisition and external boundaries.
+- Persistence uses atomic temporary JSON beside the source scan. This is intentionally temporary rather than a document history and follows the existing volume cleanup lifetime.
+- Scanner hardware was not available in this environment. The already verified HP ordering behavior is unchanged; a representative physical batch split/upload remains a release-device check.
+- No Compose variable, migration, dependency, scanner process, or deployment topology changed. Those Definition-of-Done documentation items are not applicable; container and Compose checks remain regression checks.
