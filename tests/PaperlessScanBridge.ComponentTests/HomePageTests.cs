@@ -310,6 +310,31 @@ public sealed class HomePageTests : BunitContext
     }
 
     [Fact]
+    public void TimeoutNotificationsIdentifyEachDecisionAndExplainHowToReturn()
+    {
+        var workflow = new WorkflowStub();
+        AddServices(new DiscoveryStub(new([], [])), workflow: workflow);
+        var page = Render<Home>();
+        var sessionId = Guid.NewGuid();
+
+        workflow.SetState(sessionId, ScanJobState.AwaitingUserDecision, "Timeout", 1);
+        workflow.SetState(sessionId, ScanJobState.AwaitingUserDecision, "Repeated timeout event", 1);
+        workflow.SetState(sessionId, ScanJobState.Running, "Running", 1);
+        workflow.SetState(sessionId, ScanJobState.AwaitingUserDecision, "Timeout", 2);
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains(notifications.Invocations, invocation => invocation.Identifier == "show"
+                && invocation.Arguments[1]?.ToString()?.Contains("Return to Scan Bridge") == true
+                && invocation.Arguments[2]?.ToString() == $"{sessionId:N}:AwaitingUserDecision:1");
+            Assert.Contains(notifications.Invocations, invocation => invocation.Identifier == "show"
+                && invocation.Arguments[2]?.ToString() == $"{sessionId:N}:AwaitingUserDecision:2");
+            Assert.Equal(2, notifications.Invocations.Count(invocation => invocation.Identifier == "show"
+                && invocation.Arguments[2]?.ToString() == $"{sessionId:N}:AwaitingUserDecision:1"));
+        });
+    }
+
+    [Fact]
     public async Task ManualDuplexWaitsForExplicitMobileFriendlyFlipConfirmation()
     {
         AddServices(new DiscoveryStub(new([], [])));
@@ -410,6 +435,8 @@ public sealed class HomePageTests : BunitContext
         public Task ContinueAsync() => Task.CompletedTask;
         public void SetState(ScanJobState state, string message)
         { Current = new(Guid.NewGuid(), state, 0, message, DateTimeOffset.UtcNow); Changed?.Invoke(); }
+        public void SetState(Guid sessionId, ScanJobState state, string message, int timeoutDecisionNumber)
+        { Current = new(sessionId, state, 0, message, DateTimeOffset.UtcNow, timeoutDecisionNumber); Changed?.Invoke(); }
     }
 
     private sealed class PageEditorStub(PageEditingSnapshot? initial = null) : IPageEditingSession

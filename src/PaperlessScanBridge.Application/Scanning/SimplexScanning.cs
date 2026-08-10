@@ -15,7 +15,7 @@ public interface ISimplexScannerAdapter
     Task<ScanCaptureResult> CaptureAsync(string sessionDirectory, SimplexScanSettings settings, CancellationToken cancellationToken);
 }
 
-public sealed record ScanJobSnapshot(Guid SessionId, ScanJobState State, int PageCount, string Message, DateTimeOffset UpdatedAt)
+public sealed record ScanJobSnapshot(Guid SessionId, ScanJobState State, int PageCount, string Message, DateTimeOffset UpdatedAt, int TimeoutDecisionNumber = 0)
 {
     public bool IsActive => State is ScanJobState.Queued or ScanJobState.Running or ScanJobState.AwaitingUserDecision;
 }
@@ -147,7 +147,12 @@ public sealed class SimplexScanWorkflow(
 
     private void Update(Guid id, ScanJobState state, int pages, string message)
     {
-        lock (gate) Current = new(id, state, pages, message, DateTimeOffset.UtcNow);
+        lock (gate)
+        {
+            var decisionNumber = Current?.SessionId == id ? Current.TimeoutDecisionNumber : 0;
+            if (state == ScanJobState.AwaitingUserDecision) decisionNumber++;
+            Current = new(id, state, pages, message, DateTimeOffset.UtcNow, decisionNumber);
+        }
         Changed?.Invoke();
     }
 
