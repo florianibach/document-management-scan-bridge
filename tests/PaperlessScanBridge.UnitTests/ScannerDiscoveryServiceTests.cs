@@ -85,6 +85,24 @@ public sealed class ScannerDiscoveryServiceTests
         Assert.Equal(["https"], validator.Protocols);
     }
 
+    [Fact]
+    public async Task ForgetIsBlockedDuringScanAndCanBeRetriedIdempotently()
+    {
+        var guard = new ScannerOperationGuard();
+        var repository = new Repository { Existing = new(7, "HP OfficeJet", "192.168.1.20", 80, "http", "http://192.168.1.20/eSCL", DateTimeOffset.UtcNow, "airscan:office") };
+        var service = new ScannerDiscoveryService(new Browser([], []), new Validator(_ => new(true)), repository,
+            new Writer(), new() { TimeoutSeconds = 1 }, NullLogger<ScannerDiscoveryService>.Instance, guard);
+        using (guard.BeginScan("airscan:office"))
+        {
+            var blocked = await service.ForgetAsync(7, default);
+            Assert.True(blocked.ActiveScanConflict);
+            Assert.False(blocked.Succeeded);
+        }
+        Assert.True((await service.ForgetAsync(7, default)).Succeeded);
+        Assert.True((await service.ForgetAsync(7, default)).Succeeded);
+        Assert.Equal(1, repository.Removals);
+    }
+
     private static ScannerDiscoveryService CreateService(Browser browser, Validator? validator = null, Repository? repository = null) =>
         new(browser, validator ?? new(_ => new(true)), repository ?? new(), new Writer(), new() { TimeoutSeconds = 1 }, NullLogger<ScannerDiscoveryService>.Instance);
 
@@ -101,14 +119,18 @@ public sealed class ScannerDiscoveryServiceTests
     }
     private sealed class Repository : ISelectedScannerRepository
     {
+        public SelectedScanner? Existing { get; set; }
+        public int Removals { get; private set; }
         public DiscoveredScanner? Saved { get; private set; }
         public Task<SelectedScanner?> GetAsync(CancellationToken cancellationToken) => Task.FromResult<SelectedScanner?>(null);
         public Task<IReadOnlyList<SelectedScanner>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<SelectedScanner>>([]);
-        public Task<SelectedScanner?> GetByIdAsync(long scannerId, CancellationToken cancellationToken) => Task.FromResult<SelectedScanner?>(null);
+        public Task<SelectedScanner?> GetByIdAsync(long scannerId, CancellationToken cancellationToken) => Task.FromResult(Existing?.Id == scannerId ? Existing : null);
         public Task<SelectedScanner> SaveAsync(DiscoveredScanner scanner, DateTimeOffset validatedAt, CancellationToken cancellationToken)
         { Saved = scanner; return Task.FromResult(new SelectedScanner(1, scanner.DisplayName, scanner.IpAddress, scanner.Port, scanner.Protocol, scanner.EsclUrl, validatedAt)); }
         public Task<SelectedScanner> SaveSaneProfileAsync(long scannerId, ScannerDevice device, ScannerCapabilities capabilities, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ScannerRemoval?> RemoveAsync(long scannerId, CancellationToken cancellationToken)
+        { if (Existing?.Id != scannerId) return Task.FromResult<ScannerRemoval?>(null); var removed=Existing; Existing=null; Removals++; return Task.FromResult<ScannerRemoval?>(new(removed,null,0)); }
     }
     private sealed class Writer : ISaneAirscanConfigurationWriter
-    { public Task WriteAsync(SelectedScanner scanner, CancellationToken cancellationToken) => Task.CompletedTask; }
+    { public Task WriteAsync(SelectedScanner scanner, CancellationToken cancellationToken) => Task.CompletedTask; public Task ClearAsync(CancellationToken cancellationToken)=>Task.CompletedTask; }
 }

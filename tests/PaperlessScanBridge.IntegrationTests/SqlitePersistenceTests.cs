@@ -89,6 +89,35 @@ public sealed class SqlitePersistenceTests
     }
 
     [Fact]
+    public async Task RemovingScannerRepairsProfilesAndPreservesUnrelatedScanner()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"bridge-{Guid.NewGuid():N}.db");
+        try
+        {
+            var options = new DbContextOptionsBuilder<BridgeDbContext>().UseSqlite($"Data Source={path}").Options;
+            await using (var context = new BridgeDbContext(options)) await context.Database.MigrateAsync();
+            var factory = new TestFactory(options);
+            var scanners = new SelectedScannerRepository(factory);
+            var first = await scanners.SaveAsync(new("one", "Scanner One", "10.0.0.1", 80, "http", "http://10.0.0.1/eSCL"), DateTimeOffset.UtcNow.AddMinutes(-1), default);
+            var second = await scanners.SaveAsync(new("two", "Scanner Two", "10.0.0.2", 80, "http", "http://10.0.0.2/eSCL"), DateTimeOffset.UtcNow, default);
+            var defaults = new ProfileDefaultsRepository(factory);
+            await defaults.SaveAsync("one", new(second.Id,"ADF",ScanColorMode.Color,300,"Keep title",null,null,[],DateTimeOffset.UtcNow));
+            await defaults.SaveAsync("two", new(first.Id,"Flatbed",ScanColorMode.Color,300,null,null,null,[],DateTimeOffset.UtcNow));
+
+            var removal = await scanners.RemoveAsync(second.Id, default);
+
+            Assert.Equal(first.Id, removal!.Replacement!.Id);
+            Assert.Equal(1, removal.RepairedProfileCount);
+            var repaired = await defaults.GetAsync("one");
+            Assert.Null(repaired.ScannerId); Assert.Null(repaired.Source); Assert.Equal("Keep title", repaired.Title);
+            Assert.Equal(first.Id, (await defaults.GetAsync("two")).ScannerId);
+            Assert.Single(await scanners.ListAsync(default));
+            Assert.Null(await scanners.RemoveAsync(second.Id, default));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task ProfileServiceTokensAreEncryptedAndIsolatedAtRest()
     {
         var file = Path.Combine(Path.GetTempPath(), "profile-secret-" + Guid.NewGuid().ToString("N") + ".db");

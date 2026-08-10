@@ -18,4 +18,13 @@ public sealed class SaneAirscanConfigurationWriter(IOptions<ScannerDiscoveryOpti
         await File.WriteAllTextAsync(temporary, content, new UTF8Encoding(false), cancellationToken);
         File.Move(temporary, path, true);
     }
+
+    public Task ClearAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var path = Path.Combine(options.Value.SaneConfigurationDirectory, "airscan.conf");
+        File.Delete(path);
+        File.Delete(path + ".tmp");
+        return Task.CompletedTask;
+    }
 }

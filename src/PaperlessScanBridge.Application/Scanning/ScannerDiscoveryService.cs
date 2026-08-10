@@ -12,10 +12,12 @@ public sealed class ScannerDiscoveryService(
     ISelectedScannerRepository repository,
     ISaneAirscanConfigurationWriter configurationWriter,
     ScannerDiscoveryOptions options,
-    ILogger<ScannerDiscoveryService> logger) : IScannerDiscoveryService
+    ILogger<ScannerDiscoveryService> logger,
+    IScannerOperationGuard? operationGuard = null) : IScannerDiscoveryService
 {
     private static readonly string[] ServiceTypes = ["_uscan._tcp.local.", "_uscans._tcp.local."];
     private readonly ConcurrentDictionary<string, SnapshotEntry> snapshot = new(StringComparer.Ordinal);
+    private readonly IScannerOperationGuard operationGuard = operationGuard ?? new ScannerOperationGuard();
 
     public async Task<ScannerNetworkDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken)
     {
@@ -106,6 +108,37 @@ public sealed class ScannerDiscoveryService(
 
     public Task<SelectedScanner> SaveSaneProfileAsync(long scannerId, ScannerDevice device, ScannerCapabilities capabilities, CancellationToken cancellationToken) =>
         repository.SaveSaneProfileAsync(scannerId, device, capabilities, cancellationToken);
+
+    public async Task<ForgetScannerResult> ForgetAsync(long scannerId, CancellationToken cancellationToken)
+    {
+        var scanner = await repository.GetByIdAsync(scannerId, cancellationToken);
+        if (scanner is null)
+        {
+            var current = await repository.GetAsync(cancellationToken);
+            if (current is null) await configurationWriter.ClearAsync(cancellationToken);
+            else await configurationWriter.WriteAsync(current, cancellationToken);
+            return new(true, null, "The scanner was already forgotten. Generated configuration was reconciled with the remaining selection.");
+        }
+
+        using var lease = operationGuard.TryBeginForget(scanner.SaneDeviceId);
+        if (lease is null)
+            return new(false, scanner, "A scan is active on this scanner. Finish or cancel it, then try again.", true);
+
+        try
+        {
+            var removal = await repository.RemoveAsync(scannerId, cancellationToken);
+            if (removal is null) return new(true, scanner, "The scanner was already forgotten. No further cleanup was needed.");
+            if (removal.Replacement is null) await configurationWriter.ClearAsync(cancellationToken);
+            else await configurationWriter.WriteAsync(removal.Replacement, cancellationToken);
+            logger.LogInformation("Forgot scanner {ScannerId}; repaired {ProfileCount} profile default(s); remaining scanner activated: {HasReplacement}", scannerId, removal.RepairedProfileCount, removal.Replacement is not null);
+            return new(true, removal.Removed, $"{removal.Removed.DisplayName} was forgotten. Saved selection, cached capabilities, profile defaults, and generated configuration were cleared where applicable.");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(exception, "Scanner {ScannerId} cleanup did not complete", scannerId);
+            return new(false, scanner, "Cleanup did not complete. Retry the action; if it fails again, check the application logs and data-directory permissions.");
+        }
+    }
 
     internal static IReadOnlyList<DiscoveredScanner> Normalize(string serviceType, ZeroconfAdvertisement advertisement)
     {

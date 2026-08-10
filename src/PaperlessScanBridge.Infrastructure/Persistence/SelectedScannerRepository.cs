@@ -54,6 +54,23 @@ public sealed class SelectedScannerRepository(IDbContextFactory<BridgeDbContext>
         return Map(entity);
     }
 
+    public async Task<ScannerRemoval?> RemoveAsync(long scannerId, CancellationToken cancellationToken)
+    {
+        await using var context = await factory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var entity = await context.SelectedScanners.SingleOrDefaultAsync(value => value.Id == scannerId, cancellationToken);
+        if (entity is null) return null;
+        var removed = Map(entity);
+        var affectedDefaults = await context.ProfileDefaults.Where(value => value.ScannerId == scannerId).ToArrayAsync(cancellationToken);
+        foreach (var defaults in affectedDefaults) { defaults.ScannerId = null; defaults.Source = null; defaults.UpdatedAt = DateTimeOffset.UtcNow; }
+        context.SelectedScanners.Remove(entity);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        var remaining = await context.SelectedScanners.AsNoTracking().ToArrayAsync(cancellationToken);
+        var replacementEntity = remaining.MaxBy(value => value.ValidatedAt);
+        return new(removed, replacementEntity is null ? null : Map(replacementEntity), affectedDefaults.Length);
+    }
+
     private static SelectedScanner Map(SelectedScannerEntity value) => new(value.Id, value.DisplayName, value.IpAddress,
         value.Port, value.Protocol, value.EsclUrl, value.ValidatedAt, value.SaneDeviceId,
         Deserialize<string>(value.SourcesJson), Deserialize<int>(value.ResolutionsJson));
