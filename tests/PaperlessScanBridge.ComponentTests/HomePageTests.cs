@@ -9,6 +9,8 @@ using PaperlessScanBridge.Web;
 using PaperlessScanBridge.Application.Documents;
 using PaperlessScanBridge.Application.Paperless;
 using PaperlessScanBridge.Application.Profiles;
+using Microsoft.AspNetCore.Components.Authorization;
+using System.Security.Claims;
 
 namespace PaperlessScanBridge.ComponentTests;
 
@@ -28,13 +30,19 @@ public sealed class HomePageTests : BunitContext
     [Fact]
     public void ShowsBuildCommitInLayout()
     {
-        Services.AddSingleton(new BuildInformation("abc1234")); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions()));
+        Services.AddSingleton(new BuildInformation("abc1234")); Services.AddSingleton<ICurrentProfileAccessor>(new CurrentProfileStub()); Services.AddSingleton<IScanSessionAccessService>(new SessionAccessStub()); Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ProfileOptions())); Services.AddSingleton<AuthenticationStateProvider>(new AnonymousAuthenticationStateProvider());
         var layout = Render<MainLayout>(parameters => parameters.Add(value => value.Body, _ => { }));
         Assert.Contains("Scan", layout.Markup);
         Assert.Contains("Documents", layout.Markup);
         Assert.Contains("Settings", layout.Markup);
         Assert.Contains("Status", layout.Markup);
-        Assert.Contains("Profile:", layout.Markup);
+        Assert.Contains("Kontomenü für anonymes Haushaltsprofil", layout.Markup);
+    }
+
+    private sealed class AnonymousAuthenticationStateProvider : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
     }
 
     [Fact]

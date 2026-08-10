@@ -8,7 +8,7 @@ The project discovers eSCL/AirScan scanners directly with DNS-SD/mDNS, validates
 
 ## Mobile-first application shell
 
-The protected application uses the same four destinations on every viewport: **Scan**, **Documents**, **Settings**, and **Status**. On phones they form a touch-sized bottom navigation; from tablet/desktop widths they use the persistent sidebar. The shell always identifies the resolved shared-household or authenticated profile.
+The protected application uses the same four destinations on every viewport: **Scan**, **Documents**, **Settings**, and **Status**. On phones they form a touch-sized bottom navigation; from tablet/desktop widths they use the persistent sidebar. The upper-right account menu always identifies the resolved shared-household or authenticated profile. In anonymous mode it explains that settings are shared; after OpenID Connect sign-in it presents the display name, safe provider image or initials, provider context, and sign-out action without exposing identity keys or tokens. The menu supports keyboard focus, Escape, outside-click, and touch input.
 
 **Scan** keeps the existing workflow behavior and shows only the current known step in the ordered sequence Prepare, Scan, Review, PDF, and Send. Scanner discovery and selection now live in **Settings**. Build, health, mDNS, capability-validation, and deployment guidance are separated under **Status**. **Documents** currently explains that active artifacts remain in the protected scan workflow; it does not promise a persisted history. State cards use concise messages and keep technical detail behind an explicit disclosure.
 
