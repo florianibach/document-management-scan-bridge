@@ -141,6 +141,8 @@ After a successful simplex or manual-duplex scan, the active browser circuit sho
 
 These edits are non-destructive session metadata: original PNG files retain their scan quality and are not changed or deleted. An unreadable or corrupt PNG is marked individually, while the remaining pages stay editable. Reloading the page intentionally discards the active edit state; persistence and final PDF application belong to the following stories.
 
+When a batch is split into documents, each boundary follows the first remaining page of the later document rather than a numeric page position. Removing pages before or directly at that boundary therefore renumbers and advances the marker immediately; removing every page belonging to a document collapses its boundary instead of creating an empty document. The corrected boundaries are saved with the temporary batch and restored consistently after a refresh.
+
 ## PDF creation
 
 After reviewing the pages, select **PDF erstellen**. The application uses the visible page order and applies every 90-degree rotation and deletion to one final PDF. Unavailable or corrupt pages block creation with a recoverable message. The default keeps the original PNG image data lossless and sizes each PDF page at the scan-oriented default of 300 dpi; OCR, PDF/A, signatures, and searchable text are deliberately not added.

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PaperlessScanBridge.Application.Configuration;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace PaperlessScanBridge.Application.Scanning;
 
@@ -33,7 +35,8 @@ public sealed class PageEditingSession(TemporaryStorageOptions storage, ILogger<
         foreach (var path in files)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            loaded.Add(new(Guid.NewGuid(), Path.GetFileName(path), 0, await ValidatePngAsync(path, cancellationToken)));
+            var fileName = Path.GetFileName(path);
+            loaded.Add(new(PageId(sessionId, fileName), fileName, 0, await ValidatePngAsync(path, cancellationToken)));
         }
         lock (gate) { pages = loaded; Current = Snapshot(sessionId, files.Length == 0 ? "No complete pages were found for review." : null); }
         logger.LogInformation("Preview session {SessionId} loaded {PageCount} page(s), including {ErrorCount} unavailable page(s)", sessionId, loaded.Count, loaded.Count(p => p.Error is not null));
@@ -68,6 +71,8 @@ public sealed class PageEditingSession(TemporaryStorageOptions storage, ILogger<
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return "Page data is missing or unreadable. The remaining pages can still be edited."; }
     }
+    private static Guid PageId(Guid sessionId, string fileName) =>
+        new(SHA256.HashData(Encoding.UTF8.GetBytes($"{sessionId:N}/{fileName}"))[..16]);
     private sealed class PageEntry(Guid id, string fileName, int rotation, string? error)
     { public Guid Id { get; } = id; public string FileName { get; } = fileName; public int Rotation { get; set; } = rotation; public string? Error { get; } = error; }
 }

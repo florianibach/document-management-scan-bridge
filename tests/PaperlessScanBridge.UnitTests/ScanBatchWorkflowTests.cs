@@ -31,13 +31,47 @@ public sealed class ScanBatchWorkflowTests
     }
 
     [Fact]
-    public async Task ReloadAfterPageRemovalDropsInvalidBoundaryAndPreservesCoverage()
+    public async Task RemovalBeforeBoundaryMovesItWithTheDocumentStart()
     {
-        var store = new Store(); var pages = Pages(3); var session = Guid.NewGuid();
+        var store = new Store(); var pages = Pages(4); var session = Guid.NewGuid();
         var first = new ScanBatchWorkflow(store, new Processor()); await first.LoadAsync(new(session, pages), "owner"); await first.ToggleSplitAfterAsync(pages[1].Id);
-        var second = new ScanBatchWorkflow(store, new Processor()); await second.LoadAsync(new(session, [pages[0], pages[2]]), "owner");
-        Assert.Empty(second.Current!.SplitPoints);
-        Assert.Equal(2, second.Current.PageCount);
+        var second = new ScanBatchWorkflow(store, new Processor()); await second.LoadAsync(new(session, [pages[1], pages[2], pages[3]]), "owner");
+        Assert.Equal([1], second.Current!.SplitPoints);
+        Assert.Equal([pages[2].Id, pages[3].Id], second.Current.Documents[1].Pages.Select(page => page.Id));
+        Assert.Equal([1], (await store.LoadAsync(session, "owner"))!.SplitPoints);
+    }
+
+    [Fact]
+    public async Task RemovalAtBoundaryAdvancesItWithoutCreatingAnEmptyDocument()
+    {
+        var store = new Store(); var pages = Pages(4); var session = Guid.NewGuid();
+        var first = new ScanBatchWorkflow(store, new Processor()); await first.LoadAsync(new(session, pages), "owner"); await first.ToggleSplitAfterAsync(pages[1].Id);
+        var second = new ScanBatchWorkflow(store, new Processor()); await second.LoadAsync(new(session, [pages[0], pages[1], pages[3]]), "owner");
+        Assert.Equal([2], second.Current!.SplitPoints);
+        Assert.Equal([pages[3].Id], second.Current.Documents[1].Pages.Select(page => page.Id));
+    }
+
+    [Fact]
+    public async Task RemovalAfterBoundaryLeavesItInPlace()
+    {
+        var store = new Store(); var pages = Pages(4); var session = Guid.NewGuid();
+        var first = new ScanBatchWorkflow(store, new Processor()); await first.LoadAsync(new(session, pages), "owner"); await first.ToggleSplitAfterAsync(pages[1].Id);
+        var second = new ScanBatchWorkflow(store, new Processor()); await second.LoadAsync(new(session, [pages[0], pages[1], pages[2]]), "owner");
+        Assert.Equal([2], second.Current!.SplitPoints);
+    }
+
+    [Fact]
+    public async Task MultipleBoundariesAndConsecutiveRemovalsPreserveExactCoverage()
+    {
+        var store = new Store(); var pages = Pages(7); var session = Guid.NewGuid();
+        var first = new ScanBatchWorkflow(store, new Processor()); await first.LoadAsync(new(session, pages), "owner");
+        await first.ToggleSplitAfterAsync(pages[1].Id); await first.ToggleSplitAfterAsync(pages[4].Id);
+        var remaining = new[] { pages[1], pages[3], pages[4], pages[6] };
+        var second = new ScanBatchWorkflow(store, new Processor()); await second.LoadAsync(new(session, remaining), "owner");
+        var third = new ScanBatchWorkflow(store, new Processor()); await third.LoadAsync(new(session, [pages[1], pages[4], pages[6]]), "owner");
+        Assert.Equal([1, 2], third.Current!.SplitPoints);
+        Assert.Equal(remaining.Where(page => page.Id != pages[3].Id).Select(page => page.Id), third.Current.Documents.SelectMany(document => document.Pages).Select(page => page.Id));
+        Assert.All(third.Current.Documents, document => Assert.NotEmpty(document.Pages));
     }
 
     [Fact]

@@ -30,7 +30,7 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-024](024-multiple-parallel-login-providers.md) | Multiple parallel login providers | Household members can choose among configured identity providers |
 | [US-025](025-paperless-processing-hint-after-upload.md) | Paperless processing hint after upload | Accepted uploads clearly explain that Paperless processing may continue |
 | [US-026](026-notify-scan-timeout-decision.md) | Notify scan timeout decision | Background users are called back when an active scan needs a timeout decision |
-| [US-027](027-preserve-split-boundaries-after-page-removal.md) | Preserve split boundaries after page removal | Page removal keeps the intended document split valid and consistent |
+| [US-027](done/027-preserve-split-boundaries-after-page-removal.md) | Preserve split boundaries after page removal (done) | Page removal keeps the intended document split valid and consistent |
 | [US-028](028-apply-default-tags-to-split-documents.md) | Apply default tags to split documents | Every split document starts with an isolated snapshot of the session's default tags |
 | [US-029](029-reset-workflow-after-final-upload.md) | Reset workflow after final upload | Returning to Scan after a completed batch starts with an empty workflow |
 

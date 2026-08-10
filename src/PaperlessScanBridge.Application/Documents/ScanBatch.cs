@@ -57,7 +57,7 @@ public sealed class ScanBatchWorkflow(IScanBatchStore store, IScanBatchProcessor
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         profileId = owner;
         var saved = await store.LoadAsync(pages.SessionId, owner, token);
-        var splits = saved?.SplitPoints.Where(point => point > 0 && point < pages.Pages.Count).Distinct().Order().ToArray() ?? [];
+        var splits = ResolveSplits(pages.Pages, saved);
         Current = Build(pages.SessionId, pages.Pages, splits, saved?.Documents);
         await PersistAsync(token);
         Changed?.Invoke();
@@ -119,6 +119,33 @@ public sealed class ScanBatchWorkflow(IScanBatchStore store, IScanBatchProcessor
     private BatchDocument Find(Guid id) { EnsureLoaded(); return Current!.Documents.SingleOrDefault(document => document.Id == id) ?? throw new ArgumentException("The document is not part of this batch.", nameof(id)); }
     private void EnsureLoaded() { if (Current is null || profileId is null) throw new InvalidOperationException("No scan batch is loaded."); }
     private Task PersistAsync(CancellationToken token) => store.SaveAsync(Current!, profileId!, token);
+
+    private static int[] ResolveSplits(IReadOnlyList<EditablePage> pages, ScanBatchSnapshot? saved)
+    {
+        if (saved is null) return [];
+
+        // A boundary means "this remaining page starts the next document", rather than
+        // "split at this numeric index". The saved document membership gives us that
+        // semantic anchor without changing the persisted format. If its first page was
+        // removed, the boundary advances to the next surviving page in that document.
+        // If the whole document was removed, no empty boundary is retained.
+        if (saved.Documents.Count > 1)
+        {
+            var remainingIndexes = pages.Select((page, index) => (page.Id, Index: index))
+                .ToDictionary(value => value.Id, value => value.Index);
+            return saved.Documents.Skip(1)
+                .Select(document => document.Pages
+                    .Select(page => remainingIndexes.GetValueOrDefault(page.Id, -1))
+                    .FirstOrDefault(index => index >= 0, -1))
+                .Where(index => index > 0 && index < pages.Count)
+                .Distinct()
+                .Order()
+                .ToArray();
+        }
+
+        // Compatibility for snapshots created before document membership was persisted.
+        return saved.SplitPoints.Where(point => point > 0 && point < pages.Count).Distinct().Order().ToArray();
+    }
 
     private static ScanBatchSnapshot Build(Guid sessionId, IReadOnlyList<EditablePage> pages, IReadOnlyList<int> splits, IReadOnlyList<BatchDocument>? previous)
     {
