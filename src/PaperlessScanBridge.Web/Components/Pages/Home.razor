@@ -22,7 +22,7 @@
 
 <PageTitle>Scan</PageTitle>
 <header class="page-heading"><h1>Scan</h1><p>Prepare, capture, review, and safely send a document.</p></header>
-<WorkflowStepper Current="@CurrentWorkflowStep" />
+<WorkflowStepper Current="@CurrentWorkflowStep" DocumentNumber="@ActiveBatchDocumentNumber" DocumentCount="@ActiveBatchDocumentCount" />
 @if (CurrentWorkflowStep == "Prepare" && !string.IsNullOrWhiteSpace(message)) { <div class="alert alert-info" role="status">@message</div> }
 @if (CurrentWorkflowStep == "Prepare")
 {
@@ -129,8 +129,8 @@
 {
  <section class="card mt-4 preview-panel" aria-labelledby="preview-title">
   <div class="card-body">
-   <h2 id="preview-title" class="h3">Review and edit pages</h2>
-   <p>Rotations and deletions apply only to this session; original source files remain unchanged.</p>
+   <h2 id="preview-title" class="h3">@(ActiveBatchDocument is { } activeReview ? $"Review document {activeReview.Number} of {ActiveBatchDocumentCount}" : "Review, edit, and split pages")</h2>
+   <p>@(ActiveBatchDocument is null ? "Add a grey document boundary wherever a new document should begin. Rotations and removals remain attached to their pages." : $"This document contains {ActiveBatchDocument.Pages.Count} page(s). Review it before continuing to its PDF step.")</p>
    @if (preview.Pages.Count == 0)
    {
     <div class="alert alert-warning" role="status">@preview.Message</div>
@@ -138,7 +138,7 @@
    else
    {
     <div class="preview-grid">
-     @foreach (var scannedPage in preview.Pages)
+     @foreach (var scannedPage in VisibleReviewPages)
      {
       <article class="preview-page" aria-label="@("Page " + scannedPage.Number)">
        <h3 class="h5">Page @scannedPage.Number</h3>
@@ -160,49 +160,32 @@
         <button class="btn btn-outline-danger w-100 mt-2" @onclick="() => RequestDelete(scannedPage.Id)">Remove page …</button>
        }
       </article>
-      @if (scannedPage.Number < preview.Pages.Count)
+      @if (ActiveBatchDocument is null && scannedPage.Number < preview.Pages.Count)
       {
        var hasSplit = BatchWorkflow.Current?.SplitPoints.Contains(scannedPage.Number) == true;
-       <button class="btn @(hasSplit ? "btn-warning" : "btn-outline-secondary") w-100 my-2 split-control" @onclick="() => ToggleSplitAsync(scannedPage.Id)">
-        @(hasSplit ? "Remove document boundary" : "Split document here")
+       <button class="split-control @(hasSplit ? "is-split" : null)" @onclick="() => ToggleSplitAsync(scannedPage.Id)" aria-pressed="@hasSplit">
+        <span class="split-line" aria-hidden="true"></span><span class="split-label">@(hasSplit ? "✓ Document boundary after page " + scannedPage.Number + " — remove" : "+ Split document after page " + scannedPage.Number)</span><span class="split-line" aria-hidden="true"></span>
        </button>
       }
      }
     </div>
-    @if (BatchWorkflow.Current is { } batch)
+    @if (BatchWorkflow.Current is { } batch && ActiveBatchDocument is null)
     {
      <section class="batch-summary mt-4" aria-labelledby="batch-title">
       <h3 id="batch-title" class="h4">@batch.Documents.Count documents from @batch.PageCount pages</h3>
-      <p aria-live="polite">@batch.CompletedCount of @batch.Documents.Count documents sent.</p>
+      <p aria-live="polite">@batch.CompletedCount sent · @(batch.Documents.Count - batch.CompletedCount) remaining. Each document will proceed through Review, PDF, and Send.</p>
       @foreach (var document in batch.Documents)
       {
        <article class="card mb-3 batch-document"><div class="card-body">
-        <h4 class="h5">Document @document.Number · @document.Pages.Count page(s)</h4>
-        <p>Pages @string.Join(", ", document.Pages.Select(page => page.Number))</p>
-        <label class="form-label" for="batch-title-@document.Id">Title (optional)</label>
-        <input id="batch-title-@document.Id" class="form-control" value="@document.Metadata.Title" @onchange="args => SetBatchTitleAsync(document.Id, args.Value?.ToString())" disabled="@(document.State == BatchDocumentState.Uploaded)" />
-        @if (paperlessMetadata is null)
-        { <button class="btn btn-outline-secondary w-100 mt-2" @onclick="LoadPaperlessAsync">Load Paperless metadata</button> }
-        else
-        {
-         <label class="form-label mt-2" for="batch-correspondent-@document.Id">Correspondent</label>
-         <select id="batch-correspondent-@document.Id" class="form-select" value="@document.Metadata.CorrespondentId" @onchange="args => SetBatchCorrespondentAsync(document.Id, args.Value?.ToString())" disabled="@(document.State == BatchDocumentState.Uploaded)"><option value="">Do not set</option>@foreach (var choice in paperlessMetadata.Correspondents) { <option value="@choice.Id">@choice.Name</option> }</select>
-         <label class="form-label mt-2" for="batch-type-@document.Id">Document type</label>
-         <select id="batch-type-@document.Id" class="form-select" value="@document.Metadata.DocumentTypeId" @onchange="args => SetBatchTypeAsync(document.Id, args.Value?.ToString())" disabled="@(document.State == BatchDocumentState.Uploaded)"><option value="">Do not set</option>@foreach (var choice in paperlessMetadata.DocumentTypes) { <option value="@choice.Id">@choice.Name</option> }</select>
-         <fieldset class="mt-2"><legend class="h6">Tags</legend>@foreach (var choice in paperlessMetadata.Tags) { <label class="form-check"><input class="form-check-input" type="checkbox" checked="@document.Metadata.Tags.Contains(choice.Id)" @onchange="args => ToggleBatchTagAsync(document.Id, choice.Id, args.Value is true)" disabled="@(document.State == BatchDocumentState.Uploaded)" /> @choice.Name</label> }</fieldset>
-        }
-        <button class="btn btn-primary w-100 mt-2" @onclick="() => CreateBatchPdfAsync(document.Id)" disabled="@(document.State is BatchDocumentState.CreatingPdf or BatchDocumentState.Uploading or BatchDocumentState.Uploaded || document.Pages.Any(page => !page.IsAvailable))">@(document.State == BatchDocumentState.Failed ? "Retry document PDF" : "Prepare document PDF")</button>
-        @if (document.State is BatchDocumentState.Ready or BatchDocumentState.Failed)
-        { <button class="btn btn-success w-100 mt-2" @onclick="() => UploadBatchAsync(document.Id)">@(document.State == BatchDocumentState.Failed ? "Retry send" : "Send to Paperless")</button> }
-        @if (document.State is BatchDocumentState.Ready or BatchDocumentState.Uploaded)
-        { <a class="btn btn-outline-success w-100 mt-2" href="@BatchPdfUrl(preview.SessionId, document.Id)">Download PDF</a> }
-        @if (!string.IsNullOrWhiteSpace(document.Message)) { <div class="alert @(document.State == BatchDocumentState.Uploaded ? "alert-success" : document.State == BatchDocumentState.Failed ? "alert-danger" : "alert-info") mt-2 mb-0">@document.Message</div> }
+        <h4 class="h5">Document @document.Number · @document.Pages.Count page(s) @if (document.State == BatchDocumentState.Uploaded) { <span class="badge text-bg-success">Sent</span> }</h4>
+        <p class="mb-0">Pages @string.Join(", ", document.Pages.Select(page => page.Number))</p>
        </div></article>
       }
+      <button class="btn btn-primary btn-lg w-100" @onclick="BeginBatchDocuments">Continue with document @(NextBatchDocument?.Number ?? 1)</button>
      </section>
     }
-    @if (BatchWorkflow.Current?.Documents.Count == 1)
-    { <button class="btn btn-outline-primary btn-lg w-100 mt-2" @onclick="CreatePdfAsync" disabled="@(PdfWorkflow.Current?.IsActive == true || preview.Pages.Any(page => !page.IsAvailable))">Create PDF (single document)</button> }
+    @if (ActiveBatchDocument is { } documentToReview)
+    { <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="() => CreateBatchPdfAsync(documentToReview.Id)" disabled="@(documentToReview.Pages.Any(page => !page.IsAvailable))">Continue to PDF</button> }
     <button class="btn btn-outline-secondary btn-lg w-100 mt-2" @onclick="ShowPreparation">Back to preparation</button>
     @if (PdfWorkflow.Current?.IsActive == true)
     {
@@ -219,7 +202,19 @@ else if (CurrentWorkflowStep == "Review")
  </AppStateCard>
 }
 
-@if (CurrentWorkflowStep == "PDF" && PdfWorkflow.Current is { } currentPdf)
+@if (CurrentWorkflowStep == "PDF" && ActiveBatchDocument is { } batchPdf)
+{
+ <AppStateCard Kind="@(batchPdf.State == BatchDocumentState.Failed ? "error" : batchPdf.State == BatchDocumentState.Ready ? "success" : "loading")" Title="@($"PDF · document {batchPdf.Number} of {ActiveBatchDocumentCount}")" Message="@(batchPdf.Message ?? "Preparing this document PDF …")" Loading="@(batchPdf.State == BatchDocumentState.CreatingPdf)">
+  <ChildContent>
+   @if (batchPdf.State == BatchDocumentState.Ready)
+   { <a class="btn btn-outline-success btn-lg w-100" href="@BatchPdfUrl(PageEditor.Current!.SessionId, batchPdf.Id)">Download PDF</a><button class="btn btn-primary btn-lg w-100 mt-2" @onclick="ShowBatchSend">Continue to Send</button> }
+   else if (batchPdf.State == BatchDocumentState.Failed)
+   { <button class="btn btn-primary btn-lg w-100" @onclick="() => CreateBatchPdfAsync(batchPdf.Id)">Retry PDF creation</button> }
+   <button class="btn btn-outline-secondary btn-lg w-100 mt-2" @onclick="ShowBatchReview">Back to review</button>
+  </ChildContent>
+ </AppStateCard>
+}
+else if (CurrentWorkflowStep == "PDF" && PdfWorkflow.Current is { } currentPdf)
 {
  <AppStateCard Kind="@(currentPdf.State == PdfCreationState.Failed ? "error" : "loading")" Title="Creating PDF" Message="@currentPdf.Message" Loading="@currentPdf.IsActive">
   <ChildContent>
@@ -229,7 +224,40 @@ else if (CurrentWorkflowStep == "Review")
  </AppStateCard>
 }
 
-@if (CurrentWorkflowStep == "Send" && PdfWorkflow.Current is { State: PdfCreationState.Completed } completedPdf)
+@if (CurrentWorkflowStep == "Send" && ActiveBatchDocument is { } batchSend)
+{
+ <section class="card mt-4"><div class="card-body">
+  <span class="badge text-bg-primary mb-2">Document @batchSend.Number of @ActiveBatchDocumentCount</span>
+  <h2 class="h3">Send to Paperless-ngx</h2>
+  @if (batchSend.State == BatchDocumentState.Uploaded)
+  {
+   <AppStateCard Kind="success" Title="Document submitted" Message="@(batchSend.Message ?? "Paperless accepted the document.")">
+    <ChildContent>
+     @if (!string.IsNullOrWhiteSpace(batchSend.TaskId)) { <p class="small">Paperless task ID: @batchSend.TaskId</p> }
+     <a class="btn btn-outline-success w-100" href="@BatchPdfUrl(PageEditor.Current!.SessionId, batchSend.Id)">Download PDF</a>
+     @if (NextBatchDocument is not null) { <button class="btn btn-primary btn-lg w-100 mt-2" @onclick="ContinueNextBatchDocument">Review next document (@NextBatchDocument.Number of @ActiveBatchDocumentCount)</button> }
+     else { <button class="btn btn-primary btn-lg w-100 mt-2" @onclick="StartNewDocument">Finish batch and scan another</button> }
+    </ChildContent>
+   </AppStateCard>
+  }
+  else
+  {
+   <a class="btn btn-outline-success btn-lg w-100" href="@BatchPdfUrl(PageEditor.Current!.SessionId, batchSend.Id)">Download PDF</a>
+   @if (paperlessMetadata is null) { <button class="btn btn-outline-primary btn-lg w-100 mt-2" @onclick="LoadPaperlessAsync">Load Paperless metadata</button> }
+   else
+   {
+    <label class="form-label mt-3" for="batch-title-@batchSend.Id">Title (optional)</label><input id="batch-title-@batchSend.Id" class="form-control form-control-lg" value="@batchSend.Metadata.Title" @onchange="args => SetBatchTitleAsync(batchSend.Id, args.Value?.ToString())" />
+    <label class="form-label mt-3" for="batch-correspondent-@batchSend.Id">Correspondent</label><select id="batch-correspondent-@batchSend.Id" class="form-select form-select-lg" value="@batchSend.Metadata.CorrespondentId" @onchange="args => SetBatchCorrespondentAsync(batchSend.Id, args.Value?.ToString())"><option value="">Do not set</option>@foreach (var choice in paperlessMetadata.Correspondents) { <option value="@choice.Id">@choice.Name</option> }</select>
+    <label class="form-label mt-3" for="batch-type-@batchSend.Id">Document type</label><select id="batch-type-@batchSend.Id" class="form-select form-select-lg" value="@batchSend.Metadata.DocumentTypeId" @onchange="args => SetBatchTypeAsync(batchSend.Id, args.Value?.ToString())"><option value="">Do not set</option>@foreach (var choice in paperlessMetadata.DocumentTypes) { <option value="@choice.Id">@choice.Name</option> }</select>
+    <fieldset class="mt-3"><legend class="h6">Tags</legend>@foreach (var choice in paperlessMetadata.Tags) { <label class="form-check"><input class="form-check-input" type="checkbox" checked="@batchSend.Metadata.Tags.Contains(choice.Id)" @onchange="args => ToggleBatchTagAsync(batchSend.Id, choice.Id, args.Value is true)" /> @choice.Name</label> }</fieldset>
+    <button class="btn btn-success btn-lg w-100 mt-3" @onclick="() => UploadBatchAsync(batchSend.Id)">@(batchSend.State == BatchDocumentState.Failed ? "Retry send" : "Send to Paperless")</button>
+   }
+   @if (!string.IsNullOrWhiteSpace(batchSend.Message)) { <div class="alert @(batchSend.State == BatchDocumentState.Failed ? "alert-danger" : "alert-info") mt-3">@batchSend.Message</div> }
+   <button class="btn btn-outline-secondary btn-lg w-100 mt-2" @onclick="ShowBatchReview">Back to review</button>
+  }
+ </div></section>
+}
+else if (CurrentWorkflowStep == "Send" && PdfWorkflow.Current is { State: PdfCreationState.Completed } completedPdf)
 {
  <section class="card mt-4"><div class="card-body">
   <span class="badge text-bg-success mb-2">PDF ready</span>
@@ -281,6 +309,12 @@ else if (CurrentWorkflowStep == "Review")
     private int resolution = 300;
     private bool IsScanning => ScanWorkflow.Current?.IsActive == true;
     private string? displayedStep;
+    private Guid? activeBatchDocumentId;
+    private BatchDocument? ActiveBatchDocument => activeBatchDocumentId is { } id ? BatchWorkflow.Current?.Documents.FirstOrDefault(document => document.Id == id) : null;
+    private BatchDocument? NextBatchDocument => BatchWorkflow.Current?.Documents.FirstOrDefault(document => document.State != BatchDocumentState.Uploaded && document.Id != activeBatchDocumentId);
+    private int ActiveBatchDocumentCount => BatchWorkflow.Current?.Documents.Count ?? 1;
+    private int ActiveBatchDocumentNumber => ActiveBatchDocument?.Number ?? NextBatchDocument?.Number ?? 1;
+    private IReadOnlyList<EditablePage> VisibleReviewPages => ActiveBatchDocument?.Pages ?? PageEditor.Current?.Pages ?? [];
     private PdfCreationSnapshot? RelevantPdf => PageEditor.Current is { } editor && PdfWorkflow.Current is { } pdf && editor.SessionId == pdf.SessionId ? pdf : null;
     private string CurrentWorkflowStep => displayedStep ?? (IsScanning || DuplexWorkflow.Current?.IsActive == true ? "Scan" : RelevantPdf?.State == PdfCreationState.Completed ? "Send" : RelevantPdf is not null ? "PDF" : PageEditor.Current is not null || ScanWorkflow.Current?.State == ScanJobState.Completed || DuplexWorkflow.Current?.State == ManualDuplexState.Completed ? "Review" : "Prepare");
     private bool finalBackIsBlank;
@@ -372,17 +406,26 @@ else if (CurrentWorkflowStep == "Review")
     { var document = BatchWorkflow.Current!.Documents.Single(item => item.Id == id); return BatchWorkflow.SetMetadataAsync(id, document.Metadata with { DocumentTypeId = int.TryParse(value, out var parsed) ? parsed : null }); }
     private Task ToggleBatchTagAsync(Guid id, int tag, bool selected)
     { var document = BatchWorkflow.Current!.Documents.Single(item => item.Id == id); var tags = document.Metadata.Tags.ToHashSet(); if (selected) tags.Add(tag); else tags.Remove(tag); return BatchWorkflow.SetMetadataAsync(id, document.Metadata with { TagIds = tags.ToArray() }); }
-    private Task CreateBatchPdfAsync(Guid documentId) => BatchWorkflow.CreatePdfAsync(documentId);
+    private void BeginBatchDocuments()
+    {
+        activeBatchDocumentId = NextBatchDocument?.Id ?? BatchWorkflow.Current?.Documents.FirstOrDefault()?.Id;
+        displayedStep = "Review";
+    }
+    private async Task CreateBatchPdfAsync(Guid documentId)
+    { activeBatchDocumentId = documentId; displayedStep = "PDF"; await BatchWorkflow.CreatePdfAsync(documentId); }
+    private void ShowBatchReview() => displayedStep = "Review";
+    private void ShowBatchSend() => displayedStep = "Send";
+    private void ContinueNextBatchDocument() { activeBatchDocumentId = NextBatchDocument?.Id; displayedStep = "Review"; paperlessMessage = null; }
     private async Task UploadBatchAsync(Guid documentId)
     {
         if (paperlessMetadata is null) await LoadPaperlessAsync();
-        if (!paperlessError) await BatchWorkflow.UploadAsync(documentId);
+        if (!paperlessError) { displayedStep = "Send"; await BatchWorkflow.UploadAsync(documentId); }
     }
     private async Task CreatePdfAsync() { displayedStep = null; if (PageEditor.Current is { } session) await PdfWorkflow.CreateAsync(session); }
     private Task CancelPdfAsync() => PdfWorkflow.CancelAsync();
     private void ShowReview() => displayedStep = "Review";
     private void ShowPreparation() => displayedStep = "Prepare";
-    private void StartNewDocument() { displayedStep = "Prepare"; paperlessMetadata = null; paperlessMessage = null; }
+    private void StartNewDocument() { displayedStep = "Prepare"; activeBatchDocumentId = null; paperlessMetadata = null; paperlessMessage = null; }
     private Task CancelActiveScanAsync() => ScanWorkflow.Current?.IsActive == true ? CancelScanAsync() : CancelDuplexAsync();
     private string PdfStatusLabel => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "Ready", PdfCreationState.Cancelled => "Cancelled", PdfCreationState.Failed => "Failed", _ => "Running" };
     private string PdfStatusClass => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "alert-success", PdfCreationState.Cancelled => "alert-warning", PdfCreationState.Failed => "alert-danger", _ => "alert-info" };

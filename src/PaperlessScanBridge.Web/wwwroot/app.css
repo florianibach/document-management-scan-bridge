@@ -75,6 +75,12 @@ h1:focus {
 .preview-page { border:1px solid var(--bs-border-color); border-radius:.5rem; padding:1rem; min-width:0; }
 .preview-image-frame { aspect-ratio:3/4; display:grid; place-items:center; overflow:hidden; background:var(--bs-tertiary-bg); border-radius:.25rem; }
 .preview-image-frame img { max-width:90%; max-height:90%; object-fit:contain; transition:transform .15s ease; }
+.split-control { grid-column:1/-1; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:.75rem; width:100%; padding:.8rem 1rem; border:1px solid #aeb7c4; border-radius:.65rem; background:#e9edf2; color:#334155; font-weight:700; }
+.split-control:hover, .split-control:focus-visible { background:#dde3ea; border-color:#7d8998; }
+.split-control.is-split { background:#d8e8fb; border-color:#1b6ec2; color:#174f91; }
+.split-line { height:0; border-top:2px dashed currentColor; opacity:.65; }
+.split-label { white-space:normal; text-align:center; }
+.document-step-count { display:block; margin-top:.1rem; color:#526174; font-weight:700; }
 
 body { background:#f5f7fb; color:#172033; }
 .page-heading { margin:1rem 0 1.25rem; }
