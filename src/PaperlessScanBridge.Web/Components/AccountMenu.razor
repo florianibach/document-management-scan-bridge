@@ -40,7 +40,6 @@
             else if (identity?.Kind == AccountKind.Authenticated)
             {
                 <p class="account-heading">@identity.DisplayName</p>
-                <p class="account-provider">Signed in with @identity.Provider</p>
                 <form method="post" action="/signout">
                     <button class="btn btn-outline-secondary account-action" role="menuitem">Sign out</button>
                 </form>
@@ -91,18 +90,18 @@
         if (Options.Value.Mode == ProfileMode.Anonymous)
         {
             var anonymousProfile = await CurrentProfile.GetRequiredAsync();
-            identity = new(AccountKind.Anonymous, anonymousProfile.DisplayName, "Anonymous", null, Initials(anonymousProfile.DisplayName));
+            identity = new(AccountKind.Anonymous, anonymousProfile.DisplayName, null, Initials(anonymousProfile.DisplayName));
             return;
         }
 
         if (principal.Identity?.IsAuthenticated != true)
         {
-            identity = new(AccountKind.SignedOut, "Not signed in", "", null, null);
+            identity = new(AccountKind.SignedOut, "Not signed in", null, null);
             return;
         }
 
         var profile = await CurrentProfile.GetRequiredAsync();
-        identity = new(AccountKind.Authenticated, profile.DisplayName, ProviderName(profile.Issuer), SafeImageUrl(principal), Initials(profile.DisplayName));
+        identity = new(AccountKind.Authenticated, profile.DisplayName, SafeImageUrl(principal), Initials(profile.DisplayName));
     }
 
     private async Task ToggleAsync()
@@ -126,12 +125,6 @@
         if (!menuOpen) return Task.CompletedTask;
         menuOpen = false;
         return InvokeAsync(StateHasChanged);
-    }
-
-    private static string ProviderName(string issuer)
-    {
-        if (Uri.TryCreate(issuer, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.Host)) return uri.Host;
-        return "OpenID Connect";
     }
 
     private static string? SafeImageUrl(ClaimsPrincipal principal)
@@ -160,5 +153,5 @@
     }
 
     private enum AccountKind { Anonymous, Authenticated, SignedOut }
-    private sealed record AccountIdentity(AccountKind Kind, string DisplayName, string Provider, string? ImageUrl, string? Initials);
+    private sealed record AccountIdentity(AccountKind Kind, string DisplayName, string? ImageUrl, string? Initials);
 }

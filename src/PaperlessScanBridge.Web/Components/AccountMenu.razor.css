@@ -9,7 +9,6 @@
 .account-panel { position:absolute; z-index:1100; top:calc(100% + .45rem); right:0; width:min(21rem,calc(100vw - 1.5rem)); padding:1rem; border:1px solid #c8d0da; border-radius:.75rem; background:#fff; box-shadow:0 .6rem 1.6rem rgba(24,52,95,.2); white-space:normal; }
 .account-panel p { margin-bottom:.75rem; }
 .account-heading { font-weight:800; }
-.account-provider { color:#526174; overflow-wrap:anywhere; }
 .account-action { min-height:2.75rem; width:100%; }
 @media (max-width:640.98px) {
     .account-menu { margin-left:.5rem; }

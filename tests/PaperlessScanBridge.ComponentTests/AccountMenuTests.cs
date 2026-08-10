@@ -28,7 +28,7 @@ public sealed class AccountMenuTests : BunitContext
     }
 
     [Fact]
-    public async Task AuthenticatedMenuShowsSafePictureNameProviderAndSignOutOnly()
+    public async Task AuthenticatedMenuShowsSafePictureNameAndSignOutOnly()
     {
         var claims = new[]
         {
@@ -44,8 +44,8 @@ public sealed class AccountMenuTests : BunitContext
         await component.Find("button.account-trigger").ClickAsync(new());
 
         Assert.Contains("Ada Lovelace", component.Markup);
-        Assert.Contains("identity.example.test", component.Markup);
         Assert.DoesNotContain("AuthenticationTypes.Federation", component.Markup);
+        Assert.DoesNotContain("Signed in with", component.Markup);
         Assert.Contains("action=\"/signout\"", component.Markup);
         Assert.DoesNotContain("private-subject", component.Markup);
         Assert.DoesNotContain("private-token", component.Markup);
@@ -64,6 +64,18 @@ public sealed class AccountMenuTests : BunitContext
         component.WaitForAssertion(() => Assert.Contains("Not signed in", component.Find("button.account-trigger").TextContent));
         await component.Find("button.account-trigger").ClickAsync(new());
         Assert.DoesNotContain("Sign out", component.Markup);
+    }
+
+    [Fact]
+    public async Task AuthenticatedMenuDoesNotRenderProviderBoilerplate()
+    {
+        Configure(ProfileMode.OpenIdConnect, Authenticated("Florian Ibach", "https://images.example.test/florian.png"), "Florian Ibach");
+        var component = Render<AccountMenu>();
+
+        await component.Find("button.account-trigger").ClickAsync(new());
+
+        Assert.DoesNotContain("Signed in with", component.Markup);
+        Assert.Contains("Sign out", component.Markup);
     }
 
     private MutableAuthenticationStateProvider Configure(ProfileMode mode, ClaimsPrincipal principal, string displayName = "Shared anonymous profile")
@@ -94,6 +106,6 @@ public sealed class AccountMenuTests : BunitContext
     private sealed class ProfileAccessorStub(string displayName) : ICurrentProfileAccessor
     {
         public Task<UserProfile> GetRequiredAsync(CancellationToken cancellationToken = default) => Task.FromResult(
-            new UserProfile("profile", "https://identity.example.test/realms/home", "subject", displayName, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            new UserProfile("profile", "issuer", "subject", displayName, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
     }
 }
