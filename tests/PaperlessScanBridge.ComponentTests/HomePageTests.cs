@@ -112,7 +112,7 @@ public sealed class HomePageTests : BunitContext
 
         page.WaitForAssertion(() => Assert.Contains("2 documents from 3 pages", page.Markup));
         Assert.Equal(2, page.FindAll(".batch-document").Count);
-        Assert.Contains("Document boundary after page 1", page.Markup);
+        Assert.Equal("Remove document boundary after page 1", page.Find(".split-control").GetAttribute("aria-label"));
         Assert.Contains("Continue with document 1", page.Markup);
         await page.FindAll("button").Single(button => button.TextContent.Contains("Continue with document 1")).ClickAsync(new());
         Assert.Contains("Review document 1 of 2", page.Markup);

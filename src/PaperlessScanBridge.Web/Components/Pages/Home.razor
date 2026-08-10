@@ -163,8 +163,8 @@
       @if (ActiveBatchDocument is null && scannedPage.Number < preview.Pages.Count)
       {
        var hasSplit = BatchWorkflow.Current?.SplitPoints.Contains(scannedPage.Number) == true;
-       <button class="split-control @(hasSplit ? "is-split" : null)" @onclick="() => ToggleSplitAsync(scannedPage.Id)" aria-pressed="@hasSplit">
-        <span class="split-line" aria-hidden="true"></span><span class="split-label">@(hasSplit ? "✓ Document boundary after page " + scannedPage.Number + " — remove" : "+ Split document after page " + scannedPage.Number)</span><span class="split-line" aria-hidden="true"></span>
+       <button class="split-control @(hasSplit ? "is-split" : null)" @onclick="() => ToggleSplitAsync(scannedPage.Id)" aria-pressed="@hasSplit" aria-label="@(hasSplit ? "Remove document boundary after page " + scannedPage.Number : "Split document after page " + scannedPage.Number)">
+        <span class="split-line" aria-hidden="true"></span><span class="split-label">@(hasSplit ? "✓ Boundary" : "+ Split here")</span><span class="split-line" aria-hidden="true"></span>
        </button>
       }
      }
