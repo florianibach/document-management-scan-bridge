@@ -12,7 +12,7 @@
 
 <PageTitle>Profile settings</PageTitle>
 <header class="page-heading"><p class="eyebrow">Administration</p><h1>Settings</h1><p>Manage profiles, scanners, Paperless, and notifications.</p></header>
-<ScannerSetup />
+<ScannerSetup ScannerReady="ScannerReadyAsync" />
 <section class="card mt-4 settings-panel">
  <div class="card-body">
   <h1 class="h2">Local profile</h1>
@@ -112,6 +112,7 @@
  public async ValueTask DisposeAsync() { if (notificationModule is not null) try { await notificationModule.DisposeAsync(); } catch (JSDisconnectedException) { } }
  private void Apply(ProfileDefaults value) { scannerId=value.ScannerId; source=value.Source; colorMode=value.ColorMode; resolution=value.ResolutionDpi; title=value.Title; correspondentId=value.CorrespondentId; documentTypeId=value.DocumentTypeId; tagIds.Clear(); tagIds.UnionWith(value.TagIds); }
  private void ScannerChanged() { source = SelectedScanner?.Sources?.FirstOrDefault(); resolution = SelectedScanner?.Resolutions?.Contains(300) == true ? 300 : SelectedScanner?.Resolutions?.FirstOrDefault() ?? 300; }
+ private Task ScannerReadyAsync(SelectedScanner scanner) { scanners = scanners.Where(value => value.Id != scanner.Id).Append(scanner).ToArray(); scannerId = scanner.Id; ScannerChanged(); return Task.CompletedTask; }
  private async Task SaveServiceAsync() { serviceSaving=true; message=null; errors=[]; var result=await ServiceConfiguration.ValidateAndSaveAsync(new(paperlessUrl,paperlessToken,replaceToken,deleteToken,useDeploymentToken)); errors=result.Errors; if(result.Succeeded){ serviceConfiguration=result.Configuration; effective=await ServiceConfiguration.GetEffectiveAsync(); metadata=result.Metadata; paperlessToken=null; showPaperlessToken=false; replaceToken=false; deleteToken=false; message="Paperless configuration was validated and activated."; } serviceSaving=false; }
  private static string SourceName(PaperlessConfigurationSource? source) => source switch { PaperlessConfigurationSource.Profile => "Profile", PaperlessConfigurationSource.Deployment => "Deployment", _ => "not configured" };
  private async Task LoadMetadataAsync() { metadataLoading=true; errors=[]; var result=await Paperless.GetMetadataAsync(); metadata=result.Metadata; if (!result.Result.Succeeded) errors=[result.Result.Message]; else ValidatePaperlessChoices(); metadataLoading=false; }

@@ -22,6 +22,7 @@ public sealed class SettingsPageTests : BunitContext
     {
         Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
         Services.AddSingleton<IScannerDiscoveryService>(new DiscoveryStub());
+        Services.AddSingleton<IScanner>(new ScannerStub());
         Services.AddSingleton<IProfileServiceConfigurationService>(new AnonymousConfigurationStub());
         Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
 
@@ -57,6 +58,7 @@ public sealed class SettingsPageTests : BunitContext
     {
         Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
         Services.AddSingleton<IScannerDiscoveryService>(new DiscoveryStub());
+        Services.AddSingleton<IScanner>(new ScannerStub());
         Services.AddSingleton<IProfileServiceConfigurationService>(new AuthenticatedConfigurationStub());
         Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
         var page = Render<Settings>();
@@ -75,6 +77,7 @@ public sealed class SettingsPageTests : BunitContext
     {
         Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
         Services.AddSingleton<IScannerDiscoveryService>(new SavedScannerDiscoveryStub());
+        Services.AddSingleton<IScanner>(new ScannerStub());
         Services.AddSingleton<IProfileServiceConfigurationService>(new AnonymousConfigurationStub());
         Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
         var page = Render<Settings>();
@@ -87,12 +90,37 @@ public sealed class SettingsPageTests : BunitContext
         Assert.Contains("Finish or cancel it", page.Markup);
     }
 
+    [Fact]
+    public async Task NewlyAddedScannerImmediatelyPopulatesScanDefaults()
+    {
+        Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
+        Services.AddSingleton<IScannerDiscoveryService>(new AddScannerDiscoveryStub());
+        Services.AddSingleton<IScanner>(new ScannerStub());
+        Services.AddSingleton<IProfileServiceConfigurationService>(new AnonymousConfigurationStub());
+        Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
+        var page = Render<Settings>();
+
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Search for scanners")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Select and validate")).ClickAsync(new());
+
+        Assert.Equal("7", page.Find("#default-scanner").GetAttribute("value"));
+        Assert.Contains("ADF Simplex", page.Find("#default-source").TextContent);
+        Assert.Equal("Flatbed", page.Find("#default-source").GetAttribute("value"));
+    }
+
     private void AddAnonymousServices()
     {
         Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
         Services.AddSingleton<IScannerDiscoveryService>(new DiscoveryStub());
+        Services.AddSingleton<IScanner>(new ScannerStub());
         Services.AddSingleton<IProfileServiceConfigurationService>(new AnonymousConfigurationStub());
         Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
+    }
+
+    private sealed class ScannerStub : IScanner
+    {
+        public Task<ScannerDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(new ScannerDiscoveryResult([new("airscan:test", "Test scanner")], new("airscan:test", "Test scanner"), new(["Flatbed", "ADF Simplex"], ["Color"], [300], ["A4"])));
     }
 
     private sealed class AuthenticatedConfigurationStub : IProfileServiceConfigurationService
@@ -137,6 +165,16 @@ public sealed class SettingsPageTests : BunitContext
         public Task<ScannerSelectionResult> SelectAsync(string discoveryId,CancellationToken cancellationToken)=>throw new NotSupportedException();
         public Task<ScannerSelectionResult> ActivateSavedAsync(long scannerId,CancellationToken cancellationToken)=>throw new NotSupportedException();
         public Task<SelectedScanner> SaveSaneProfileAsync(long scannerId,ScannerDevice device,ScannerCapabilities capabilities,CancellationToken cancellationToken)=>throw new NotSupportedException();
+    }
+    private sealed class AddScannerDiscoveryStub : IScannerDiscoveryService
+    {
+        private static readonly SelectedScanner Selected = new(7,"Test scanner","192.0.2.7",443,"https","https://192.0.2.7/eSCL",DateTimeOffset.UtcNow);
+        public Task<ScannerNetworkDiscoveryResult> DiscoverAsync(CancellationToken cancellationToken=default) => Task.FromResult(new ScannerNetworkDiscoveryResult([new("test","Test scanner","192.0.2.7",443,"https","https://192.0.2.7/eSCL")],[]));
+        public Task<ScannerSelectionResult> SelectAsync(string discoveryId,CancellationToken cancellationToken=default) => Task.FromResult(new ScannerSelectionResult(true,Selected));
+        public Task<SelectedScanner> SaveSaneProfileAsync(long scannerId,ScannerDevice device,ScannerCapabilities capabilities,CancellationToken cancellationToken=default) => Task.FromResult(Selected with { SaneDeviceId=device.Identifier, Sources=capabilities.Sources, Resolutions=capabilities.Resolutions });
+        public Task<SelectedScanner?> GetSelectedAsync(CancellationToken cancellationToken=default)=>Task.FromResult<SelectedScanner?>(null);
+        public Task<IReadOnlyList<SelectedScanner>> GetSavedAsync(CancellationToken cancellationToken=default)=>Task.FromResult<IReadOnlyList<SelectedScanner>>([]);
+        public Task<ScannerSelectionResult> ActivateSavedAsync(long scannerId,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
     }
     private sealed class PaperlessStub : IPaperlessClient
     {
