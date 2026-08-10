@@ -24,6 +24,6 @@ ENV APPLICATION_HTTP_PORT=8080
 ENV Build__Commit=$GIT_COMMIT
 LABEL org.opencontainers.image.revision=$GIT_COMMIT
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD-SHELL curl --fail --silent --show-error "http://127.0.0.1:${APPLICATION_HTTP_PORT}/health" || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD curl --fail --silent --show-error "http://127.0.0.1:${APPLICATION_HTTP_PORT}/health" || exit 1
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["dotnet", "PaperlessScanBridge.Web.dll"]

@@ -4,6 +4,14 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 . "$root/scripts/configure-http-port.sh"
 
+dockerfile_healthcheck=$(grep '^HEALTHCHECK ' "$root/Dockerfile")
+printf '%s\n' "$dockerfile_healthcheck" | grep -F ' CMD curl ' >/dev/null
+if printf '%s\n' "$dockerfile_healthcheck" | grep -F 'CMD-SHELL' >/dev/null; then
+    echo 'Dockerfile HEALTHCHECK must use Dockerfile shell-form CMD, not the unsupported Compose test type CMD-SHELL.' >&2
+    exit 1
+fi
+printf '%s\n' "$dockerfile_healthcheck" | grep -F '${APPLICATION_HTTP_PORT}/health' >/dev/null
+
 assert_valid() {
     expected=$1
     APPLICATION_HTTP_PORT=${2-}
