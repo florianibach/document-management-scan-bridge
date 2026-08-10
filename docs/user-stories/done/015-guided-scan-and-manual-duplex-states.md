@@ -35,3 +35,13 @@
 - US-010
 - US-013
 - US-014
+
+## Completion evidence
+
+- The Scan screen now distinguishes queued, running, timeout-decision, cancelled, failed, and completed simplex states. Active-state actions are unavailable, the page explains the single active job, and progress is limited to actual completed-page counts rather than a synthetic percentage.
+- The existing workflow cancellation boundary removes the incomplete session directory. The guided cancellation and failure messages state that partial pages were removed and that completed documents were not changed.
+- Manual duplex is shown as a numbered three-step flow. The second pass requires an explicit stack-orientation confirmation, carries the optional blank-last-back-side choice into the workflow, and describes the resulting reading order before preview.
+- A count mismatch blocks merge and shows both pass counts with restart and cancellation actions. Workflow unit tests cover even/odd ordering, blank-back handling, mismatches, cancellation cleanup, and the explicit second-pass gate.
+- Component tests cover the timeout decision, duplicate visible-action suppression, mobile-sized primary actions, flip instructions, blank-back confirmation, notifications, and the handoff to review. Browser notification support and its open-page limitation remain visible in the Scan flow.
+- No external boundary, persistence schema, dependency, Compose variable, or secret handling changed; additional integration tests and operator configuration changes are therefore not applicable.
+- Hardware verification was not repeated in this environment. The workflow uses the already verified reversed second-pass orientation documented for the target HP Color Laser MFP 179fnw; the implementation does not add automatic hardware duplex or blank-page image analysis.

@@ -45,6 +45,17 @@ public sealed class HomePageTests : BunitContext
         Assert.Contains("Prepare", page.Markup);
         Assert.DoesNotContain("mDNS", page.Markup);
         Assert.DoesNotContain("Täglicher Ablauf", page.Markup);
+        Assert.Contains("The Scan page must remain open", page.Markup);
+    }
+
+    [Fact]
+    public async Task OffersNotificationOptInFromScanFlow()
+    {
+        AddServices(new DiscoveryStub(new([], [])));
+        var page = Render<Home>();
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Enable scan notifications")).ClickAsync(new());
+        Assert.Contains("Notifications are active for this browser tab", page.Markup);
+        Assert.Contains(notifications.Invocations, invocation => invocation.Identifier == "enable");
     }
 
     [Fact]
@@ -224,8 +235,27 @@ public sealed class HomePageTests : BunitContext
         await page.Find("#saved-scanner").ChangeAsync("1");
         await page.FindAll("button").Single(button => button.TextContent.Contains("Start manual duplex scan")).ClickAsync(new());
         Assert.Contains("Flip the stack now", page.Markup);
-        Assert.Contains("keep its order", page.Markup);
+        Assert.Contains("Keep its order", page.Markup);
         Assert.Contains("Scan back sides", page.Markup);
+        Assert.Contains("step 2 of 3", page.Markup, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("short edge", page.Markup);
+        Assert.Contains("second pass will only start after your confirmation", page.Markup);
+    }
+
+    [Fact]
+    public async Task ManualDuplexForwardsBlankBackDecisionOnlyAfterConfirmation()
+    {
+        var duplex = new DuplexWorkflowStub();
+        AddServices(new DiscoveryStub(new([], [])), duplex: duplex);
+        var page = Render<Home>();
+        await page.Find("#saved-scanner").ChangeAsync("1");
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Start manual duplex scan")).ClickAsync(new());
+
+        await page.Find("#scan-blank-back").ChangeAsync(true);
+        Assert.Null(duplex.ReceivedBlankDecision);
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Stack is ready")).ClickAsync(new());
+
+        Assert.True(duplex.ReceivedBlankDecision);
     }
 
     [Fact]
@@ -325,10 +355,11 @@ public sealed class HomePageTests : BunitContext
     private sealed class DuplexWorkflowStub : IManualDuplexWorkflow
     {
         public SimplexScanSettings? ReceivedSettings { get; private set; }
+        public bool? ReceivedBlankDecision { get; private set; }
         public ManualDuplexSnapshot? Current { get; private set; }
         public event Action? Changed;
         public Task StartAsync(SimplexScanSettings settings, CancellationToken cancellationToken = default) { ReceivedSettings = settings; Current = new(Guid.NewGuid(), ManualDuplexState.AwaitingFlipConfirmation, 2, 0, 0, "Stapel wenden.", DateTimeOffset.UtcNow); Changed?.Invoke(); return Task.CompletedTask; }
-        public Task ConfirmFlipAsync(bool finalBackIsBlank) => Task.CompletedTask;
+        public Task ConfirmFlipAsync(bool finalBackIsBlank) { ReceivedBlankDecision = finalBackIsBlank; return Task.CompletedTask; }
         public Task CancelAsync() => Task.CompletedTask;
         public Task RestartAsync() { Current = null; Changed?.Invoke(); return Task.CompletedTask; }
     }

@@ -97,30 +97,67 @@
   @if (DuplexWorkflow.Current is { } duplex) { <div class="alert @DuplexStatusClass mt-3 mb-0" role="status" aria-live="polite"><strong>@DuplexStatusLabel:</strong> @duplex.Message</div> }
  </div>
 </section>
+<section class="card mt-4" aria-labelledby="scan-notifications-title"><div class="card-body">
+ <h2 id="scan-notifications-title" class="h4">Scan notifications</h2>
+ <p>Get a browser notification when a scan finishes or the duplex stack needs flipping. <strong>The Scan page must remain open.</strong></p>
+ @if (notificationState == "enabled") { <div class="alert alert-success mb-0" role="status">Notifications are active for this browser tab.</div> }
+ else if (notificationState == "denied") { <div class="alert alert-warning mb-0" role="status">Notifications were blocked. Allow them in this site's browser settings.</div> }
+ else if (notificationState == "unsupported") { <div class="alert alert-warning mb-0" role="status">This browser or page does not support notifications. Use HTTPS or localhost.</div> }
+ else { <button class="btn btn-outline-primary btn-lg w-100" @onclick="EnableScanNotificationsAsync" disabled="@(notificationModule is null)">Enable scan notifications</button> }
+</div></section>
 }
 
 @if (CurrentWorkflowStep == "Scan")
 {
- <AppStateCard Kind="loading" Title="Scan running" Message="The scanner is working. Keep this browser window open." Loading="true">
+ @if (DuplexWorkflow.Current is { IsActive: true } activeDuplex)
+ {
+ <AppStateCard Kind="@(activeDuplex.State == ManualDuplexState.PageCountMismatch ? "error" : "loading")" Title="@DuplexStepTitle(activeDuplex)" Message="@DuplexStepMessage(activeDuplex)" Loading="@(activeDuplex.State is ManualDuplexState.ScanningFronts or ManualDuplexState.ScanningBacks)">
   <ChildContent>
-   @if (ScanWorkflow.Current?.State == ScanJobState.AwaitingUserDecision)
+   <ol class="duplex-steps" aria-label="Manual duplex progress">
+    <li class="@(DuplexStep(activeDuplex) == 1 ? "current" : DuplexStep(activeDuplex) > 1 ? "complete" : null)">Scan front sides</li>
+    <li class="@(DuplexStep(activeDuplex) == 2 ? "current" : DuplexStep(activeDuplex) > 2 ? "complete" : null)">Flip and confirm stack</li>
+    <li class="@(DuplexStep(activeDuplex) == 3 ? "current" : null)">Scan back sides and merge</li>
+   </ol>
+   @if (activeDuplex.State == ManualDuplexState.AwaitingFlipConfirmation)
    {
-    <button class="btn btn-primary btn-lg w-100" @onclick="ContinueScanAsync">Scanner is still working — keep waiting</button>
-    <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Cancel scan now</button>
+    <div class="flip-instruction mt-3" role="status">
+     <div class="flip-icon" aria-hidden="true">↶</div>
+     <h3 class="h4">Flip the stack now</h3>
+     <ol><li>Remove the complete stack from the output tray.</li><li>Keep its order and flip the stack as one unit around its short edge.</li><li>Reload it unscanned-side up, top edge first, in the same feeder direction.</li></ol>
+    </div>
+    <div class="form-check my-3"><input id="scan-blank-back" class="form-check-input" type="checkbox" @bind="finalBackIsBlank"><label class="form-check-label" for="scan-blank-back">The final back side of the document is blank</label></div>
+    <button class="btn btn-success btn-lg w-100" @onclick="ConfirmFlipAsync">Stack is ready — scan back sides</button>
+    <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelDuplexAsync">Cancel duplex scan</button>
    }
-   else if (DuplexWorkflow.Current?.State == ManualDuplexState.AwaitingFlipConfirmation)
+   else if (activeDuplex.State == ManualDuplexState.PageCountMismatch)
    {
-    <p><strong>Flip the stack now:</strong> flip it as one unit, keep its order, and reload it in the same feed direction.</p>
-    <button class="btn btn-success btn-lg w-100" @onclick="ConfirmFlipAsync">Scan back sides</button>
+    <div class="alert alert-danger" role="alert"><strong>Automatic merge is blocked.</strong> Front sides: @activeDuplex.FrontPageCount; back sides: @activeDuplex.BackPageCount. Existing completed documents were not changed.</div>
+    <button class="btn btn-warning btn-lg w-100" @onclick="RestartDuplexAsync">Check stack and restart</button>
     <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelDuplexAsync">Cancel duplex scan</button>
    }
    else
    {
-    <p class="mb-2">@(ScanWorkflow.Current?.Message ?? DuplexWorkflow.Current?.Message)</p>
-    <button class="btn btn-outline-danger btn-lg w-100" @onclick="CancelActiveScanAsync">Cancel scan now</button>
+    <p class="mb-2"><strong>@DuplexPassCount(activeDuplex)</strong> No estimated percentage is available.</p>
+    <button class="btn btn-outline-danger btn-lg w-100" @onclick="CancelDuplexAsync">Cancel duplex scan</button>
    }
   </ChildContent>
  </AppStateCard>
+ }
+ else if (ScanWorkflow.Current is { IsActive: true } activeScan)
+ {
+ <AppStateCard Kind="loading" Title="@(activeScan.State == ScanJobState.Queued ? "Scan is waiting" : activeScan.State == ScanJobState.AwaitingUserDecision ? "The scan is taking unusually long" : "Scan running")" Message="@(activeScan.State == ScanJobState.Queued ? "The scan job is waiting to start. Keep this browser window open." : activeScan.Message)" Loading="@(activeScan.State is ScanJobState.Queued or ScanJobState.Running)">
+  <ChildContent>
+   <p><strong>@activeScan.PageCount complete page(s) received.</strong> The scanner reports completed pages, not an estimated percentage.</p>
+   @if (activeScan.State == ScanJobState.AwaitingUserDecision)
+   {
+    <p>The scanner process may still be working. Choose whether to continue waiting or remove this incomplete scan.</p>
+    <button class="btn btn-primary btn-lg w-100" @onclick="ContinueScanAsync">Scanner is still working — keep waiting</button>
+   }
+   <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Cancel scan now</button>
+   <div class="alert alert-info mt-3 mb-0" role="status">A scan is already in progress. Other scan start actions are unavailable until it finishes or is cancelled.</div>
+  </ChildContent>
+ </AppStateCard>
+ }
 }
 
 @if (CurrentWorkflowStep == "Review" && PageEditor.Current is { } preview)
@@ -245,6 +282,7 @@ else if (CurrentWorkflowStep == "Review")
     private Guid? deleteCandidate;
     private Guid? loadedPreviewSession;
     private IJSObjectReference? notificationModule;
+    private string notificationState = "disabled";
     private PaperlessMetadata? paperlessMetadata;
     private string? paperlessMessage;
     private bool paperlessError;
@@ -292,6 +330,12 @@ else if (CurrentWorkflowStep == "Review")
     {
         if (!firstRender) return;
         notificationModule = await JS.InvokeAsync<IJSObjectReference>("import", "./scanNotifications.js");
+        notificationState = await notificationModule.InvokeAsync<string>("getState");
+        StateHasChanged();
+    }
+    private async Task EnableScanNotificationsAsync()
+    {
+        if (notificationModule is not null) notificationState = await notificationModule.InvokeAsync<string>("enable");
     }
     private void OnScanChanged() => _ = InvokeAsync(async () =>
     {
@@ -372,6 +416,24 @@ else if (CurrentWorkflowStep == "Review")
     private void ChangeResolution(ChangeEventArgs args) { valuesFromDefaults = false; if (int.TryParse(args.Value?.ToString(), out var value)) resolution = value; }
     private static string SourceLabel(string source) => source.Contains("ADF", StringComparison.OrdinalIgnoreCase) || source.Contains("Feeder", StringComparison.OrdinalIgnoreCase) ? $"Automatic feeder ({source})" : $"Flatbed ({source})";
     private static bool IsFeederSource(string source) => source.Contains("ADF", StringComparison.OrdinalIgnoreCase) || source.Contains("Feeder", StringComparison.OrdinalIgnoreCase);
+    private static int DuplexStep(ManualDuplexSnapshot duplex) => duplex.State switch
+    {
+        ManualDuplexState.ScanningFronts => 1,
+        ManualDuplexState.AwaitingFlipConfirmation => 2,
+        _ => 3
+    };
+    private static string DuplexStepTitle(ManualDuplexSnapshot duplex) => $"Manual duplex — step {DuplexStep(duplex)} of 3";
+    private static string DuplexStepMessage(ManualDuplexSnapshot duplex) => duplex.State switch
+    {
+        ManualDuplexState.ScanningFronts => "Scan the front sides. Keep this browser window open.",
+        ManualDuplexState.AwaitingFlipConfirmation => $"Front sides complete ({duplex.FrontPageCount}). The second pass will only start after your confirmation.",
+        ManualDuplexState.ScanningBacks => $"Scanning back sides for {duplex.FrontPageCount} front side(s), then merging in explicit reading order: 1, 2, 3, 4, …",
+        ManualDuplexState.PageCountMismatch => "The page counts cannot be reconciled safely.",
+        _ => duplex.Message
+    };
+    private static string DuplexPassCount(ManualDuplexSnapshot duplex) => duplex.State == ManualDuplexState.ScanningFronts
+        ? $"{duplex.FrontPageCount} complete front side(s) received."
+        : $"{duplex.BackPageCount} complete back side(s) received; {duplex.FrontPageCount} front side(s) expected.";
 
     private async Task ActivateSelectedScannerAsync()
     { if (activeScannerId is { } id) await ActivateScannerAsync(id); }
