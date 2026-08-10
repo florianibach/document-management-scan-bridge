@@ -169,11 +169,16 @@ public sealed class HomePageTests : BunitContext
         await page.FindAll("button").Single(button => button.TextContent.Contains("Continue to Send")).ClickAsync(new());
         await page.Find("button.btn-outline-primary").ClickAsync(new());
         await page.FindAll("button").Single(button => button.TextContent.Contains("Send to Paperless")).ClickAsync(new());
+        Assert.Single(page.FindAll("[data-testid='paperless-processing-hint']"));
         await page.FindAll("button").Single(button => button.TextContent.Contains("Review next document")).ClickAsync(new());
 
         Assert.Contains("Review document 2 of 2", page.Markup);
         Assert.Contains("2/2", page.Find(".workflow-stepper").TextContent);
-        Assert.Equal(1, paperless.UploadCalls);
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue to PDF")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue to Send")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Send to Paperless")).ClickAsync(new());
+        Assert.Single(page.FindAll("[data-testid='paperless-processing-hint']"));
+        Assert.Equal(2, paperless.UploadCalls);
     }
 
     [Fact]
@@ -224,11 +229,40 @@ public sealed class HomePageTests : BunitContext
         await page.Find("input[id^='batch-title-']").ChangeAsync("August invoice");
         await page.FindAll("button").Single(button => button.TextContent.Contains("Send to Paperless")).ClickAsync(new());
         page.WaitForAssertion(() => Assert.Contains("Document submitted", page.Markup));
+        var processingHint = page.Find("[data-testid='paperless-processing-hint']");
+        Assert.Contains("Processing can take some time", processingHint.TextContent);
+        Assert.Contains("File Tasks", processingHint.TextContent);
         Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Contains("Send to Paperless"));
         Assert.Equal(1, paperless.UploadCalls);
         await page.FindAll("button").Single(button => button.TextContent.Contains("Finish batch")).ClickAsync(new());
         Assert.Contains("Start simplex scan", page.Markup);
         Assert.DoesNotContain("Document submitted", page.Markup);
+    }
+
+    [Fact]
+    public async Task ProcessingHintIsAbsentWhileUploadRunsAndAfterItFails()
+    {
+        var editor = new PageEditorStub(new(Guid.NewGuid(), [new(Guid.NewGuid(), 1, "page.png", 0, true, null)]));
+        var uploadGate = new TaskCompletionSource<PaperlessResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        AddServices(new DiscoveryStub(new([], [])), editor: editor, paperless: new PaperlessStub(uploadGate.Task));
+        var page = Render<Home>();
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue with document")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue to PDF")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue to Send")).ClickAsync(new());
+        await page.Find("button.btn-outline-primary").ClickAsync(new());
+
+        var upload = page.FindAll("button").Single(button => button.TextContent.Contains("Send to Paperless")).ClickAsync(new());
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("Uploading", page.Markup);
+            Assert.Empty(page.FindAll("[data-testid='paperless-processing-hint']"));
+        });
+
+        uploadGate.SetResult(new PaperlessResult(false, "Paperless rejected the upload.", PaperlessFailure.Server));
+        await upload;
+        page.WaitForAssertion(() => Assert.Contains("Paperless rejected the upload.", page.Markup));
+        Assert.Empty(page.FindAll("[data-testid='paperless-processing-hint']"));
+        Assert.Contains(page.FindAll("button"), button => button.TextContent.Contains("Retry send"));
     }
 
     [Fact]
@@ -470,11 +504,11 @@ public sealed class HomePageTests : BunitContext
         { Current = new(session.SessionId, PdfCreationState.Completed, "PDF vollständig erstellt.", "document.pdf"); Changed?.Invoke(); return Task.CompletedTask; }
         public Task CancelAsync() => Task.CompletedTask;
     }
-    private sealed class PaperlessStub : IPaperlessClient
+    private sealed class PaperlessStub(Task<PaperlessResult>? uploadResult = null) : IPaperlessClient
     {
         public int UploadCalls { get; private set; }
         public Task<PaperlessResult> CheckConnectivityAsync(CancellationToken cancellationToken = default) => Task.FromResult(new PaperlessResult(true, "Verbindung gültig."));
         public Task<(PaperlessResult Result, PaperlessMetadata? Metadata)> GetMetadataAsync(CancellationToken cancellationToken = default) => Task.FromResult<(PaperlessResult, PaperlessMetadata?)>((new(true, "Metadaten wurden geladen."), new([new(1, "Example GmbH")], [new(2, "Rechnung")], [new(3, "Eingang")])));
-        public Task<PaperlessResult> UploadAsync(PaperlessUploadRequest request, IProgress<int>? progress = null, CancellationToken cancellationToken = default) { UploadCalls++; progress?.Report(100); return Task.FromResult(new PaperlessResult(true, "Paperless hat das Dokument angenommen.", TaskId: "task-1")); }
+        public async Task<PaperlessResult> UploadAsync(PaperlessUploadRequest request, IProgress<int>? progress = null, CancellationToken cancellationToken = default) { UploadCalls++; var result = uploadResult is null ? new PaperlessResult(true, "Paperless hat das Dokument angenommen.", TaskId: "task-1") : await uploadResult.WaitAsync(cancellationToken); if (result.Succeeded) progress?.Report(100); return result; }
     }
 }

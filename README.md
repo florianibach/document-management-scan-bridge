@@ -161,7 +161,7 @@ The completed file is written as `<session>/document.pdf.partial`, closed, and t
    ```
 
 4. `docker compose up --detach --build` ausführen. Die `.env`-Datei und der Token dürfen nicht committed, in Screenshots geteilt oder in Support-Ausgaben eingefügt werden. Der Benutzer des Tokens benötigt mindestens Leserechte für Dokumente, Korrespondenten, Dokumenttypen und Tags sowie die Berechtigung zum Hinzufügen von Dokumenten.
-5. Nach der PDF-Erstellung **Verbindung prüfen und Metadaten laden** wählen. Titel, Korrespondent, Dokumenttyp und Tags auswählen und anschließend **An Paperless senden** drücken. Nach Annahme zeigt die Anwendung die Paperless-Auftrags-ID. Bei Netzwerk- oder Serverfehlern bleibt `document.pdf` in der Scan-Sitzung erhalten und der kontrollierte erneute Versuch ist möglich.
+5. Nach der PDF-Erstellung **Verbindung prüfen und Metadaten laden** wählen. Titel, Korrespondent, Dokumenttyp und Tags auswählen und anschließend **An Paperless senden** drücken. Nach Annahme zeigt die Anwendung die Paperless-Auftrags-ID und weist darauf hin, dass die weitere Verarbeitung dauern kann und in Paperless-ngx unter **File Tasks** geprüft werden kann. Bei Netzwerk- oder Serverfehlern bleibt `document.pdf` in der Scan-Sitzung erhalten und der kontrollierte erneute Versuch ist möglich.
 
 Die Verbindungskontrolle unterscheidet fehlende Konfiguration, ungültige Authentifizierung (HTTP 401), fehlende Berechtigung (HTTP 403), Netzwerk-/Timeoutprobleme und Paperless-Serverfehler. `PAPERLESS_TIMEOUT_SECONDS` ändert bei Bedarf das Standardzeitlimit von 60 Sekunden. Paperless übernimmt OCR und seine normale Verarbeitung; die Bridge wartet nicht auf deren Abschluss.
 
