@@ -53,6 +53,21 @@ public sealed class SettingsPageTests : BunitContext
         Assert.Contains("open tab is in the background", page.Markup);
     }
 
+    [Theory]
+    [InlineData("denied", "Notifications are blocked by the browser")]
+    [InlineData("unsupported", "This browser does not support notifications")]
+    public void UnavailableNotificationsKeepAnActionableVisibleState(string state, string diagnostic)
+    {
+        notifications.Setup<string>("getState").SetResult(state);
+        AddAnonymousServices();
+
+        var page = Render<Settings>();
+
+        page.WaitForAssertion(() => Assert.Contains(diagnostic, page.Markup));
+        Assert.True(page.FindAll("button").Single(button => button.TextContent.Contains("Enable notifications")).HasAttribute("disabled"));
+        Assert.DoesNotContain(notifications.Invocations, invocation => invocation.Identifier == "enable");
+    }
+
     [Fact]
     public async Task AuthenticatedUserCanRevealOnlyNewTokenBeforeSaving()
     {

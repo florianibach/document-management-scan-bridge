@@ -47,8 +47,11 @@ public sealed class SimplexScanWorkflowTests : IDisposable
         await workflow.StartAsync(new("device", "ADF Simplex", ScanColorMode.Color, 300));
         await WaitForState(workflow, ScanJobState.AwaitingUserDecision);
         Assert.Contains("keep waiting", workflow.Current!.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, workflow.Current.TimeoutDecisionNumber);
         await workflow.ContinueAsync();
         await WaitForState(workflow, ScanJobState.Running);
+        await WaitForState(workflow, ScanJobState.AwaitingUserDecision);
+        Assert.Equal(2, workflow.Current!.TimeoutDecisionNumber);
         await workflow.CancelAsync();
         Assert.Equal(ScanJobState.Cancelled, workflow.Current!.State);
     }

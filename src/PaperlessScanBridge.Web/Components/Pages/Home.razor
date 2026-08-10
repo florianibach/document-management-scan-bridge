@@ -464,7 +464,15 @@ else if (CurrentWorkflowStep == "Send" && PdfWorkflow.Current is { State: PdfCre
             return;
         }
         if (ScanWorkflow.Current is { } scan && scan.State is ScanJobState.AwaitingUserDecision or ScanJobState.Completed or ScanJobState.Failed)
-            await ShowNotificationAsync(scan.SessionId, scan.State.ToString(), scan.State == ScanJobState.Completed ? "Scan completed" : scan.State == ScanJobState.Failed ? "Scan failed" : "Scan needs a decision", scan.Message);
+        {
+            var eventName = scan.State == ScanJobState.AwaitingUserDecision
+                ? $"{scan.State}:{scan.TimeoutDecisionNumber}"
+                : scan.State.ToString();
+            var notificationMessage = scan.State == ScanJobState.AwaitingUserDecision
+                ? "The scan is still running. Return to Scan Bridge to keep waiting or cancel the scan."
+                : scan.Message;
+            await ShowNotificationAsync(scan.SessionId, eventName, scan.State == ScanJobState.Completed ? "Scan completed" : scan.State == ScanJobState.Failed ? "Scan failed" : "Scan needs a decision", notificationMessage);
+        }
         if (DuplexWorkflow.Current is { } duplex && duplex.State is ManualDuplexState.AwaitingFlipConfirmation or ManualDuplexState.PageCountMismatch or ManualDuplexState.Completed or ManualDuplexState.Failed)
             await ShowNotificationAsync(duplex.SessionId, duplex.State.ToString(), duplex.State == ManualDuplexState.AwaitingFlipConfirmation ? "Flip the stack" : duplex.State == ManualDuplexState.Completed ? "Duplex scan completed" : duplex.State == ManualDuplexState.Failed ? "Duplex scan failed" : "Duplex scan needs a decision", duplex.Message);
     }
