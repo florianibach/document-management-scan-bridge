@@ -17,14 +17,14 @@ public sealed class AccountMenuTests : BunitContext
         var component = Render<AccountMenu>();
 
         var trigger = component.Find("button.account-trigger");
-        Assert.Contains("anonymes Haushaltsprofil", trigger.GetAttribute("aria-label"));
+        Assert.Contains("anonymous household profile", trigger.GetAttribute("aria-label"));
         Assert.Equal("false", trigger.GetAttribute("aria-expanded"));
 
         await trigger.ClickAsync(new());
 
         Assert.Equal("true", trigger.GetAttribute("aria-expanded"));
-        Assert.Contains("von allen Personen in diesem Haushalt gemeinsam verwendet", component.Markup);
-        Assert.DoesNotContain("Abmelden", component.Markup);
+        Assert.Contains("shared by everyone in this household", component.Markup);
+        Assert.DoesNotContain("Sign out", component.Markup);
     }
 
     [Fact]
@@ -34,11 +34,10 @@ public sealed class AccountMenuTests : BunitContext
         {
             new Claim(ClaimTypes.NameIdentifier, "private-subject"),
             new Claim(ClaimTypes.Name, "Ada Lovelace"),
-            new Claim("iss", "https://identity.example.test/realms/home"),
             new Claim("picture", "https://images.example.test/ada.png"),
             new Claim("access_token", "private-token")
         };
-        Configure(ProfileMode.OpenIdConnect, new ClaimsPrincipal(new ClaimsIdentity(claims, "oidc", ClaimTypes.Name, ClaimTypes.Role)), "Ada Lovelace");
+        Configure(ProfileMode.OpenIdConnect, new ClaimsPrincipal(new ClaimsIdentity(claims, "AuthenticationTypes.Federation", ClaimTypes.Name, ClaimTypes.Role)), "Ada Lovelace");
         var component = Render<AccountMenu>();
 
         Assert.Equal("https://images.example.test/ada.png", component.Find("img").GetAttribute("src"));
@@ -46,6 +45,7 @@ public sealed class AccountMenuTests : BunitContext
 
         Assert.Contains("Ada Lovelace", component.Markup);
         Assert.Contains("identity.example.test", component.Markup);
+        Assert.DoesNotContain("AuthenticationTypes.Federation", component.Markup);
         Assert.Contains("action=\"/signout\"", component.Markup);
         Assert.DoesNotContain("private-subject", component.Markup);
         Assert.DoesNotContain("private-token", component.Markup);
@@ -61,9 +61,9 @@ public sealed class AccountMenuTests : BunitContext
         Assert.Contains("CJ", component.Find(".account-avatar").TextContent);
 
         provider.SetPrincipal(new ClaimsPrincipal(new ClaimsIdentity()));
-        component.WaitForAssertion(() => Assert.Contains("Nicht angemeldet", component.Find("button.account-trigger").TextContent));
+        component.WaitForAssertion(() => Assert.Contains("Not signed in", component.Find("button.account-trigger").TextContent));
         await component.Find("button.account-trigger").ClickAsync(new());
-        Assert.DoesNotContain("Abmelden", component.Markup);
+        Assert.DoesNotContain("Sign out", component.Markup);
     }
 
     private MutableAuthenticationStateProvider Configure(ProfileMode mode, ClaimsPrincipal principal, string displayName = "Shared anonymous profile")
@@ -94,6 +94,6 @@ public sealed class AccountMenuTests : BunitContext
     private sealed class ProfileAccessorStub(string displayName) : ICurrentProfileAccessor
     {
         public Task<UserProfile> GetRequiredAsync(CancellationToken cancellationToken = default) => Task.FromResult(
-            new UserProfile("profile", "issuer", "subject", displayName, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            new UserProfile("profile", "https://identity.example.test/realms/home", "subject", displayName, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
     }
 }

@@ -19,6 +19,7 @@ description: Implement or revise any paperless-scan-bridge user story from accep
 3. Implement relevant validation, cancellation, retries, empty states, timeouts, cleanup, and recovery. Provide actionable diagnostics without sensitive metadata or document content.
 4. Update dependency injection, persistence migrations, container packaging, Compose configuration, and logs only when required by the selected story. When Compose variables are added, renamed, repurposed, or made operator-facing, document their names, defaults, meanings, secret handling, and validation commands in `README.md`.
 5. Keep mobile-first UI behavior accessible and consistent with the existing component and styling system.
+6. Use English for user-facing text by default, including anonymous and authenticated states, validation messages, accessible names, tests, and documentation examples. Preserve another language only when the selected story or an established localization resource explicitly requires it; do not introduce mixed-language UI.
 
 ## Verify the change
 

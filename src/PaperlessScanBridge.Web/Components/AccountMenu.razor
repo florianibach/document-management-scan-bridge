@@ -31,24 +31,24 @@
 
     @if (menuOpen)
     {
-        <section class="account-panel" role="menu" aria-label="Profil und Konto">
+        <section class="account-panel" role="menu" aria-label="Profile and account">
             @if (identity?.Kind == AccountKind.Anonymous)
             {
-                <p class="account-heading">Anonymes Haushaltsprofil</p>
-                <p>Dieses Profil und seine Einstellungen werden von allen Personen in diesem Haushalt gemeinsam verwendet.</p>
+                <p class="account-heading">Anonymous household profile</p>
+                <p>This profile and its settings are shared by everyone in this household.</p>
             }
             else if (identity?.Kind == AccountKind.Authenticated)
             {
                 <p class="account-heading">@identity.DisplayName</p>
-                <p class="account-provider">Angemeldet über @identity.Provider</p>
+                <p class="account-provider">Signed in with @identity.Provider</p>
                 <form method="post" action="/signout">
-                    <button class="btn btn-outline-secondary account-action" role="menuitem">Abmelden</button>
+                    <button class="btn btn-outline-secondary account-action" role="menuitem">Sign out</button>
                 </form>
             }
             else
             {
-                <p class="account-heading">Nicht angemeldet</p>
-                <p>Für dieses geschützte Profil ist eine Anmeldung erforderlich.</p>
+                <p class="account-heading">Not signed in</p>
+                <p>Sign-in is required for this protected profile.</p>
             }
         </section>
     }
@@ -63,9 +63,9 @@
 
     private string AccessibleName => identity switch
     {
-        { Kind: AccountKind.Anonymous } => "Kontomenü für anonymes Haushaltsprofil öffnen",
-        { Kind: AccountKind.Authenticated } value => $"Kontomenü für {value.DisplayName} öffnen",
-        _ => "Kontomenü öffnen; nicht angemeldet"
+        { Kind: AccountKind.Anonymous } => "Open account menu for anonymous household profile",
+        { Kind: AccountKind.Authenticated } value => $"Open account menu for {value.DisplayName}",
+        _ => "Open account menu; not signed in"
     };
 
     protected override async Task OnInitializedAsync()
@@ -91,18 +91,18 @@
         if (Options.Value.Mode == ProfileMode.Anonymous)
         {
             var anonymousProfile = await CurrentProfile.GetRequiredAsync();
-            identity = new(AccountKind.Anonymous, anonymousProfile.DisplayName, "Anonym", null, Initials(anonymousProfile.DisplayName));
+            identity = new(AccountKind.Anonymous, anonymousProfile.DisplayName, "Anonymous", null, Initials(anonymousProfile.DisplayName));
             return;
         }
 
         if (principal.Identity?.IsAuthenticated != true)
         {
-            identity = new(AccountKind.SignedOut, "Nicht angemeldet", "", null, null);
+            identity = new(AccountKind.SignedOut, "Not signed in", "", null, null);
             return;
         }
 
         var profile = await CurrentProfile.GetRequiredAsync();
-        identity = new(AccountKind.Authenticated, profile.DisplayName, ProviderName(principal), SafeImageUrl(principal), Initials(profile.DisplayName));
+        identity = new(AccountKind.Authenticated, profile.DisplayName, ProviderName(profile.Issuer), SafeImageUrl(principal), Initials(profile.DisplayName));
     }
 
     private async Task ToggleAsync()
@@ -128,11 +128,10 @@
         return InvokeAsync(StateHasChanged);
     }
 
-    private static string ProviderName(ClaimsPrincipal principal)
+    private static string ProviderName(string issuer)
     {
-        var issuer = principal.FindFirst("iss")?.Value;
-        if (Uri.TryCreate(issuer, UriKind.Absolute, out var uri)) return uri.Host;
-        return string.IsNullOrWhiteSpace(principal.Identity?.AuthenticationType) ? "OpenID Connect" : principal.Identity.AuthenticationType;
+        if (Uri.TryCreate(issuer, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.Host)) return uri.Host;
+        return "OpenID Connect";
     }
 
     private static string? SafeImageUrl(ClaimsPrincipal principal)

@@ -36,7 +36,7 @@ public sealed class HomePageTests : BunitContext
         Assert.Contains("Documents", layout.Markup);
         Assert.Contains("Settings", layout.Markup);
         Assert.Contains("Status", layout.Markup);
-        Assert.Contains("Kontomenü für anonymes Haushaltsprofil", layout.Markup);
+        Assert.Contains("Open account menu for anonymous household profile", layout.Markup);
     }
 
     private sealed class AnonymousAuthenticationStateProvider : AuthenticationStateProvider

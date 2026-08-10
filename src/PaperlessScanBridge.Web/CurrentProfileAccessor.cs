@@ -12,11 +12,11 @@ public sealed class CurrentProfileAccessor(IHttpContextAccessor http, IUserProfi
             return users.GetOrCreateAsync("scan-bridge", options.Value.AnonymousSubject, "Shared anonymous profile", cancellationToken);
 
         var principal = http.HttpContext?.User;
-        if (principal?.Identity?.IsAuthenticated != true) throw new UnauthorizedAccessException("Eine Anmeldung ist erforderlich.");
+        if (principal?.Identity?.IsAuthenticated != true) throw new UnauthorizedAccessException("Sign-in is required.");
         var subject = principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? principal.FindFirstValue("sub");
         var issuer = principal.FindFirst("iss")?.Value ?? principal.FindFirstValue("http://schemas.microsoft.com/identity/claims/tenantid") ?? "oidc";
         if (string.IsNullOrWhiteSpace(subject)) throw new UnauthorizedAccessException("The identity provider did not provide a stable subject.");
-        var displayName = principal.Identity.Name ?? principal.FindFirstValue("name") ?? "Angemeldeter Benutzer";
+        var displayName = principal.Identity.Name ?? principal.FindFirstValue("name") ?? "Signed-in user";
         return users.GetOrCreateAsync(issuer, subject, displayName, cancellationToken);
     }
 }
