@@ -1,5 +1,6 @@
 @using PaperlessScanBridge.Application.Scanning
 @inject IScannerDiscoveryService Discovery
+@inject IScanner Scanner
 
 <section class="card scanner-setup-card" aria-labelledby="scanner-setup-title">
  <div class="card-body">
@@ -37,7 +38,7 @@
           <h4 class="h5">@device.DisplayName</h4>
           <p class="text-body-secondary mb-2">eSCL available · @device.Protocol.ToUpperInvariant() preferred</p>
           @if (validatingId == device.DiscoveryId)
-          { <div class="alert alert-info" role="status"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Validating scanner capabilities …</div> }
+          { <div class="alert alert-info" role="status"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>@(loadingSaneCapabilities ? "Reading scanner backend capabilities …" : "Validating scanner capabilities …")</div> }
           <button class="btn btn-success btn-lg w-100 mt-auto" disabled="@busy" @onclick="() => SelectAsync(device.DiscoveryId)">Select and validate</button>
          </div>
         </article>
@@ -65,10 +66,11 @@
 </section>
 
 @code {
+ [Parameter] public EventCallback<SelectedScanner> ScannerReady { get; set; }
  private ScannerNetworkDiscoveryResult? result;
  private ScannerSelectionResult? selection;
  private string? validatingId, lastAttemptedId;
- private bool discovering;
+ private bool discovering, loadingSaneCapabilities;
  private bool busy => discovering || validatingId is not null;
 
  private async Task DiscoverAsync()
@@ -81,8 +83,24 @@
  private async Task SelectAsync(string discoveryId)
  {
   validatingId = discoveryId; lastAttemptedId = discoveryId; selection = null;
-  try { selection = await Discovery.SelectAsync(discoveryId, default); }
-  finally { validatingId = null; }
+  try
+  {
+   selection = await Discovery.SelectAsync(discoveryId, default);
+   if (selection is not { Succeeded: true, Scanner: { } selected }) return;
+
+   loadingSaneCapabilities = true;
+   var sane = await Scanner.DiscoverAsync(default);
+   if (!sane.Succeeded || sane.SelectedDevice is null || sane.Capabilities is null)
+   {
+    selection = selection with { Diagnostic = sane.Diagnostic ?? "The scanner backend did not return usable capabilities." };
+    return;
+   }
+
+   var ready = await Discovery.SaveSaneProfileAsync(selected.Id, sane.SelectedDevice, sane.Capabilities, default);
+   selection = selection with { Scanner = ready };
+   await ScannerReady.InvokeAsync(ready);
+  }
+  finally { loadingSaneCapabilities = false; validatingId = null; }
  }
 
  private static string SuccessMessage(SelectedScanner scanner, string? diagnostic) =>
