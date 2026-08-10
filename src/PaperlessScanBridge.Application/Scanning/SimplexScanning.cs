@@ -106,7 +106,7 @@ public sealed class SimplexScanWorkflow(
                 TaskCompletionSource<bool> decision;
                 lock (gate) timeoutDecision = decision = new(TaskCreationOptions.RunContinuationsAsynchronously);
                 Update(sessionId, ScanJobState.AwaitingUserDecision, 0,
-                    "Das erwartete Zeitfenster ist abgelaufen. Läuft der Scanner noch, kann weiter gewartet werden.");
+                    "The expected time window expired. If the scanner is still working, you can keep waiting.");
                 await decision.Task.WaitAsync(cancellation.Token);
                 lock (gate) timeoutDecision = null;
                 Update(sessionId, ScanJobState.Running, 0, "Scanner erfasst weiterhin Seiten …");
@@ -119,7 +119,7 @@ public sealed class SimplexScanWorkflow(
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
             DeleteSession(sessionDirectory);
-            Update(sessionId, ScanJobState.Cancelled, 0, "Scan wurde abgebrochen; unvollständige Seiten wurden entfernt.");
+            Update(sessionId, ScanJobState.Cancelled, 0, "Scan cancelled; incomplete pages were removed.");
             logger.LogInformation("Simplex scan session {SessionId} was cancelled", sessionId);
         }
         catch (Exception exception)
@@ -127,9 +127,9 @@ public sealed class SimplexScanWorkflow(
             DeleteSession(sessionDirectory);
             var message = exception switch
             {
-                ProcessTimeoutException => "Der Scan hat das Zeitlimit überschritten. Scanner und Netzwerk prüfen.",
-                ProcessExecutionException => "Der Scannerbefehl konnte nicht gestartet werden. SANE-Installation prüfen.",
-                _ => "Der Scan ist fehlgeschlagen oder hat keine vollständige Seite geliefert. Scannerverfügbarkeit prüfen."
+                ProcessTimeoutException => "The scan timed out. Check the scanner and network.",
+                ProcessExecutionException => "The scanner command could not start. Check the SANE installation.",
+                _ => "The scan failed or returned no complete page. Check scanner availability."
             };
             Update(sessionId, ScanJobState.Failed, 0, message);
             logger.LogWarning("Simplex scan session {SessionId} failed: {FailureType}", sessionId, exception.GetType().Name);

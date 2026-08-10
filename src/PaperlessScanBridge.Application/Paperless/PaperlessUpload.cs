@@ -41,13 +41,13 @@ public sealed class PaperlessUploadWorkflow(IPaperlessClient client) : IPaperles
             var progress = new InlineProgress(value =>
             {
                 if (Current?.State == PaperlessUploadState.Uploading)
-                    Set(new(request.SessionId, PaperlessUploadState.Uploading, value, $"Upload läuft: {value} %"));
+                    Set(new(request.SessionId, PaperlessUploadState.Uploading, value, $"Upload in progress: {value} %"));
             });
             var result = await client.UploadAsync(request, progress, active.Token);
             Set(new(request.SessionId, result.Succeeded ? PaperlessUploadState.Accepted : PaperlessUploadState.Failed,
                 result.Succeeded ? 100 : Current?.ProgressPercent ?? 0, result.Message, result.TaskId));
         }
-        catch (OperationCanceledException) { Set(new(request.SessionId, PaperlessUploadState.Cancelled, Current?.ProgressPercent ?? 0, "Upload abgebrochen; die PDF bleibt für einen erneuten Versuch erhalten.")); }
+        catch (OperationCanceledException) { Set(new(request.SessionId, PaperlessUploadState.Cancelled, Current?.ProgressPercent ?? 0, "Upload cancelled; the PDF remains available for another attempt.")); }
         finally { active?.Dispose(); active = null; }
     }
 

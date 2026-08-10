@@ -19,111 +19,116 @@
 @rendermode InteractiveServer
 
 <PageTitle>Scan</PageTitle>
-<header class="page-heading"><h1>Scan</h1><p>Dokument vorbereiten, erfassen, prüfen und sicher übergeben.</p></header>
+<header class="page-heading"><h1>Scan</h1><p>Prepare, capture, review, and safely send a document.</p></header>
 <WorkflowStepper Current="@CurrentWorkflowStep" />
-@if (CurrentWorkflowStep == "Vorbereiten" && !string.IsNullOrWhiteSpace(message)) { <div class="alert alert-info" role="status">@message</div> }
-@if (CurrentWorkflowStep == "Vorbereiten")
+@if (CurrentWorkflowStep == "Prepare" && !string.IsNullOrWhiteSpace(message)) { <div class="alert alert-info" role="status">@message</div> }
+@if (CurrentWorkflowStep == "Prepare")
 {
 <section class="card mt-4 scan-panel">
  <div class="card-body">
   <span class="badge text-bg-primary mb-2">Simplex</span>
-  <h2 class="h3">Dokument scannen</h2>
-  <p>Eine Seite vom Vorlagenglas oder mehrere einseitige Seiten über den Einzug erfassen.</p>
+  <h2 class="h3">Scan a document</h2>
+  <p>Capture one page from the flatbed or multiple one-sided pages from the feeder.</p>
   @if (savedScanners.Count == 0)
   {
-   <div class="alert alert-warning">Noch kein gespeicherter Scanner vorhanden. Bitte zuerst oben einen Scanner suchen und auswählen.</div>
+   <div class="setup-prompt card border-primary" role="status"><div class="card-body"><h3 class="h4">No scanner selected yet</h3><p>Find a compatible eSCL/AirScan scanner on your network before starting a scan.</p><a class="btn btn-primary btn-lg w-100" href="/scanner-setup">Set up a scanner</a></div></div>
   }
   else
   {
-   <div class="mb-3"><label class="form-label" for="saved-scanner">Gespeicherter Scanner</label><select id="saved-scanner" class="form-select form-select-lg" @bind="activeScannerId" @bind:after="ActivateSelectedScannerAsync" disabled="@(IsScanning || scannerLoading)"><option value="">Scanner auswählen …</option>@foreach (var scanner in savedScanners) { <option value="@scanner.Id">@scanner.DisplayName (@scanner.IpAddress)</option> }</select></div>
-   @if (activeScannerId is null) { <div class="alert alert-info">Scanner auswählen, um dessen aktuelle Einzugsquellen und Scanoptionen abzufragen.</div> }
-   @if (scannerLoading) { <div class="alert alert-info d-flex align-items-center gap-2" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>SANE sucht den Scanner und liest seine Optionen mit <code>scanimage</code> …</span></div> }
+   <div class="mb-3"><label class="form-label" for="saved-scanner">Saved scanner</label><select id="saved-scanner" class="form-select form-select-lg" @bind="activeScannerId" @bind:after="ActivateSelectedScannerAsync" disabled="@(IsScanning || scannerLoading)"><option value="">Select a scanner …</option>@foreach (var scanner in savedScanners) { <option value="@scanner.Id">@scanner.DisplayName (@scanner.IpAddress)</option> }</select></div>
+   @if (activeScannerId is null) { <div class="alert alert-info">Select a scanner to load its current sources and scan options.</div> }
+   @if (scannerLoading) { <div class="alert alert-info d-flex align-items-center gap-2" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>SANE is locating the scanner and reading its options with <code>scanimage</code> …</span></div> }
   }
   @if (!string.IsNullOrWhiteSpace(activeDeviceId))
   {
-  <button class="btn btn-outline-secondary w-100 mb-3" @onclick="RefreshSaneAsync" disabled="@(IsScanning || scannerLoading)">Scannerwerte aktualisieren</button>
+  @if (ActiveScanner is { } prepared)
+  {
+  <section class="prepare-summary mb-3" aria-labelledby="prepare-summary-title"><h3 id="prepare-summary-title" class="h5">Ready to scan</h3><dl class="row mb-0"><dt class="col-5">Scanner</dt><dd class="col-7">@prepared.DisplayName</dd><dt class="col-5">Last validated</dt><dd class="col-7">@prepared.ValidatedAt.ToLocalTime().ToString("g")</dd><dt class="col-5">Scan mode</dt><dd class="col-7">Simplex or manual duplex</dd><dt class="col-5">Source</dt><dd class="col-7">@SourceLabel(scanSource)</dd><dt class="col-5">Color</dt><dd class="col-7">@ColorModeLabel</dd><dt class="col-5">Resolution</dt><dd class="col-7">@resolution dpi</dd><dt class="col-5">Values</dt><dd class="col-7">@(valuesFromDefaults ? "Profile defaults" : "Current scanner settings")</dd></dl></section>
+  }
+  <button class="btn btn-outline-secondary w-100 mb-3" @onclick="RefreshSaneAsync" disabled="@(IsScanning || scannerLoading)">Refresh scanner capabilities</button>
   <div class="row g-3">
-   <div class="col-12 col-md-4"><label class="form-label" for="source">Quelle</label><select id="source" class="form-select form-select-lg" value="@scanSource" @onchange="ChangeSource" disabled="@(IsScanning || availableSources.Count == 0)">@foreach (var source in availableSources) { <option value="@source" selected="@(source == scanSource)">@SourceLabel(source)</option> }</select></div>
-   <div class="col-12 col-md-4"><label class="form-label" for="color">Farbmodus</label><select id="color" class="form-select form-select-lg" value="@colorMode" @onchange="ChangeColorMode" disabled="@IsScanning"><option value="Color" selected="@(colorMode == ScanColorMode.Color)">Farbe</option><option value="Grayscale" selected="@(colorMode == ScanColorMode.Grayscale)">Graustufen</option><option value="BlackAndWhite" selected="@(colorMode == ScanColorMode.BlackAndWhite)">Schwarzweiß</option></select></div>
-   <div class="col-12 col-md-4"><label class="form-label" for="resolution">Auflösung</label><select id="resolution" class="form-select form-select-lg" value="@resolution" @onchange="ChangeResolution" disabled="@IsScanning"><option value="100" selected="@(resolution == 100)">100 dpi</option><option value="200" selected="@(resolution == 200)">200 dpi</option><option value="300" selected="@(resolution == 300)">300 dpi</option><option value="600" selected="@(resolution == 600)">600 dpi</option></select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="source">Source</label><select id="source" class="form-select form-select-lg" value="@scanSource" @onchange="ChangeSource" disabled="@(IsScanning || availableSources.Count == 0)">@foreach (var source in availableSources) { <option value="@source" selected="@(source == scanSource)">@SourceLabel(source)</option> }</select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="color">Color mode</label><select id="color" class="form-select form-select-lg" value="@colorMode" @onchange="ChangeColorMode" disabled="@IsScanning"><option value="Color" selected="@(colorMode == ScanColorMode.Color)">Color</option><option value="Grayscale" selected="@(colorMode == ScanColorMode.Grayscale)">Grayscale</option><option value="BlackAndWhite" selected="@(colorMode == ScanColorMode.BlackAndWhite)">Black and white</option></select></div>
+   <div class="col-12 col-md-4"><label class="form-label" for="resolution">Resolution</label><select id="resolution" class="form-select form-select-lg" value="@resolution" @onchange="ChangeResolution" disabled="@IsScanning"><option value="100" selected="@(resolution == 100)">100 dpi</option><option value="200" selected="@(resolution == 200)">200 dpi</option><option value="300" selected="@(resolution == 300)">300 dpi</option><option value="600" selected="@(resolution == 600)">600 dpi</option></select></div>
   </div>
   }
-  <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="StartScanAsync" disabled="@(IsScanning || DuplexWorkflow.Current?.IsActive == true || string.IsNullOrWhiteSpace(activeDeviceId) || string.IsNullOrWhiteSpace(scanSource))">@(IsScanning ? "Scan läuft …" : "Simplex-Scan starten")</button>
+  @if (savedScanners.Count > 0)
+  { <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="StartScanAsync" disabled="@(IsScanning || DuplexWorkflow.Current?.IsActive == true || string.IsNullOrWhiteSpace(activeDeviceId) || string.IsNullOrWhiteSpace(scanSource))">@(IsScanning ? "Scanning …" : "Start simplex scan")</button> }
   @if (ScanWorkflow.Current?.State == ScanJobState.AwaitingUserDecision)
   {
-   <button class="btn btn-success btn-lg w-100 mt-2" @onclick="ContinueScanAsync">Scanner arbeitet noch – weiter warten</button>
-   <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan jetzt abbrechen</button>
+   <button class="btn btn-success btn-lg w-100 mt-2" @onclick="ContinueScanAsync">Scanner is still working — keep waiting</button>
+   <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Cancel scan now</button>
   }
-  else if (IsScanning) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan jetzt abbrechen</button> }
+  else if (IsScanning) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Cancel scan now</button> }
   @if (ScanWorkflow.Current is { } job) { <div class="alert @StatusClass mt-3 mb-0" role="status" aria-live="polite"><strong>@StatusLabel:</strong> @job.Message</div> }
  </div>
 </section>
 
 <section class="card mt-4 scan-panel duplex-panel">
  <div class="card-body">
-  <span class="badge text-bg-success mb-2">Manueller Duplex</span>
-  <h2 class="h3">Beidseitiges Dokument scannen</h2>
-  <p>Zwei kontrollierte Einzugsdurchläufe werden anschließend automatisch in Lesereihenfolge gebracht.</p>
+  <span class="badge text-bg-success mb-2">Manual duplex</span>
+  <h2 class="h3">Scan a two-sided document</h2>
+  <p>Two controlled feeder passes are automatically combined in reading order.</p>
   @if (!HasAdf)
   {
-   <div class="alert alert-warning">Für manuellen Duplex bitte einen Scanner mit automatischem Einzug auswählen.</div>
+   <div class="alert alert-warning">Select a scanner with an automatic feeder for manual duplex.</div>
   }
   else
   {
-   <div class="alert alert-info mb-3"><strong>Verwendete Einstellungen:</strong> Automatischer Einzug (@DuplexSource), @ColorModeLabel, @resolution dpi. Die oben gewählten Farb- und Auflösungswerte gelten für beide Durchläufe.</div>
+   <div class="alert alert-info mb-3"><strong>Settings used:</strong> Automatic feeder (@DuplexSource), @ColorModeLabel, @resolution dpi. The color and resolution values selected above apply to both passes.</div>
   }
   @if (HasAdf && DuplexWorkflow.Current?.State == ManualDuplexState.AwaitingFlipConfirmation)
   {
    <div class="flip-instruction" role="status" aria-live="polite">
     <div class="flip-icon" aria-hidden="true">↶</div>
-    <h3 class="h4">Stapel jetzt wenden</h3>
-    <ol><li>Den vollständigen Stapel aus dem Ausgabefach nehmen.</li><li>Den Stapel geschlossen wenden – Reihenfolge nicht verändern.</li><li>Mit der ungescannten Seite in derselben Einzugsrichtung wieder einlegen.</li></ol>
+    <h3 class="h4">Flip the stack now</h3>
+    <ol><li>Remove the complete stack from the output tray.</li><li>Flip the stack as one unit — do not change its order.</li><li>Reload it with the unscanned side in the same feed direction.</li></ol>
    </div>
-   <div class="form-check my-3"><input id="blank-back" class="form-check-input" type="checkbox" @bind="finalBackIsBlank"><label class="form-check-label" for="blank-back">Die allerletzte Rückseite des Dokuments ist leer</label></div>
-   <button class="btn btn-success btn-lg w-100" @onclick="ConfirmFlipAsync">Stapel liegt richtig – Rückseiten scannen</button>
-   <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelDuplexAsync">Duplex-Scan abbrechen</button>
+   <div class="form-check my-3"><input id="blank-back" class="form-check-input" type="checkbox" @bind="finalBackIsBlank"><label class="form-check-label" for="blank-back">The final back side of the document is blank</label></div>
+   <button class="btn btn-success btn-lg w-100" @onclick="ConfirmFlipAsync">Stack is ready — scan back sides</button>
+   <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelDuplexAsync">Cancel duplex scan</button>
   }
   else if (HasAdf)
   {
-   <button class="btn btn-success btn-lg w-100" @onclick="StartDuplexAsync" disabled="@(!HasAdf || IsScanning || DuplexWorkflow.Current?.IsActive == true)">@(DuplexWorkflow.Current?.IsActive == true ? "Duplex-Scan läuft …" : "Manuellen Duplex-Scan starten")</button>
-   @if (DuplexWorkflow.Current?.State is ManualDuplexState.ScanningFronts or ManualDuplexState.ScanningBacks) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelDuplexAsync">Duplex-Scan abbrechen</button> }
-   @if (DuplexWorkflow.Current?.State == ManualDuplexState.PageCountMismatch) { <button class="btn btn-warning btn-lg w-100 mt-2" @onclick="RestartDuplexAsync">Stapel prüfen und neu starten</button> }
+   <button class="btn btn-success btn-lg w-100" @onclick="StartDuplexAsync" disabled="@(!HasAdf || IsScanning || DuplexWorkflow.Current?.IsActive == true)">@(DuplexWorkflow.Current?.IsActive == true ? "Duplex-Scanning …" : "Start manual duplex scan")</button>
+   @if (DuplexWorkflow.Current?.State is ManualDuplexState.ScanningFronts or ManualDuplexState.ScanningBacks) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelDuplexAsync">Cancel duplex scan</button> }
+   @if (DuplexWorkflow.Current?.State == ManualDuplexState.PageCountMismatch) { <button class="btn btn-warning btn-lg w-100 mt-2" @onclick="RestartDuplexAsync">Check stack and restart</button> }
   }
   @if (DuplexWorkflow.Current is { } duplex) { <div class="alert @DuplexStatusClass mt-3 mb-0" role="status" aria-live="polite"><strong>@DuplexStatusLabel:</strong> @duplex.Message</div> }
  </div>
 </section>
 }
 
-@if (CurrentWorkflowStep == "Scannen")
+@if (CurrentWorkflowStep == "Scan")
 {
- <AppStateCard Kind="loading" Title="Scan läuft" Message="Der Scanner arbeitet. Bitte lasse dieses Browserfenster geöffnet." Loading="true">
+ <AppStateCard Kind="loading" Title="Scan running" Message="The scanner is working. Keep this browser window open." Loading="true">
   <ChildContent>
    @if (ScanWorkflow.Current?.State == ScanJobState.AwaitingUserDecision)
    {
-    <button class="btn btn-primary btn-lg w-100" @onclick="ContinueScanAsync">Scanner arbeitet noch – weiter warten</button>
-    <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Scan jetzt abbrechen</button>
+    <button class="btn btn-primary btn-lg w-100" @onclick="ContinueScanAsync">Scanner is still working — keep waiting</button>
+    <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelScanAsync">Cancel scan now</button>
    }
    else if (DuplexWorkflow.Current?.State == ManualDuplexState.AwaitingFlipConfirmation)
    {
-    <p><strong>Stapel jetzt wenden:</strong> geschlossen wenden, die Reihenfolge nicht verändern und wieder in derselben Einzugsrichtung einlegen.</p>
-    <button class="btn btn-success btn-lg w-100" @onclick="ConfirmFlipAsync">Rückseiten scannen</button>
-    <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelDuplexAsync">Duplex-Scan abbrechen</button>
+    <p><strong>Flip the stack now:</strong> flip it as one unit, keep its order, and reload it in the same feed direction.</p>
+    <button class="btn btn-success btn-lg w-100" @onclick="ConfirmFlipAsync">Scan back sides</button>
+    <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="CancelDuplexAsync">Cancel duplex scan</button>
    }
    else
    {
     <p class="mb-2">@(ScanWorkflow.Current?.Message ?? DuplexWorkflow.Current?.Message)</p>
-    <button class="btn btn-outline-danger btn-lg w-100" @onclick="CancelActiveScanAsync">Scan jetzt abbrechen</button>
+    <button class="btn btn-outline-danger btn-lg w-100" @onclick="CancelActiveScanAsync">Cancel scan now</button>
    }
   </ChildContent>
  </AppStateCard>
 }
 
-@if (CurrentWorkflowStep == "Prüfen" && PageEditor.Current is { } preview)
+@if (CurrentWorkflowStep == "Review" && PageEditor.Current is { } preview)
 {
  <section class="card mt-4 preview-panel" aria-labelledby="preview-title">
   <div class="card-body">
-   <h2 id="preview-title" class="h3">Seiten prüfen und bearbeiten</h2>
-   <p>Drehungen und Löschungen gelten nur für diese Sitzung; die unveränderten Quelldateien bleiben erhalten.</p>
+   <h2 id="preview-title" class="h3">Review and edit pages</h2>
+   <p>Rotations and deletions apply only to this session; original source files remain unchanged.</p>
    @if (preview.Pages.Count == 0)
    {
     <div class="alert alert-warning" role="status">@preview.Message</div>
@@ -133,12 +138,12 @@
     <div class="preview-grid">
      @foreach (var scannedPage in preview.Pages)
      {
-      <article class="preview-page" aria-label="@("Seite " + scannedPage.Number)">
-       <h3 class="h5">Seite @scannedPage.Number</h3>
+      <article class="preview-page" aria-label="@("Page " + scannedPage.Number)">
+       <h3 class="h5">Page @scannedPage.Number</h3>
        @if (scannedPage.IsAvailable)
        {
-        <div class="preview-image-frame"><img loading="lazy" src="@PageUrl(preview.SessionId, scannedPage.FileName)" alt="@("Vorschau von Seite " + scannedPage.Number)" style="transform: rotate(@(scannedPage.RotationDegrees)deg)" /></div>
-        <button class="btn btn-outline-primary w-100 mt-2" @onclick="() => PageEditor.Rotate(scannedPage.Id)" aria-label="@("Seite um 90 Grad drehen")">↻ 90° drehen</button>
+        <div class="preview-image-frame"><img loading="lazy" src="@PageUrl(preview.SessionId, scannedPage.FileName)" alt="@("Vorschau von Page " + scannedPage.Number)" style="transform: rotate(@(scannedPage.RotationDegrees)deg)" /></div>
+        <button class="btn btn-outline-primary w-100 mt-2" @onclick="() => PageEditor.Rotate(scannedPage.Id)" aria-label="@("Page um 90 Grad rotate")">↻ 90° rotate</button>
        }
        else
        {
@@ -146,74 +151,74 @@
        }
        @if (deleteCandidate == scannedPage.Id)
        {
-        <div class="d-flex gap-2 mt-2"><button class="btn btn-danger flex-fill" @onclick="() => ConfirmDelete(scannedPage.Id)">Löschen bestätigen</button><button class="btn btn-outline-secondary flex-fill" @onclick="CancelDelete">Abbrechen</button></div>
+        <div class="d-flex gap-2 mt-2"><button class="btn btn-danger flex-fill" @onclick="() => ConfirmDelete(scannedPage.Id)">Confirm removal</button><button class="btn btn-outline-secondary flex-fill" @onclick="CancelDelete">Cancel</button></div>
        }
        else
        {
-        <button class="btn btn-outline-danger w-100 mt-2" @onclick="() => RequestDelete(scannedPage.Id)">Seite löschen …</button>
+        <button class="btn btn-outline-danger w-100 mt-2" @onclick="() => RequestDelete(scannedPage.Id)">Remove page …</button>
        }
       </article>
      }
     </div>
-    <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="CreatePdfAsync" disabled="@(PdfWorkflow.Current?.IsActive == true || preview.Pages.Any(page => !page.IsAvailable))">PDF erstellen</button>
-    <button class="btn btn-outline-secondary btn-lg w-100 mt-2" @onclick="ShowPreparation">Zurück zur Vorbereitung</button>
+    <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="CreatePdfAsync" disabled="@(PdfWorkflow.Current?.IsActive == true || preview.Pages.Any(page => !page.IsAvailable))">Create PDF</button>
+    <button class="btn btn-outline-secondary btn-lg w-100 mt-2" @onclick="ShowPreparation">Back to preparation</button>
     @if (PdfWorkflow.Current?.IsActive == true)
     {
-     <button class="btn btn-outline-danger w-100 mt-2" @onclick="CancelPdfAsync">PDF-Erstellung abbrechen</button>
+     <button class="btn btn-outline-danger w-100 mt-2" @onclick="CancelPdfAsync">Cancel PDF creation</button>
     }
    }
   </div>
  </section>
 }
-else if (CurrentWorkflowStep == "Prüfen")
+else if (CurrentWorkflowStep == "Review")
 {
- <AppStateCard Kind="success" Title="Scan abgeschlossen" Message="@(ScanWorkflow.Current?.Message ?? DuplexWorkflow.Current?.Message ?? "Die Seiten werden für die Vorschau vorbereitet.")">
-  <ChildContent><span aria-live="polite">Abgeschlossen</span></ChildContent>
+ <AppStateCard Kind="success" Title="Scan completed" Message="@(ScanWorkflow.Current?.Message ?? DuplexWorkflow.Current?.Message ?? "The pages are being prepared for review.")">
+  <ChildContent><span aria-live="polite">Completed</span></ChildContent>
  </AppStateCard>
 }
 
 @if (CurrentWorkflowStep == "PDF" && PdfWorkflow.Current is { } currentPdf)
 {
- <AppStateCard Kind="@(currentPdf.State == PdfCreationState.Failed ? "error" : "loading")" Title="PDF wird erstellt" Message="@currentPdf.Message" Loading="@currentPdf.IsActive">
+ <AppStateCard Kind="@(currentPdf.State == PdfCreationState.Failed ? "error" : "loading")" Title="Creating PDF" Message="@currentPdf.Message" Loading="@currentPdf.IsActive">
   <ChildContent>
-   @if (currentPdf.IsActive) { <button class="btn btn-outline-danger btn-lg w-100" @onclick="CancelPdfAsync">PDF-Erstellung abbrechen</button> }
-   <button class="btn btn-outline-secondary btn-lg w-100 mt-2" @onclick="ShowReview">Zurück zur Vorschau</button>
+   @if (currentPdf.IsActive) { <button class="btn btn-outline-danger btn-lg w-100" @onclick="CancelPdfAsync">Cancel PDF creation</button> }
+   <button class="btn btn-outline-secondary btn-lg w-100 mt-2" @onclick="ShowReview">Back to review</button>
   </ChildContent>
  </AppStateCard>
 }
 
-@if (CurrentWorkflowStep == "Senden" && PdfWorkflow.Current is { State: PdfCreationState.Completed } completedPdf)
+@if (CurrentWorkflowStep == "Send" && PdfWorkflow.Current is { State: PdfCreationState.Completed } completedPdf)
 {
  <section class="card mt-4"><div class="card-body">
-  <span class="badge text-bg-success mb-2">PDF fertig</span>
-  <h2 class="h3">An Paperless-ngx senden</h2>
+  <span class="badge text-bg-success mb-2">PDF ready</span>
+  <h2 class="h3">Send to Paperless-ngx</h2>
   @if (UploadWorkflow.Current is { State: PaperlessUploadState.Accepted } acceptedUpload && acceptedUpload.SessionId == completedPdf.SessionId)
   {
-   <AppStateCard Kind="success" Title="Dokument wurde übergeben" Message="@acceptedUpload.Message">
+   <AppStateCard Kind="success" Title="Document submitted" Message="@acceptedUpload.Message">
     <ChildContent>
-     @if (!string.IsNullOrWhiteSpace(acceptedUpload.TaskId)) { <p class="small">Paperless-Auftrags-ID: @acceptedUpload.TaskId</p> }
-     <button class="btn btn-primary btn-lg w-100" @onclick="StartNewDocument">Zur Startseite – neues Dokument</button>
-     @if (PaperlessHomeUrl is not null) { <a class="btn btn-outline-primary btn-lg w-100 mt-2" href="@PaperlessHomeUrl" target="_blank" rel="noopener noreferrer">Paperless öffnen</a> }
-     <a class="btn btn-outline-success w-100 mt-2" href="@PdfUrl(completedPdf.SessionId)">PDF herunterladen</a>
+     @if (!string.IsNullOrWhiteSpace(acceptedUpload.TaskId)) { <p class="small">Paperless task ID: @acceptedUpload.TaskId</p> }
+     <button class="btn btn-primary btn-lg w-100" @onclick="StartNewDocument">New document</button>
+     @if (PaperlessHomeUrl is not null) { <a class="btn btn-outline-primary btn-lg w-100 mt-2" href="@PaperlessHomeUrl" target="_blank" rel="noopener noreferrer">Open Paperless</a> }
+     <a class="btn btn-outline-success w-100 mt-2" href="@PdfUrl(completedPdf.SessionId)">Download PDF</a>
     </ChildContent>
    </AppStateCard>
   }
   else
   {
-  <a class="btn btn-outline-success btn-lg w-100" href="@PdfUrl(completedPdf.SessionId)">PDF herunterladen</a>
-  <button class="btn btn-outline-primary btn-lg w-100 mt-2" @onclick="LoadPaperlessAsync" disabled="@paperlessLoading">@(paperlessLoading ? "Verbindung wird geprüft …" : "Verbindung prüfen und Metadaten laden")</button>
+  <a class="btn btn-outline-success btn-lg w-100" href="@PdfUrl(completedPdf.SessionId)">Download PDF</a>
+  <button class="btn btn-outline-primary btn-lg w-100 mt-2" @onclick="LoadPaperlessAsync" disabled="@paperlessLoading">@(paperlessLoading ? "Checking connection …" : "Check connection and load metadata")</button>
   @if (!string.IsNullOrWhiteSpace(paperlessMessage)) { <div class="alert @(paperlessError ? "alert-danger" : "alert-success") mt-2" role="status">@paperlessMessage</div> }
   @if (paperlessMetadata is not null)
   {
-   <div class="mt-3"><label class="form-label" for="paperless-title">Titel (optional)</label><input id="paperless-title" class="form-control form-control-lg" maxlength="256" @bind="paperlessTitle" /></div>
-   <div class="mt-3"><label class="form-label" for="send-correspondent">Korrespondent (optional)</label><select id="send-correspondent" class="form-select form-select-lg" @bind="paperlessCorrespondent"><option value="">Nicht festlegen</option>@foreach (var choice in paperlessMetadata.Correspondents) { <option value="@choice.Id">@choice.Name</option> }</select></div>
-   <div class="mt-3"><label class="form-label" for="send-type">Dokumenttyp (optional)</label><select id="send-type" class="form-select form-select-lg" @bind="paperlessDocumentType"><option value="">Nicht festlegen</option>@foreach (var choice in paperlessMetadata.DocumentTypes) { <option value="@choice.Id">@choice.Name</option> }</select></div>
+   <div class="mt-3"><label class="form-label" for="paperless-title">Title (optional)</label><input id="paperless-title" class="form-control form-control-lg" maxlength="256" @bind="paperlessTitle" /></div>
+   <div class="mt-3"><label class="form-label" for="send-correspondent">Correspondent (optional)</label><select id="send-correspondent" class="form-select form-select-lg" @bind="paperlessCorrespondent"><option value="">Do not set</option>@foreach (var choice in paperlessMetadata.Correspondents) { <option value="@choice.Id">@choice.Name</option> }</select></div>
+   <div class="mt-3"><label class="form-label" for="send-type">Document type (optional)</label><select id="send-type" class="form-select form-select-lg" @bind="paperlessDocumentType"><option value="">Do not set</option>@foreach (var choice in paperlessMetadata.DocumentTypes) { <option value="@choice.Id">@choice.Name</option> }</select></div>
    <fieldset class="mt-3"><legend class="h6">Tags (optional)</legend>@foreach (var choice in paperlessMetadata.Tags) { <div class="form-check"><input class="form-check-input" id="send-tag-@choice.Id" type="checkbox" checked="@paperlessTags.Contains(choice.Id)" @onchange="args => ToggleTag(choice.Id, args)" /><label class="form-check-label" for="send-tag-@choice.Id">@choice.Name</label></div> }</fieldset>
-   <button class="btn btn-success btn-lg w-100 mt-3" @onclick="() => UploadAsync(completedPdf.SessionId)" disabled="@(UploadWorkflow.Current?.IsActive == true || UploadWorkflow.Current is { State: PaperlessUploadState.Accepted, SessionId: var acceptedSession } && acceptedSession == completedPdf.SessionId)">An Paperless senden</button>
+   <button class="btn btn-success btn-lg w-100 mt-3" @onclick="() => UploadAsync(completedPdf.SessionId)" disabled="@(UploadWorkflow.Current?.IsActive == true || UploadWorkflow.Current is { State: PaperlessUploadState.Accepted, SessionId: var acceptedSession } && acceptedSession == completedPdf.SessionId)">Send to Paperless</button>
   }
   @if (UploadWorkflow.Current is { } upload) { <div class="alert @(upload.State == PaperlessUploadState.Accepted ? "alert-success" : upload.State == PaperlessUploadState.Failed ? "alert-danger" : "alert-info") mt-3" role="status">@upload.Message</div> }
-  <button class="btn btn-outline-secondary btn-lg w-100 mt-3" @onclick="ShowReview">Zurück zur Vorschau</button>
-  @if (UploadWorkflow.Current?.IsActive == true) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="UploadWorkflow.CancelAsync">Senden abbrechen</button> }
+  <button class="btn btn-outline-secondary btn-lg w-100 mt-3" @onclick="ShowReview">Back to review</button>
+  @if (UploadWorkflow.Current?.IsActive == true) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="UploadWorkflow.CancelAsync">Send abbrechen</button> }
   }
  </div></section>
 }
@@ -225,6 +230,8 @@ else if (CurrentWorkflowStep == "Prüfen")
     private bool scannerLoading;
     private IReadOnlyList<SelectedScanner> savedScanners = [];
     private IReadOnlyList<string> availableSources = [];
+    private bool valuesFromDefaults;
+    private SelectedScanner? ActiveScanner => activeScannerId is { } id ? savedScanners.FirstOrDefault(value => value.Id == id) : null;
     private long? activeScannerId;
     private string? activeDeviceId;
     private string scanSource = "";
@@ -233,7 +240,7 @@ else if (CurrentWorkflowStep == "Prüfen")
     private bool IsScanning => ScanWorkflow.Current?.IsActive == true;
     private string? displayedStep;
     private PdfCreationSnapshot? RelevantPdf => PageEditor.Current is { } editor && PdfWorkflow.Current is { } pdf && editor.SessionId == pdf.SessionId ? pdf : null;
-    private string CurrentWorkflowStep => displayedStep ?? (IsScanning || DuplexWorkflow.Current?.IsActive == true ? "Scannen" : RelevantPdf?.State == PdfCreationState.Completed ? "Senden" : RelevantPdf is not null ? "PDF" : PageEditor.Current is not null || ScanWorkflow.Current?.State == ScanJobState.Completed || DuplexWorkflow.Current?.State == ManualDuplexState.Completed ? "Prüfen" : "Vorbereiten");
+    private string CurrentWorkflowStep => displayedStep ?? (IsScanning || DuplexWorkflow.Current?.IsActive == true ? "Scan" : RelevantPdf?.State == PdfCreationState.Completed ? "Send" : RelevantPdf is not null ? "PDF" : PageEditor.Current is not null || ScanWorkflow.Current?.State == ScanJobState.Completed || DuplexWorkflow.Current?.State == ManualDuplexState.Completed ? "Review" : "Prepare");
     private bool finalBackIsBlank;
     private Guid? deleteCandidate;
     private Guid? loadedPreviewSession;
@@ -252,10 +259,10 @@ else if (CurrentWorkflowStep == "Prüfen")
     private string? PaperlessHomeUrl => Uri.TryCreate(paperlessBaseUrl, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" ? uri.GetLeftPart(UriPartial.Authority) + uri.AbsolutePath.TrimEnd('/') : null;
     private string? DuplexSource => availableSources.FirstOrDefault(IsFeederSource);
     private bool HasAdf => !string.IsNullOrWhiteSpace(activeDeviceId) && DuplexSource is not null;
-    private string ColorModeLabel => colorMode switch { ScanColorMode.Color => "Farbe", ScanColorMode.Grayscale => "Graustufen", _ => "Schwarzweiß" };
-    private string DuplexStatusLabel => DuplexWorkflow.Current?.State switch { ManualDuplexState.AwaitingFlipConfirmation => "Stapel wenden", ManualDuplexState.PageCountMismatch => "Seitenzahlen stimmen nicht", ManualDuplexState.Completed => "Abgeschlossen", ManualDuplexState.Cancelled => "Abgebrochen", ManualDuplexState.Failed => "Fehlgeschlagen", _ => "Läuft" };
+    private string ColorModeLabel => colorMode switch { ScanColorMode.Color => "Color", ScanColorMode.Grayscale => "Grayscale", _ => "Black and white" };
+    private string DuplexStatusLabel => DuplexWorkflow.Current?.State switch { ManualDuplexState.AwaitingFlipConfirmation => "Flip the stack", ManualDuplexState.PageCountMismatch => "Seitenzahlen stimmen nicht", ManualDuplexState.Completed => "Completed", ManualDuplexState.Cancelled => "Cancelled", ManualDuplexState.Failed => "Failed", _ => "Running" };
     private string DuplexStatusClass => DuplexWorkflow.Current?.State switch { ManualDuplexState.Completed => "alert-success", ManualDuplexState.PageCountMismatch or ManualDuplexState.Cancelled => "alert-warning", ManualDuplexState.Failed => "alert-danger", _ => "alert-info" };
-    private string StatusLabel => ScanWorkflow.Current?.State switch { ScanJobState.Queued => "Eingereiht", ScanJobState.Running => "Läuft", ScanJobState.AwaitingUserDecision => "Rückfrage", ScanJobState.Completed => "Abgeschlossen", ScanJobState.Cancelled => "Abgebrochen", _ => "Fehlgeschlagen" };
+    private string StatusLabel => ScanWorkflow.Current?.State switch { ScanJobState.Queued => "Queued", ScanJobState.Running => "Running", ScanJobState.AwaitingUserDecision => "Decision needed", ScanJobState.Completed => "Completed", ScanJobState.Cancelled => "Cancelled", _ => "Failed" };
     private string StatusClass => ScanWorkflow.Current?.State switch { ScanJobState.Completed => "alert-success", ScanJobState.Failed => "alert-danger", ScanJobState.Cancelled or ScanJobState.AwaitingUserDecision => "alert-warning", _ => "alert-info" };
 
     protected override async Task OnInitializedAsync()
@@ -268,11 +275,11 @@ else if (CurrentWorkflowStep == "Prüfen")
         savedScanners = await Discovery.GetSavedAsync(CancellationToken.None);
         var defaults = await Profiles.GetAsync(CancellationToken.None);
         paperlessBaseUrl = (await ServiceConfiguration.GetEffectiveAsync(CancellationToken.None)).BaseUrl;
-        colorMode = defaults.ColorMode; resolution = defaults.ResolutionDpi;
+        colorMode = defaults.ColorMode; resolution = defaults.ResolutionDpi; valuesFromDefaults = defaults.ScannerId is not null;
         paperlessTitle = defaults.Title; paperlessCorrespondent = defaults.CorrespondentId;
         paperlessDocumentType = defaults.DocumentTypeId; paperlessTags.UnionWith(defaults.TagIds);
         var validation = await Profiles.ValidateAsync(defaults, CancellationToken.None);
-        if (!validation.IsValid) { message = string.Join(" ", validation.Errors) + " Bitte in den Einstellungen korrigieren."; }
+        if (!validation.IsValid) { message = string.Join(" ", validation.Errors) + " Please correct this in Settings."; }
         else if (defaults.ScannerId is { } scannerId)
         {
             await ActivateScannerAsync(scannerId);
@@ -309,11 +316,11 @@ else if (CurrentWorkflowStep == "Prüfen")
     private static string PdfUrl(Guid sessionId) => $"/api/scan-sessions/{sessionId:D}/document";
     private async Task CreatePdfAsync() { displayedStep = null; if (PageEditor.Current is { } session) await PdfWorkflow.CreateAsync(session); }
     private Task CancelPdfAsync() => PdfWorkflow.CancelAsync();
-    private void ShowReview() => displayedStep = "Prüfen";
-    private void ShowPreparation() => displayedStep = "Vorbereiten";
-    private void StartNewDocument() { displayedStep = "Vorbereiten"; paperlessMetadata = null; paperlessMessage = null; }
+    private void ShowReview() => displayedStep = "Review";
+    private void ShowPreparation() => displayedStep = "Prepare";
+    private void StartNewDocument() { displayedStep = "Prepare"; paperlessMetadata = null; paperlessMessage = null; }
     private Task CancelActiveScanAsync() => ScanWorkflow.Current?.IsActive == true ? CancelScanAsync() : CancelDuplexAsync();
-    private string PdfStatusLabel => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "Fertig", PdfCreationState.Cancelled => "Abgebrochen", PdfCreationState.Failed => "Fehlgeschlagen", _ => "Läuft" };
+    private string PdfStatusLabel => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "Ready", PdfCreationState.Cancelled => "Cancelled", PdfCreationState.Failed => "Failed", _ => "Running" };
     private string PdfStatusClass => PdfWorkflow.Current?.State switch { PdfCreationState.Completed => "alert-success", PdfCreationState.Cancelled => "alert-warning", PdfCreationState.Failed => "alert-danger", _ => "alert-info" };
     private void RequestDelete(Guid id) => deleteCandidate = id;
     private void CancelDelete() => deleteCandidate = null;
@@ -339,19 +346,19 @@ else if (CurrentWorkflowStep == "Prüfen")
         if (ScanWorkflow.Current is { } cancellingScan && cancellingScan.SessionId == cancellingScanSessionId)
         {
             if (cancellingScan.State == ScanJobState.Cancelled)
-                await ShowNotificationAsync(cancellingScan.SessionId, cancellingScan.State.ToString(), "Scan abgebrochen", cancellingScan.Message);
+                await ShowNotificationAsync(cancellingScan.SessionId, cancellingScan.State.ToString(), "Scan cancelled", cancellingScan.Message);
             return;
         }
         if (DuplexWorkflow.Current is { } cancellingDuplex && cancellingDuplex.SessionId == cancellingDuplexSessionId)
         {
             if (cancellingDuplex.State == ManualDuplexState.Cancelled)
-                await ShowNotificationAsync(cancellingDuplex.SessionId, cancellingDuplex.State.ToString(), "Duplex-Scan abgebrochen", cancellingDuplex.Message);
+                await ShowNotificationAsync(cancellingDuplex.SessionId, cancellingDuplex.State.ToString(), "Duplex-Scan cancelled", cancellingDuplex.Message);
             return;
         }
         if (ScanWorkflow.Current is { } scan && scan.State is ScanJobState.AwaitingUserDecision or ScanJobState.Completed or ScanJobState.Failed)
-            await ShowNotificationAsync(scan.SessionId, scan.State.ToString(), scan.State == ScanJobState.Completed ? "Scan abgeschlossen" : scan.State == ScanJobState.Failed ? "Scan fehlgeschlagen" : "Scan benötigt eine Rückmeldung", scan.Message);
+            await ShowNotificationAsync(scan.SessionId, scan.State.ToString(), scan.State == ScanJobState.Completed ? "Scan completed" : scan.State == ScanJobState.Failed ? "Scan failed" : "Scan needs a decision", scan.Message);
         if (DuplexWorkflow.Current is { } duplex && duplex.State is ManualDuplexState.AwaitingFlipConfirmation or ManualDuplexState.PageCountMismatch or ManualDuplexState.Completed or ManualDuplexState.Failed)
-            await ShowNotificationAsync(duplex.SessionId, duplex.State.ToString(), duplex.State == ManualDuplexState.AwaitingFlipConfirmation ? "Stapel wenden" : duplex.State == ManualDuplexState.Completed ? "Duplex-Scan abgeschlossen" : duplex.State == ManualDuplexState.Failed ? "Duplex-Scan fehlgeschlagen" : "Duplex-Scan benötigt eine Rückmeldung", duplex.Message);
+            await ShowNotificationAsync(duplex.SessionId, duplex.State.ToString(), duplex.State == ManualDuplexState.AwaitingFlipConfirmation ? "Flip the stack" : duplex.State == ManualDuplexState.Completed ? "Duplex scan completed" : duplex.State == ManualDuplexState.Failed ? "Duplex scan failed" : "Duplex scan needs a decision", duplex.Message);
     }
     private async Task ShowNotificationAsync(Guid sessionId, string state, string title, string message)
     { try { await notificationModule!.InvokeVoidAsync("show", title, message, $"{sessionId:N}:{state}"); } catch (JSDisconnectedException) { } }
@@ -360,10 +367,10 @@ else if (CurrentWorkflowStep == "Prüfen")
         ScanWorkflow.Changed -= OnScanChanged; DuplexWorkflow.Changed -= OnScanChanged; PageEditor.Changed -= OnEditorChanged; PdfWorkflow.Changed -= OnPdfChanged; UploadWorkflow.Changed -= OnUploadChanged;
         if (notificationModule is not null) try { await notificationModule.DisposeAsync(); } catch (JSDisconnectedException) { }
     }
-    private void ChangeSource(ChangeEventArgs args) => scanSource = args.Value?.ToString() ?? "";
-    private void ChangeColorMode(ChangeEventArgs args) { if (Enum.TryParse<ScanColorMode>(args.Value?.ToString(), out var value)) colorMode = value; }
-    private void ChangeResolution(ChangeEventArgs args) { if (int.TryParse(args.Value?.ToString(), out var value)) resolution = value; }
-    private static string SourceLabel(string source) => source.Contains("ADF", StringComparison.OrdinalIgnoreCase) || source.Contains("Feeder", StringComparison.OrdinalIgnoreCase) ? $"Automatischer Einzug ({source})" : $"Vorlagenglas ({source})";
+    private void ChangeSource(ChangeEventArgs args) { scanSource = args.Value?.ToString() ?? ""; valuesFromDefaults = false; }
+    private void ChangeColorMode(ChangeEventArgs args) { valuesFromDefaults = false; if (Enum.TryParse<ScanColorMode>(args.Value?.ToString(), out var value)) colorMode = value; }
+    private void ChangeResolution(ChangeEventArgs args) { valuesFromDefaults = false; if (int.TryParse(args.Value?.ToString(), out var value)) resolution = value; }
+    private static string SourceLabel(string source) => source.Contains("ADF", StringComparison.OrdinalIgnoreCase) || source.Contains("Feeder", StringComparison.OrdinalIgnoreCase) ? $"Automatic feeder ({source})" : $"Flatbed ({source})";
     private static bool IsFeederSource(string source) => source.Contains("ADF", StringComparison.OrdinalIgnoreCase) || source.Contains("Feeder", StringComparison.OrdinalIgnoreCase);
 
     private async Task ActivateSelectedScannerAsync()
@@ -381,7 +388,7 @@ else if (CurrentWorkflowStep == "Prüfen")
             {
                 ApplyProfile(activation.Scanner);
 
-                message = $"{activation.Scanner.DisplayName} ist mit gespeicherten Scannerwerten bereit.";
+                message = $"{activation.Scanner.DisplayName} is ready with saved scanner capabilities.";
                 return;
             }
             await RefreshSaneAsync();
@@ -402,7 +409,7 @@ else if (CurrentWorkflowStep == "Prüfen")
             savedScanners = savedScanners.Select(value => value.Id == id ? profile : value).ToArray();
             ApplyProfile(profile);
 
-            message = $"Scannerwerte für {profile.DisplayName} wurden aktualisiert.";
+            message = $"Scanner capabilities for {profile.DisplayName} were refreshed.";
         }
         finally { scannerLoading = false; }
     }

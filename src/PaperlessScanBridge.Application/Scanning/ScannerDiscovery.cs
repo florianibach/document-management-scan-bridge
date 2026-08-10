@@ -22,7 +22,8 @@ public sealed record DiscoveredScanner(string DiscoveryId, string DisplayName, s
     string Protocol, string EsclUrl);
 
 public sealed record ScannerNetworkDiscoveryResult(IReadOnlyList<DiscoveredScanner> Devices, IReadOnlyList<string> Diagnostics);
-public sealed record ScannerSelectionResult(bool Succeeded, SelectedScanner? Scanner, string? Diagnostic = null);
+public sealed record ScannerSelectionResult(bool Succeeded, SelectedScanner? Scanner, string? Diagnostic = null,
+    ScannerEndpointFailure Failure = ScannerEndpointFailure.None);
 public sealed record SelectedScanner(long Id, string DisplayName, string IpAddress, int Port, string Protocol,
     string EsclUrl, DateTimeOffset ValidatedAt, string? SaneDeviceId = null,
     IReadOnlyList<string>? Sources = null, IReadOnlyList<int>? Resolutions = null);

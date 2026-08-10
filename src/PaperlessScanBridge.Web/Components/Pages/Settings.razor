@@ -10,67 +10,67 @@
 @implements IAsyncDisposable
 @rendermode InteractiveServer
 
-<PageTitle>Profil-Einstellungen</PageTitle>
-<header class="page-heading"><p class="eyebrow">Verwaltung</p><h1>Einstellungen</h1><p>Profile, Scanner, Paperless und Benachrichtigungen verwalten.</p></header>
+<PageTitle>Profile settings</PageTitle>
+<header class="page-heading"><p class="eyebrow">Administration</p><h1>Settings</h1><p>Manage profiles, scanners, Paperless, and notifications.</p></header>
 <ScannerSetup />
 <section class="card mt-4 settings-panel">
  <div class="card-body">
-  <h1 class="h2">Lokales Profil</h1>
-  <p>Diese Vorgaben werden lokal in SQLite gespeichert und beim Start einer neuen Scan-Sitzung als unveränderlicher Ausgangspunkt übernommen.</p>
-  @if (loading) { <div class="alert alert-info" role="status">Einstellungen werden geladen …</div> }
+  <h1 class="h2">Local profile</h1>
+  <p>These defaults are stored locally in SQLite and copied as the starting point for every new scan session.</p>
+  @if (loading) { <div class="alert alert-info" role="status">Loading settings …</div> }
   else
   {
-   @if (errors.Count > 0) { <div class="alert alert-warning" role="alert"><strong>Bitte korrigieren:</strong><ul class="mb-0">@foreach (var item in errors) { <li>@item</li> }</ul></div> }
+   @if (errors.Count > 0) { <div class="alert alert-warning" role="alert"><strong>Please correct:</strong><ul class="mb-0">@foreach (var item in errors) { <li>@item</li> }</ul></div> }
    @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-success" role="status">@message</div> }
-   <fieldset><legend class="h4">Paperless-Verbindung</legend>
-    <p class="text-muted">Wirksame Quelle: URL <strong>@SourceName(effective?.UrlSource)</strong>, Token <strong>@SourceName(effective?.TokenSource)</strong>. Ein gespeicherter Token wird niemals wieder angezeigt.</p>
+   <fieldset><legend class="h4">Paperless connection</legend>
+    <p class="text-muted">Effective source: URL <strong>@SourceName(effective?.UrlSource)</strong>, Token <strong>@SourceName(effective?.TokenSource)</strong>. A stored token is never displayed again.</p>
     @if (serviceConfiguration.IsReadOnly)
     {
-     <div class="alert alert-info" role="note">Im anonymen Modus werden diese Werte schreibgeschützt aus den Umgebungsvariablen <code>PAPERLESS_URL</code> und <code>PAPERLESS_TOKEN</code> gelesen. Änderungen erfolgen in der Bereitstellungsumgebung und werden nach einem Neustart wirksam.</div>
-     <dl class="row g-3 mb-0" aria-label="Schreibgeschützte Paperless-Konfiguration">
-      <div class="col-12"><dt class="small text-secondary mb-1">Basis-URL aus <code>PAPERLESS_URL</code></dt><dd id="paperless-url-value" class="bg-body-secondary border rounded px-3 py-2 mb-0 text-break">@paperlessUrl</dd></div>
-      <div class="col-12"><dt class="small text-secondary mb-1">API-Token aus <code>PAPERLESS_TOKEN</code></dt><dd id="paperless-token-status" class="bg-body-secondary border rounded px-3 py-2 mb-0"><span class="font-monospace" aria-hidden="true">@(serviceConfiguration.HasToken ? "••••••••••••" : "—")</span> <span class="ms-2">@(serviceConfiguration.HasToken ? "Konfiguriert; der geheime Wert wird aus Sicherheitsgründen nicht an den Browser übertragen." : "Nicht konfiguriert")</span></dd></div>
+     <div class="alert alert-info" role="note">In anonymous mode these read-only values come from the environment variables <code>PAPERLESS_URL</code> and <code>PAPERLESS_TOKEN</code>. Changes must be made in the deployment environment and take effect after a restart.</div>
+     <dl class="row g-3 mb-0" aria-label="Read-only Paperless configuration">
+      <div class="col-12"><dt class="small text-secondary mb-1">Base URL from <code>PAPERLESS_URL</code></dt><dd id="paperless-url-value" class="bg-body-secondary border rounded px-3 py-2 mb-0 text-break">@paperlessUrl</dd></div>
+      <div class="col-12"><dt class="small text-secondary mb-1">API token from <code>PAPERLESS_TOKEN</code></dt><dd id="paperless-token-status" class="bg-body-secondary border rounded px-3 py-2 mb-0"><span class="font-monospace" aria-hidden="true">@(serviceConfiguration.HasToken ? "••••••••••••" : "—")</span> <span class="ms-2">@(serviceConfiguration.HasToken ? "Configured; the secret is not sent to the browser." : "Not configured")</span></dd></div>
      </dl>
     }
     else
     {
-     <div class="mb-3"><label class="form-label" for="paperless-url">Basis-URL</label><input id="paperless-url" class="form-control form-control-lg" @bind="paperlessUrl" disabled="@(!serviceConfiguration.AllowProfileUrlOverride)" placeholder="https://paperless.example.test" /></div>
-     <div class="mb-3"><label class="form-label" for="paperless-token">Neuer API-Token</label><div class="input-group input-group-lg"><input id="paperless-token" type="@(showPaperlessToken ? "text" : "password")" autocomplete="new-password" class="form-control" @bind="paperlessToken" /><button id="toggle-paperless-token" type="button" class="btn btn-outline-secondary" @onclick="() => showPaperlessToken = !showPaperlessToken" aria-pressed="@showPaperlessToken">@(showPaperlessToken ? "Verbergen" : "Anzeigen")</button></div><div class="form-text">@(serviceConfiguration.HasToken ? "Ein verschlüsselter Profil-Token ist gespeichert und kann nach dem Speichern nicht wieder angezeigt werden. Nur der oben neu eingegebene Wert kann vor dem Speichern eingeblendet werden." : "Kein Profil-Token gespeichert. Der neu eingegebene Wert kann vor dem Speichern eingeblendet werden.")</div></div>
-     <div class="form-check mb-2"><input id="replace-token" class="form-check-input" type="checkbox" @bind="replaceToken" /><label for="replace-token" class="form-check-label">Token durch obigen Wert ersetzen</label></div>
-     <div class="form-check mb-2"><input id="delete-token" class="form-check-input" type="checkbox" @bind="deleteToken" /><label for="delete-token" class="form-check-label">Gespeicherten Profil-Token löschen</label></div>
-     <div class="form-check mb-3"><input id="deployment-token" class="form-check-input" type="checkbox" @bind="useDeploymentToken" /><label for="deployment-token" class="form-check-label">Bereitstellungs-Token als Fallback verwenden</label></div>
-     <button class="btn btn-outline-primary w-100" @onclick="SaveServiceAsync" disabled="@serviceSaving">@(serviceSaving ? "Verbindung wird vollständig geprüft …" : "Verbindung prüfen und aktivieren")</button>
+     <div class="mb-3"><label class="form-label" for="paperless-url">Base URL</label><input id="paperless-url" class="form-control form-control-lg" @bind="paperlessUrl" disabled="@(!serviceConfiguration.AllowProfileUrlOverride)" placeholder="https://paperless.example.test" /></div>
+     <div class="mb-3"><label class="form-label" for="paperless-token">New API token</label><div class="input-group input-group-lg"><input id="paperless-token" type="@(showPaperlessToken ? "text" : "password")" autocomplete="new-password" class="form-control" @bind="paperlessToken" /><button id="toggle-paperless-token" type="button" class="btn btn-outline-secondary" @onclick="() => showPaperlessToken = !showPaperlessToken" aria-pressed="@showPaperlessToken">@(showPaperlessToken ? "Hide" : "Show")</button></div><div class="form-text">@(serviceConfiguration.HasToken ? "An encrypted profile token is stored and cannot be displayed again. Only the newly entered value can be revealed before saving." : "No profile token is stored. The newly entered value can be revealed before saving.")</div></div>
+     <div class="form-check mb-2"><input id="replace-token" class="form-check-input" type="checkbox" @bind="replaceToken" /><label for="replace-token" class="form-check-label">Replace token with the value above</label></div>
+     <div class="form-check mb-2"><input id="delete-token" class="form-check-input" type="checkbox" @bind="deleteToken" /><label for="delete-token" class="form-check-label">Delete stored profile token</label></div>
+     <div class="form-check mb-3"><input id="deployment-token" class="form-check-input" type="checkbox" @bind="useDeploymentToken" /><label for="deployment-token" class="form-check-label">Use deployment token as fallback</label></div>
+     <button class="btn btn-outline-primary w-100" @onclick="SaveServiceAsync" disabled="@serviceSaving">@(serviceSaving ? "Validating connection …" : "Validate and activate connection")</button>
     }
    </fieldset>
-   <fieldset class="mt-4"><legend class="h4">Scan-Vorgaben</legend>
-    <div class="mb-3"><label class="form-label" for="default-scanner">Scanner</label><select id="default-scanner" class="form-select form-select-lg" @bind="scannerId" @bind:after="ScannerChanged"><option value="">Kein Standardscanner</option>@foreach (var scanner in scanners) { <option value="@scanner.Id">@scanner.DisplayName (@scanner.IpAddress)</option> }</select></div>
-    <div class="mb-3"><label class="form-label" for="default-source">Quelle</label><select id="default-source" class="form-select form-select-lg" @bind="source" disabled="@(SelectedScanner is null)"><option value="">Quelle auswählen …</option>@foreach (var item in SelectedScanner?.Sources ?? []) { <option value="@item">@item</option> }</select></div>
-    <div class="row g-3"><div class="col-12 col-md-6"><label class="form-label" for="default-color">Farbmodus</label><select id="default-color" class="form-select form-select-lg" @bind="colorMode"><option value="Color">Farbe</option><option value="Grayscale">Graustufen</option><option value="BlackAndWhite">Schwarzweiß</option></select></div>
-    <div class="col-12 col-md-6"><label class="form-label" for="default-resolution">Auflösung</label><select id="default-resolution" class="form-select form-select-lg" @bind="resolution">@foreach (var dpi in SelectedScanner?.Resolutions ?? [100, 200, 300, 600]) { <option value="@dpi">@dpi dpi</option> }</select></div></div>
+   <fieldset class="mt-4"><legend class="h4">Scan defaults</legend>
+    <div class="mb-3"><label class="form-label" for="default-scanner">Scanner</label><select id="default-scanner" class="form-select form-select-lg" @bind="scannerId" @bind:after="ScannerChanged"><option value="">No default scanner</option>@foreach (var scanner in scanners) { <option value="@scanner.Id">@scanner.DisplayName (@scanner.IpAddress)</option> }</select></div>
+    <div class="mb-3"><label class="form-label" for="default-source">Source</label><select id="default-source" class="form-select form-select-lg" @bind="source" disabled="@(SelectedScanner is null)"><option value="">Select a source …</option>@foreach (var item in SelectedScanner?.Sources ?? []) { <option value="@item">@item</option> }</select></div>
+    <div class="row g-3"><div class="col-12 col-md-6"><label class="form-label" for="default-color">Color mode</label><select id="default-color" class="form-select form-select-lg" @bind="colorMode"><option value="Color">Color</option><option value="Grayscale">Grayscale</option><option value="BlackAndWhite">Black and white</option></select></div>
+    <div class="col-12 col-md-6"><label class="form-label" for="default-resolution">Resolution</label><select id="default-resolution" class="form-select form-select-lg" @bind="resolution">@foreach (var dpi in SelectedScanner?.Resolutions ?? [100, 200, 300, 600]) { <option value="@dpi">@dpi dpi</option> }</select></div></div>
    </fieldset>
-   <fieldset class="mt-4"><legend class="h4">Upload-Vorgaben</legend>
-    <div class="mb-3"><label class="form-label" for="default-title">Titel</label><input id="default-title" class="form-control form-control-lg" @bind="title" /></div>
-    <button class="btn btn-outline-secondary w-100 mb-3" @onclick="LoadMetadataAsync" disabled="@metadataLoading">@(metadataLoading ? "Paperless wird geprüft …" : "Paperless-Verbindung prüfen und Auswahl laden")</button>
+   <fieldset class="mt-4"><legend class="h4">Upload defaults</legend>
+    <div class="mb-3"><label class="form-label" for="default-title">Title</label><input id="default-title" class="form-control form-control-lg" @bind="title" /></div>
+    <button class="btn btn-outline-secondary w-100 mb-3" @onclick="LoadMetadataAsync" disabled="@metadataLoading">@(metadataLoading ? "Checking Paperless …" : "Check Paperless connection and load choices")</button>
     @if (metadata is not null)
     {
-     <div class="mb-3"><label class="form-label" for="default-correspondent">Korrespondent</label><select id="default-correspondent" class="form-select" @bind="correspondentId"><option value="">Keine Vorgabe</option>@foreach (var item in metadata.Correspondents) { <option value="@item.Id">@item.Name</option> }</select></div>
-     <div class="mb-3"><label class="form-label" for="default-document-type">Dokumenttyp</label><select id="default-document-type" class="form-select" @bind="documentTypeId"><option value="">Keine Vorgabe</option>@foreach (var item in metadata.DocumentTypes) { <option value="@item.Id">@item.Name</option> }</select></div>
+     <div class="mb-3"><label class="form-label" for="default-correspondent">Correspondent</label><select id="default-correspondent" class="form-select" @bind="correspondentId"><option value="">No default</option>@foreach (var item in metadata.Correspondents) { <option value="@item.Id">@item.Name</option> }</select></div>
+     <div class="mb-3"><label class="form-label" for="default-document-type">Document type</label><select id="default-document-type" class="form-select" @bind="documentTypeId"><option value="">No default</option>@foreach (var item in metadata.DocumentTypes) { <option value="@item.Id">@item.Name</option> }</select></div>
      <div><span class="form-label d-block">Tags</span>@foreach (var item in metadata.Tags) { <div class="form-check"><input class="form-check-input" type="checkbox" id="tag-@item.Id" checked="@tagIds.Contains(item.Id)" @onchange="args => ToggleTag(item.Id, args)" /><label class="form-check-label" for="tag-@item.Id">@item.Name</label></div> }</div>
     }
    </fieldset>
-   <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="SaveAsync">Vorgaben speichern</button>
-   <button class="btn btn-outline-danger w-100 mt-2" @onclick="ResetAsync">Auf Werkseinstellungen zurücksetzen</button>
+   <button class="btn btn-primary btn-lg w-100 mt-4" @onclick="SaveAsync">Save defaults</button>
+   <button class="btn btn-outline-danger w-100 mt-2" @onclick="ResetAsync">Reset to factory defaults</button>
   }
  </div>
 </section>
 <section class="card mt-4 notification-panel">
  <div class="card-body">
-  <h2 class="h4">Browser-Benachrichtigungen</h2>
-  <p>Meldet bei einem offenen Tab im Hintergrund, wenn der Stapel gewendet werden muss, eine Rückfrage ansteht oder ein Scan beendet ist. Die Freigabe gilt nur für diesen Browser-Tab.</p>
-  @if (notificationState == "enabled") { <button class="btn btn-outline-secondary w-100" @onclick="DisableNotificationsAsync">Benachrichtigungen ausschalten</button> }
-  else { <button class="btn btn-outline-primary w-100" disabled="@(notificationState is "unsupported" or "denied")" @onclick="EnableNotificationsAsync">Benachrichtigungen aktivieren</button> }
-  @if (notificationState == "denied") { <div class="alert alert-warning mt-3 mb-0">Benachrichtigungen wurden im Browser blockiert. Bitte in den Website-Einstellungen freigeben.</div> }
-  else if (notificationState == "unsupported") { <div class="alert alert-warning mt-3 mb-0">Dieser Browser unterstützt keine Benachrichtigungen.</div> }
+  <h2 class="h4">Browser notifications</h2>
+  <p>Notify this browser tab when a stack must be flipped, a decision is needed, or a scan finishes while the open tab is in the background.</p>
+  @if (notificationState == "enabled") { <button class="btn btn-outline-secondary w-100" @onclick="DisableNotificationsAsync">Disable notifications</button> }
+  else { <button class="btn btn-outline-primary w-100" disabled="@(notificationState is "unsupported" or "denied")" @onclick="EnableNotificationsAsync">Enable notifications</button> }
+  @if (notificationState == "denied") { <div class="alert alert-warning mt-3 mb-0">Notifications are blocked by the browser. Allow them in the site settings.</div> }
+  else if (notificationState == "unsupported") { <div class="alert alert-warning mt-3 mb-0">This browser does not support notifications.</div> }
  </div>
 </section>
 
@@ -86,11 +86,11 @@
  public async ValueTask DisposeAsync() { if (notificationModule is not null) try { await notificationModule.DisposeAsync(); } catch (JSDisconnectedException) { } }
  private void Apply(ProfileDefaults value) { scannerId=value.ScannerId; source=value.Source; colorMode=value.ColorMode; resolution=value.ResolutionDpi; title=value.Title; correspondentId=value.CorrespondentId; documentTypeId=value.DocumentTypeId; tagIds.Clear(); tagIds.UnionWith(value.TagIds); }
  private void ScannerChanged() { source = SelectedScanner?.Sources?.FirstOrDefault(); resolution = SelectedScanner?.Resolutions?.Contains(300) == true ? 300 : SelectedScanner?.Resolutions?.FirstOrDefault() ?? 300; }
- private async Task SaveServiceAsync() { serviceSaving=true; message=null; errors=[]; var result=await ServiceConfiguration.ValidateAndSaveAsync(new(paperlessUrl,paperlessToken,replaceToken,deleteToken,useDeploymentToken)); errors=result.Errors; if(result.Succeeded){ serviceConfiguration=result.Configuration; effective=await ServiceConfiguration.GetEffectiveAsync(); metadata=result.Metadata; paperlessToken=null; showPaperlessToken=false; replaceToken=false; deleteToken=false; message="Paperless-Konfiguration wurde geprüft und aktiviert."; } serviceSaving=false; }
- private static string SourceName(PaperlessConfigurationSource? source) => source switch { PaperlessConfigurationSource.Profile => "Profil", PaperlessConfigurationSource.Deployment => "Bereitstellung", _ => "nicht konfiguriert" };
+ private async Task SaveServiceAsync() { serviceSaving=true; message=null; errors=[]; var result=await ServiceConfiguration.ValidateAndSaveAsync(new(paperlessUrl,paperlessToken,replaceToken,deleteToken,useDeploymentToken)); errors=result.Errors; if(result.Succeeded){ serviceConfiguration=result.Configuration; effective=await ServiceConfiguration.GetEffectiveAsync(); metadata=result.Metadata; paperlessToken=null; showPaperlessToken=false; replaceToken=false; deleteToken=false; message="Paperless configuration was validated and activated."; } serviceSaving=false; }
+ private static string SourceName(PaperlessConfigurationSource? source) => source switch { PaperlessConfigurationSource.Profile => "Profile", PaperlessConfigurationSource.Deployment => "Deployment", _ => "not configured" };
  private async Task LoadMetadataAsync() { metadataLoading=true; errors=[]; var result=await Paperless.GetMetadataAsync(); metadata=result.Metadata; if (!result.Result.Succeeded) errors=[result.Result.Message]; else ValidatePaperlessChoices(); metadataLoading=false; }
- private void ValidatePaperlessChoices() { if (metadata is null) return; var list=new List<string>(); if (correspondentId is { } c && metadata.Correspondents.All(x=>x.Id!=c)) list.Add("Der gespeicherte Korrespondent existiert in Paperless nicht mehr."); if (documentTypeId is { } d && metadata.DocumentTypes.All(x=>x.Id!=d)) list.Add("Der gespeicherte Dokumenttyp existiert in Paperless nicht mehr."); foreach(var id in tagIds.Where(id=>metadata.Tags.All(x=>x.Id!=id))) list.Add($"Der gespeicherte Tag {id} existiert in Paperless nicht mehr."); errors=list; }
+ private void ValidatePaperlessChoices() { if (metadata is null) return; var list=new List<string>(); if (correspondentId is { } c && metadata.Correspondents.All(x=>x.Id!=c)) list.Add("The saved correspondent no longer exists in Paperless."); if (documentTypeId is { } d && metadata.DocumentTypes.All(x=>x.Id!=d)) list.Add("The saved document type no longer exists in Paperless."); foreach(var id in tagIds.Where(id=>metadata.Tags.All(x=>x.Id!=id))) list.Add($"The saved tag {id} no longer exists in Paperless."); errors=list; }
  private void ToggleTag(int id, ChangeEventArgs args) { if(args.Value is true) tagIds.Add(id); else tagIds.Remove(id); }
- private async Task SaveAsync() { message=null; ValidatePaperlessChoices(); if(errors.Count>0)return; var result=await Profiles.SaveAsync(new(scannerId,source,colorMode,resolution,title,correspondentId,documentTypeId,tagIds.ToArray(),DateTimeOffset.UtcNow)); errors=result.Errors; if(result.IsValid)message="Die Vorgaben wurden gespeichert."; }
- private async Task ResetAsync() { await Profiles.ResetAsync(); Apply(await Profiles.GetAsync()); metadata=null; errors=[]; message="Alle Vorgaben wurden zurückgesetzt."; }
+ private async Task SaveAsync() { message=null; ValidatePaperlessChoices(); if(errors.Count>0)return; var result=await Profiles.SaveAsync(new(scannerId,source,colorMode,resolution,title,correspondentId,documentTypeId,tagIds.ToArray(),DateTimeOffset.UtcNow)); errors=result.Errors; if(result.IsValid)message="The defaults were saved."; }
+ private async Task ResetAsync() { await Profiles.ResetAsync(); Apply(await Profiles.GetAsync()); metadata=null; errors=[]; message="All defaults were reset."; }
 }

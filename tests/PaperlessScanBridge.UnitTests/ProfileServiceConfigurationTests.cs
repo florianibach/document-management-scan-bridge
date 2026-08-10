@@ -37,7 +37,7 @@ public sealed class ProfileServiceConfigurationTests
         var view = await service.GetAsync();
         Assert.True(view.IsReadOnly); Assert.Equal("https://deployment.test", view.BaseUrl); Assert.True(view.HasToken);
         var save = await service.ValidateAndSaveAsync(new("https://override.test", "other", true, false, false));
-        Assert.False(save.Succeeded); Assert.Contains("anonymen Modus", save.Errors.Single());
+        Assert.False(save.Succeeded); Assert.Contains("anonymous mode", save.Errors.Single());
         Assert.Null(await repository.GetSecretAsync("profile-a"));
     }
 

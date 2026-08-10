@@ -39,17 +39,17 @@ public sealed class PdfCreationWorkflow(
     public async Task CreateAsync(PageEditingSnapshot session, CancellationToken cancellationToken = default)
     {
         if (session.Pages.Count == 0)
-            throw new InvalidOperationException("Mindestens eine Seite ist für die PDF-Erstellung erforderlich.");
+            throw new InvalidOperationException("At least one page is required to create a PDF.");
         if (session.Pages.Any(page => !page.IsAvailable))
-            throw new InvalidOperationException("Beschädigte oder nicht lesbare Seiten müssen vor der PDF-Erstellung entfernt oder erneut gescannt werden.");
+            throw new InvalidOperationException("Damaged or unreadable pages must be removed or rescanned before creating the PDF.");
 
         CancellationTokenSource source;
         lock (gate)
         {
-            if (Current?.IsActive == true) throw new InvalidOperationException("Eine PDF-Erstellung läuft bereits.");
+            if (Current?.IsActive == true) throw new InvalidOperationException("PDF creation is already running.");
             cancellation?.Dispose();
             source = cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            Current = new(session.SessionId, PdfCreationState.Creating, "PDF wird aus den geprüften Seiten erstellt …");
+            Current = new(session.SessionId, PdfCreationState.Creating, "Creating a PDF from the reviewed pages …");
         }
         Changed?.Invoke();
 
@@ -58,19 +58,19 @@ public sealed class PdfCreationWorkflow(
             var pages = session.Pages.Select(page => new PdfPageInput(page.FileName, page.RotationDegrees)).ToArray();
             var path = await writer.WriteAsync(session.SessionId, pages, source.Token);
             Update(new(session.SessionId, PdfCreationState.Completed,
-                $"PDF mit {pages.Length} Seite(n) wurde vollständig erstellt.", Path.GetFileName(path)));
+                $"PDF with {pages.Length} page(s) was created successfully.", Path.GetFileName(path)));
             logger.LogInformation("PDF creation for session {SessionId} completed with {PageCount} page(s)", session.SessionId, pages.Length);
         }
         catch (OperationCanceledException) when (source.IsCancellationRequested)
         {
             Update(new(session.SessionId, PdfCreationState.Cancelled,
-                "PDF-Erstellung abgebrochen. Die geprüften Seiten bleiben für einen neuen Versuch erhalten."));
+                "PDF creation cancelled. The reviewed pages remain available for another attempt."));
             logger.LogInformation("PDF creation for session {SessionId} was cancelled", session.SessionId);
         }
         catch (Exception exception)
         {
             Update(new(session.SessionId, PdfCreationState.Failed,
-                "PDF konnte nicht erstellt werden. Beschädigte Seiten entfernen oder den Scan wiederholen; die Sitzung bleibt erhalten."));
+                "The PDF could not be created. Remove damaged pages or repeat the scan; the session remains available."));
             logger.LogWarning("PDF creation for session {SessionId} failed: {FailureType}", session.SessionId, exception.GetType().Name);
         }
         finally

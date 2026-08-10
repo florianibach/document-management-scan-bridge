@@ -62,7 +62,7 @@ public sealed class ScannerDiscoveryService(
         if (!snapshot.TryGetValue(discoveryId, out var entry) || entry.ExpiresAt <= DateTimeOffset.UtcNow)
         {
             logger.LogWarning("Scanner selection rejected because discovery id {DiscoveryId} is unknown or expired", discoveryId);
-            return new(false, null, "The discovery result is unknown or expired. Search for scanners again.");
+            return new(false, null, "The discovery result is unknown or expired. Search for scanners again.", ScannerEndpointFailure.Connection);
         }
         var endpoint = entry.Endpoints[0];
         logger.LogInformation("Validating discovered scanner {DisplayName} at {Protocol}://{Address}:{Port}", endpoint.DisplayName, endpoint.Protocol, endpoint.IpAddress, endpoint.Port);
@@ -77,13 +77,13 @@ public sealed class ScannerDiscoveryService(
                 endpoint = httpEndpoint;
                 validation = await validator.ValidateAsync(endpoint, cancellationToken);
                 if (validation.Succeeded)
-                    successDiagnostic = "Der Scanner bietet HTTPS nur mit einem nicht vertrauenswürdigen Gerätezertifikat an. Der ebenfalls angekündigte und erfolgreich validierte HTTP-eSCL-Endpunkt wird verwendet.";
+                    successDiagnostic = "HTTPS validation failed only because of the device certificate, so the separately advertised and validated HTTP eSCL endpoint is being used.";
             }
         }
         if (!validation.Succeeded)
         {
             logger.LogWarning("Validation failed for scanner {DisplayName}: {Diagnostic}", endpoint.DisplayName, validation.Diagnostic);
-            return new(false, null, validation.Diagnostic);
+            return new(false, null, validation.Diagnostic, validation.Failure);
         }
         var selected = await repository.SaveAsync(endpoint, DateTimeOffset.UtcNow, cancellationToken);
         await configurationWriter.WriteAsync(selected, cancellationToken);
@@ -98,7 +98,7 @@ public sealed class ScannerDiscoveryService(
     public async Task<ScannerSelectionResult> ActivateSavedAsync(long scannerId, CancellationToken cancellationToken)
     {
         var scanner = await repository.GetByIdAsync(scannerId, cancellationToken);
-        if (scanner is null) return new(false, null, "Der gespeicherte Scanner wurde nicht gefunden.");
+        if (scanner is null) return new(false, null, "The saved scanner was not found.", ScannerEndpointFailure.Connection);
         await configurationWriter.WriteAsync(scanner, cancellationToken);
         logger.LogInformation("Saved scanner {DisplayName} was activated", scanner.DisplayName);
         return new(true, scanner);

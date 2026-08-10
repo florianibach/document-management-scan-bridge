@@ -48,7 +48,7 @@ public sealed class ManualDuplexWorkflowTests : IDisposable
         await WaitFor(workflow, ManualDuplexState.AwaitingFlipConfirmation);
         await workflow.ConfirmFlipAsync(false);
         await WaitFor(workflow, ManualDuplexState.PageCountMismatch);
-        Assert.Contains("neu starten", workflow.Current!.Message);
+        Assert.Contains("restart", workflow.Current!.Message);
         await workflow.RestartAsync();
         Assert.Null(workflow.Current);
     }

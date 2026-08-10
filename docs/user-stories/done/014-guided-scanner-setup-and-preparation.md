@@ -31,3 +31,12 @@
 - US-002
 - US-008
 - US-013
+
+## Completion evidence
+
+- The Scan preparation step replaces the unavailable scan action with a prominent scanner-setup card and summarizes the validated scanner, validation timestamp, mode, source, color, resolution, and profile-default origin.
+- `/scanner-setup` provides explicit discovery, empty, deduplication, validation, secure-preference, controlled-fallback, success, incompatibility, unreadable-capability, retry, and diagnostics states. Selection remains transactional: persistence occurs only after validation succeeds.
+- Scanner capabilities can be refreshed from preparation; profile validation and the disabled scan action identify stale or unavailable settings before scanning.
+- Component tests cover the setup path, discovery choices, controlled HTTP fallback, preparation behavior, and mobile-friendly actions. Unit and integration suites cover deduplication, endpoint ordering, certificate-only fallback, capability parsing, and persistence boundaries.
+- The complete UI and user-visible workflow/service messages are English. The German UI-concept document remains a product design source rather than runtime UI.
+- Hardware verification was not repeated in this environment. The existing HP Color Laser MFP 179fnw verification in the README remains the target-device evidence; no discovery algorithm or scanner protocol was changed.

@@ -17,7 +17,7 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-011](done/011-authenticated-user-profiles.md) | Authenticated user profiles | External login protects and separates user profiles |
 | [US-012](done/012-profile-service-configuration.md) | Per-profile service configuration | Paperless credentials and defaults belong to the selected profile mode |
 | [US-013](done/013-mobile-first-navigation-and-workflow-shell.md) | Mobile-first navigation and workflow shell (done) | Daily scan workflow gets a guided app shell and separated admin areas |
-| [US-014](014-guided-scanner-setup-and-preparation.md) | Guided scanner setup and preparation | Scanner setup and settings are presented as a safe preparation step |
+| [US-014](done/014-guided-scanner-setup-and-preparation.md) | Guided scanner setup and preparation (done) | Scanner setup and settings are presented as a safe preparation step |
 | [US-015](015-guided-scan-and-manual-duplex-states.md) | Guided scan and manual duplex states | Simplex and manual duplex scans use explicit, recoverable UI states |
 | [US-016](016-review-pdf-and-paperless-send-flow.md) | Review, PDF, and Paperless send flow | Page review, PDF creation, and upload become one safe handoff flow |
 | [US-017](017-settings-status-and-diagnostics-ui.md) | Settings, status, and diagnostics UI | Configuration and troubleshooting move into clear non-scan areas |
