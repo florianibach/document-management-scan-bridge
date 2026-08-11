@@ -26,3 +26,12 @@
 - US-007
 - US-012
 - US-017
+
+## Completion evidence
+
+- `PaperlessUrlPolicy` is shared by deployment-options validation, effective-configuration checks, and authenticated profile saves. Unit tests cover HTTP and HTTPS on local and non-loopback hosts plus relative, malformed, credential-bearing, and non-HTTP(S) rejection.
+- `PaperlessClientTests` exercises connection checking, all metadata endpoints, and multipart upload through one accepted non-loopback HTTP base URL. The existing Paperless client uses the same effective configuration for HTTPS and the default .NET handler retains normal certificate validation.
+- `SettingsPageTests` covers the accessible unencrypted-connection warning for both anonymous read-only deployment configuration and editable authenticated configuration, as well as its absence for HTTPS.
+- Existing scanner endpoint unit, integration, and component tests remain unchanged and provide regression coverage for certificate-specific scanner fallback. No scanner protocol or handler configuration changed.
+- Compose already exposes `PAPERLESS_URL`; its default remains a valid HTTP URL. README configuration, validation, risk, HTTPS recommendation, recreation, and Compose-validation guidance now covers both supported schemes.
+- The complete automated suite, locked restore, Release build, repository validation, dependency audit, container build, Compose validation/startup, and health check are recorded in the pull request. No persistence, migration, temporary-data, cleanup, or scanner-hardware behavior changed; those checks are regression or not applicable to this URL-policy story.

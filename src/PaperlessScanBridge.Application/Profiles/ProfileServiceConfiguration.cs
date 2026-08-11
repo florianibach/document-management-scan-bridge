@@ -7,7 +7,7 @@ public enum PaperlessConfigurationSource { None, Deployment, Profile }
 public sealed record ProfileServiceConfiguration(string? BaseUrl, bool HasToken, bool UseDeploymentToken, bool AllowProfileUrlOverride, DateTimeOffset UpdatedAt, bool IsReadOnly = false);
 public sealed record EffectivePaperlessConfiguration(string? BaseUrl, string? ApiToken, PaperlessConfigurationSource UrlSource, PaperlessConfigurationSource TokenSource)
 {
-    public bool IsConfigured => Uri.TryCreate(BaseUrl, UriKind.Absolute, out _) && !string.IsNullOrWhiteSpace(ApiToken);
+    public bool IsConfigured => PaperlessScanBridge.Application.Configuration.PaperlessUrlPolicy.TryParse(BaseUrl, out _) && !string.IsNullOrWhiteSpace(ApiToken);
 }
 public sealed record ProfileServiceConfigurationInput(string? BaseUrl, string? ApiToken, bool ReplaceToken, bool DeleteToken, bool UseDeploymentToken);
 public sealed record ProfileServiceConfigurationResult(bool Succeeded, IReadOnlyList<string> Errors, ProfileServiceConfiguration Configuration, PaperlessMetadata? Metadata = null);
@@ -76,8 +76,8 @@ public sealed class ProfileServiceConfigurationService(
         var existing = await repository.GetSecretAsync(profile.Id, cancellationToken);
         var errors = new List<string>();
         var baseUrl = string.IsNullOrWhiteSpace(input.BaseUrl) ? null : input.BaseUrl.Trim().TrimEnd('/');
-        if (baseUrl is not null && (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)))
-            errors.Add("The Paperless URL must use HTTPS; HTTP is allowed only for localhost.");
+        if (baseUrl is not null && !PaperlessScanBridge.Application.Configuration.PaperlessUrlPolicy.TryParse(baseUrl, out _))
+            errors.Add(PaperlessScanBridge.Application.Configuration.PaperlessUrlPolicy.ValidationMessage);
         if (!options.AllowProfileUrlOverride && baseUrl is not null) errors.Add("Profile URL changes are disabled by the deployment.");
         var token = input.DeleteToken ? null : input.ReplaceToken ? input.ApiToken?.Trim() : existing?.ApiToken;
         var effectiveUrl = baseUrl ?? deployment.BaseUrl;

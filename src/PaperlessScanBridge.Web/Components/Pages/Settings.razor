@@ -2,6 +2,7 @@
 @using PaperlessScanBridge.Application.Profiles
 @using PaperlessScanBridge.Application.Scanning
 @using PaperlessScanBridge.Application.Paperless
+@using PaperlessScanBridge.Application.Configuration
 @inject IProfileDefaultsService Profiles
 @inject IProfileServiceConfigurationService ServiceConfiguration
 @inject IScannerDiscoveryService Discovery
@@ -24,6 +25,10 @@
    @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-success" role="status">@message</div> }
    <fieldset><legend class="h4">Paperless connection</legend>
     <p class="text-muted">Effective source: URL <strong>@SourceName(effective?.UrlSource)</strong>, Token <strong>@SourceName(effective?.TokenSource)</strong>. A stored token is never displayed again.</p>
+    @if (PaperlessUsesHttp)
+    {
+     <div id="paperless-http-warning" class="alert alert-warning" role="alert"><strong>Unencrypted Paperless connection.</strong> HTTP does not protect the API token, metadata, or documents from being observed or changed in transit, even on a local network. Use HTTPS whenever possible.</div>
+    }
     @if (serviceConfiguration.IsReadOnly)
     {
      <div class="alert alert-info" role="note">In anonymous mode these read-only values come from the environment variables <code>PAPERLESS_URL</code> and <code>PAPERLESS_TOKEN</code>. Changes must be made in the deployment environment and take effect after a restart.</div>
@@ -105,6 +110,7 @@
  private string? paperlessUrl, paperlessToken; private string notificationState = "disabled"; private IJSObjectReference? notificationModule; private ProfileServiceConfiguration serviceConfiguration = new(null,false,false,true,DateTimeOffset.MinValue); private EffectivePaperlessConfiguration? effective;
  private int? correspondentId, documentTypeId; private readonly HashSet<int> tagIds = []; private IReadOnlyList<string> errors = []; private IReadOnlyList<SelectedScanner> scanners = []; private PaperlessMetadata? metadata;
  private SelectedScanner? SelectedScanner => scanners.FirstOrDefault(value => value.Id == scannerId);
+ private bool PaperlessUsesHttp => PaperlessUrlPolicy.IsUnencrypted(paperlessUrl) || PaperlessUrlPolicy.IsUnencrypted(effective?.BaseUrl);
  protected override async Task OnInitializedAsync() { scanners = await Discovery.GetSavedAsync(default); Apply(await Profiles.GetAsync()); serviceConfiguration = await ServiceConfiguration.GetAsync(); effective = await ServiceConfiguration.GetEffectiveAsync(); paperlessUrl=serviceConfiguration.BaseUrl; useDeploymentToken=serviceConfiguration.UseDeploymentToken; loading = false; }
  protected override async Task OnAfterRenderAsync(bool firstRender) { if (!firstRender) return; notificationModule = await JS.InvokeAsync<IJSObjectReference>("import", "./scanNotifications.js"); notificationState = await notificationModule.InvokeAsync<string>("getState"); StateHasChanged(); }
  private async Task EnableNotificationsAsync() { if (notificationModule is not null) notificationState = await notificationModule.InvokeAsync<string>("enable"); }
