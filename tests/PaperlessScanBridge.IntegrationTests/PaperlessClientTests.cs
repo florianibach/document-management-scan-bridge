@@ -22,6 +22,12 @@ public sealed class PaperlessClientTests : IDisposable
         Assert.StartsWith("multipart/form-data", handler.UploadContentType);
         Assert.Contains("boundary=", handler.UploadContentType);
         Assert.Contains("name=title", handler.UploadBody); Assert.Contains("Invoice", handler.UploadBody); Assert.All(handler.AuthorizationValues, value => Assert.Equal("Token secret-token", value));
+        Assert.All(handler.RequestUris, uri => { Assert.Equal("http", uri.Scheme); Assert.Equal("paperless", uri.Host); });
+        Assert.Contains(handler.RequestUris, uri => uri.AbsolutePath == "/api/documents/");
+        Assert.Contains(handler.RequestUris, uri => uri.AbsolutePath == "/api/correspondents/");
+        Assert.Contains(handler.RequestUris, uri => uri.AbsolutePath == "/api/document_types/");
+        Assert.Contains(handler.RequestUris, uri => uri.AbsolutePath == "/api/tags/");
+        Assert.Contains(handler.RequestUris, uri => uri.AbsolutePath == "/api/documents/post_document/");
     }
 
     [Theory] [InlineData(HttpStatusCode.Unauthorized, PaperlessFailure.Authentication)] [InlineData(HttpStatusCode.Forbidden, PaperlessFailure.Authorization)] [InlineData(HttpStatusCode.InternalServerError, PaperlessFailure.Server)]
@@ -42,8 +48,10 @@ public sealed class PaperlessClientTests : IDisposable
         public string UploadBody { get; private set; } = "";
         public string UploadContentType { get; private set; } = "";
         public List<string> AuthorizationValues { get; } = [];
+        public List<Uri> RequestUris { get; } = [];
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            RequestUris.Add(request.RequestUri!);
             AuthorizationValues.Add(request.Headers.Authorization!.ToString()); if (failure is { } status) return new(status);
             if (request.Method == HttpMethod.Post)
             {

@@ -33,5 +33,8 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-027](done/027-preserve-split-boundaries-after-page-removal.md) | Preserve split boundaries after page removal (done) | Page removal keeps the intended document split valid and consistent |
 | [US-028](028-apply-default-tags-to-split-documents.md) | Apply default tags to split documents | Every split document starts with an isolated snapshot of the session's default tags |
 | [US-029](029-reset-workflow-after-final-upload.md) | Reset workflow after final upload | Returning to Scan after a completed batch starts with an empty workflow |
+| [US-030](done/030-paperless-http-connections.md) | Paperless HTTP connections (done) | Local Paperless deployments can use explicitly configured HTTP with clear security guidance |
+| [US-031](031-visible-paperless-operation-errors.md) | Visible Paperless operation errors | Metadata and upload failures remain visible, actionable, safe, and document-specific |
+| [US-032](032-intuitive-profile-paperless-credentials.md) | Intuitive profile Paperless credentials | Profile owners get clear credential controls and operator-governed shared-token fallback |
 
 Every story is subject to the shared [Definition of Done](../definition-of-done.md). Explicitly deferred items are not implied by an acceptance criterion.

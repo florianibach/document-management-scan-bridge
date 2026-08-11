@@ -1,6 +1,7 @@
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using PaperlessScanBridge.Application.Paperless;
+using PaperlessScanBridge.Application.Configuration;
 using PaperlessScanBridge.Application.Profiles;
 using PaperlessScanBridge.Application.Scanning;
 using PaperlessScanBridge.Web.Components.Pages;
@@ -12,6 +13,7 @@ public sealed class SettingsPageTests : BunitContext
     private readonly BunitJSModuleInterop notifications;
     public SettingsPageTests()
     {
+        Services.AddSingleton(new PaperlessOptions());
         notifications = JSInterop.SetupModule("./scanNotifications.js");
         notifications.Setup<string>("getState").SetResult("disabled");
         notifications.Setup<string>("enable").SetResult("enabled");
@@ -39,6 +41,50 @@ public sealed class SettingsPageTests : BunitContext
         Assert.DoesNotContain("environment-secret", page.Markup);
         Assert.DoesNotContain(page.FindAll("input"), input => input.Id == "replace-token");
         Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Contains("Validate and activate connection"));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void HttpWarningIsShownForReadOnlyAndEditablePaperlessConfiguration(bool readOnly)
+    {
+        Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
+        Services.AddSingleton<IScannerDiscoveryService>(new DiscoveryStub());
+        Services.AddSingleton<IScanner>(new ScannerStub());
+        Services.AddSingleton<IProfileServiceConfigurationService>(new HttpConfigurationStub(readOnly));
+        Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
+
+        var page = Render<Settings>();
+
+        var warning = page.Find("#paperless-http-warning");
+        Assert.Equal("alert", warning.GetAttribute("role"));
+        Assert.Contains("Unencrypted Paperless connection", warning.TextContent);
+        Assert.Contains("API token, metadata, or documents", warning.TextContent);
+        Assert.Contains("Use HTTPS whenever possible", warning.TextContent);
+    }
+
+    [Fact]
+    public void HttpsConfigurationDoesNotShowHttpWarning()
+    {
+        AddAnonymousServices();
+        var page = Render<Settings>();
+        Assert.Empty(page.FindAll("#paperless-http-warning"));
+    }
+
+    [Fact]
+    public void DeploymentCanSuppressHttpWarningWithoutChangingHttpConfiguration()
+    {
+        Services.AddSingleton(new PaperlessOptions { ShowHttpWarning=false });
+        Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
+        Services.AddSingleton<IScannerDiscoveryService>(new DiscoveryStub());
+        Services.AddSingleton<IScanner>(new ScannerStub());
+        Services.AddSingleton<IProfileServiceConfigurationService>(new HttpConfigurationStub(true));
+        Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
+
+        var page = Render<Settings>();
+
+        Assert.Empty(page.FindAll("#paperless-http-warning"));
+        Assert.Equal("http://paperless.lan:8000", page.Find("#paperless-url-value").TextContent.Trim());
     }
 
     [Fact]
@@ -150,6 +196,13 @@ public sealed class SettingsPageTests : BunitContext
     {
         public Task<ProfileServiceConfiguration> GetAsync(CancellationToken cancellationToken=default) => Task.FromResult(new ProfileServiceConfiguration("https://paperless.environment.test", true, true, false, DateTimeOffset.MinValue, true));
         public Task<EffectivePaperlessConfiguration> GetEffectiveAsync(CancellationToken cancellationToken=default) => Task.FromResult(new EffectivePaperlessConfiguration("https://paperless.environment.test", "environment-secret", PaperlessConfigurationSource.Deployment, PaperlessConfigurationSource.Deployment));
+        public Task<ProfileServiceConfigurationResult> ValidateAndSaveAsync(ProfileServiceConfigurationInput input,CancellationToken cancellationToken=default) => throw new NotSupportedException();
+        public Task DeleteAsync(CancellationToken cancellationToken=default) => throw new NotSupportedException();
+    }
+    private sealed class HttpConfigurationStub(bool readOnly) : IProfileServiceConfigurationService
+    {
+        public Task<ProfileServiceConfiguration> GetAsync(CancellationToken cancellationToken=default) => Task.FromResult(new ProfileServiceConfiguration("http://paperless.lan:8000", true, false, !readOnly, DateTimeOffset.MinValue, readOnly));
+        public Task<EffectivePaperlessConfiguration> GetEffectiveAsync(CancellationToken cancellationToken=default) => Task.FromResult(new EffectivePaperlessConfiguration("http://paperless.lan:8000", "environment-secret", readOnly ? PaperlessConfigurationSource.Deployment : PaperlessConfigurationSource.Profile, PaperlessConfigurationSource.Deployment));
         public Task<ProfileServiceConfigurationResult> ValidateAndSaveAsync(ProfileServiceConfigurationInput input,CancellationToken cancellationToken=default) => throw new NotSupportedException();
         public Task DeleteAsync(CancellationToken cancellationToken=default) => throw new NotSupportedException();
     }
