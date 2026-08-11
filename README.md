@@ -71,6 +71,7 @@ APPLICATION_HTTP_PORT=8080
 PAPERLESS_URL=https://paperless.example.test
 PAPERLESS_TOKEN=replace-with-a-paperless-api-token
 PAPERLESS_TIMEOUT_SECONDS=60
+PAPERLESS_SHOW_HTTP_WARNING=true
 SCANNER_SCAN_TIMEOUT_SECONDS=1800
 SCANNER_MAXIMUM_SCAN_DURATION_SECONDS=14400
 ```
@@ -84,6 +85,7 @@ Do not commit `.env`, API tokens, client secrets, private scanner IDs, or privat
 | `PAPERLESS_URL` | `Paperless__BaseUrl` | `http://paperless:8000` | Absolute `http://` or `https://` Paperless-ngx base URL used by connection checks, metadata loading, and uploads. HTTPS is recommended; HTTP is unencrypted. Credentials in the URL are rejected. |
 | `PAPERLESS_TOKEN` | `Paperless__ApiToken` | empty | Deployment-wide Paperless API token. Treat it as a secret; later profile stories may replace it with encrypted per-profile tokens. |
 | `PAPERLESS_TIMEOUT_SECONDS` | `Paperless__TimeoutSeconds` | `60` | HTTP timeout for Paperless connectivity, metadata loading, and upload calls. |
+| `PAPERLESS_SHOW_HTTP_WARNING` | `Paperless__ShowHttpWarning` | `true` | Shows the unencrypted-connection warning when the effective Paperless URL uses HTTP. Set `false` to hide only this UI notice; HTTP remains unencrypted and HTTPS remains recommended. Not secret. |
 | `SCANNER_DEVICE_ID` | `Scanner__DeviceId` | empty | Optional fixed SANE device identifier for diagnostics or deployments that bypass UI selection. Prefer UI discovery for normal use. |
 | `SCANNER_TIMEOUT_SECONDS` | `Scanner__TimeoutSeconds` | `30` | Timeout for short scanner discovery and capability commands. |
 | `SCANNER_SCAN_TIMEOUT_SECONDS` | `Scanner__ScanTimeoutSeconds` | `120` | User-confirmation interval while a scan process is still running. Increase for slow ADF batches. |
@@ -160,7 +162,7 @@ The completed file is written as `<session>/document.pdf.partial`, closed, and t
    PAPERLESS_TOKEN=den-kopierten-token-hier-einsetzen
    ```
 
-   `PAPERLESS_URL` akzeptiert eine absolute URL mit `https://` (empfohlen) oder `http://`, auch für Paperless-Instanzen außerhalb von `localhost`. HTTP verschlüsselt weder API-Token noch Metadaten oder Dokumente; andere Teilnehmer im lokalen Netz können den Verkehr beobachten oder verändern. Relative URLs, andere Protokolle und URLs mit eingebettetem Benutzername oder Passwort werden abgelehnt. Die HTTPS-Zertifikatsprüfung bleibt immer aktiv.
+   `PAPERLESS_URL` akzeptiert eine absolute URL mit `https://` (empfohlen) oder `http://`, auch für Paperless-Instanzen außerhalb von `localhost`. HTTP verschlüsselt weder API-Token noch Metadaten oder Dokumente; andere Teilnehmer im lokalen Netz können den Verkehr beobachten oder verändern. Relative URLs, andere Protokolle und URLs mit eingebettetem Benutzername oder Passwort werden abgelehnt. Die HTTPS-Zertifikatsprüfung bleibt immer aktiv. Betreiber, die dieses Risiko bereits anderweitig kommunizieren, können ausschließlich den Hinweis in der Oberfläche mit `PAPERLESS_SHOW_HTTP_WARNING=false` ausblenden; die Einstellung ändert weder den Transport noch dessen Sicherheit.
 
 4. `docker compose up --detach --build` ausführen. Die `.env`-Datei und der Token dürfen nicht committed, in Screenshots geteilt oder in Support-Ausgaben eingefügt werden. Der Benutzer des Tokens benötigt mindestens Leserechte für Dokumente, Korrespondenten, Dokumenttypen und Tags sowie die Berechtigung zum Hinzufügen von Dokumenten.
 5. Nach der PDF-Erstellung **Verbindung prüfen und Metadaten laden** wählen. Titel, Korrespondent, Dokumenttyp und Tags auswählen und anschließend **An Paperless senden** drücken. Nach Annahme zeigt die Anwendung die Paperless-Auftrags-ID und weist darauf hin, dass die weitere Verarbeitung dauern kann und in Paperless-ngx unter **File Tasks** geprüft werden kann. Bei Netzwerk- oder Serverfehlern bleibt `document.pdf` in der Scan-Sitzung erhalten und der kontrollierte erneute Versuch ist möglich.
@@ -181,7 +183,7 @@ Under **Settings → Saved scanners**, choose **Forget scanner** and review the 
 
 ## Per-profile Paperless configuration
 
-The settings page can validate and activate a profile-specific Paperless URL and API token. Absolute HTTP and HTTPS URLs follow the same policy as `PAPERLESS_URL`; profile overrides may use non-loopback HTTP when the operator permits overrides. Activation checks the URL, connectivity, authentication, document-list permission, and the correspondent, document-type, and tag endpoints. A profile value takes precedence over the optional deployment fallback; the page identifies the effective source. Operators can disable URL overrides with `PROFILE_ALLOW_PAPERLESS_URL_OVERRIDE=false`. Anonymous mode has exactly one shared profile and always uses the read-only `PAPERLESS_URL` and `PAPERLESS_TOKEN` deployment values without prompting; this provides no per-person separation. The settings page warns whenever the configured or effective URL uses unencrypted HTTP. HTTPS remains recommended, and HTTP support neither disables HTTPS certificate validation nor changes scanner endpoint rules.
+The settings page can validate and activate a profile-specific Paperless URL and API token. Absolute HTTP and HTTPS URLs follow the same policy as `PAPERLESS_URL`; profile overrides may use non-loopback HTTP when the operator permits overrides. Activation checks the URL, connectivity, authentication, document-list permission, and the correspondent, document-type, and tag endpoints. A profile value takes precedence over the optional deployment fallback; the page identifies the effective source. Operators can disable URL overrides with `PROFILE_ALLOW_PAPERLESS_URL_OVERRIDE=false`. Anonymous mode has exactly one shared profile and always uses the read-only `PAPERLESS_URL` and `PAPERLESS_TOKEN` deployment values without prompting; this provides no per-person separation. By default, the settings page warns whenever the configured or effective URL uses unencrypted HTTP. Operators can set `PAPERLESS_SHOW_HTTP_WARNING=false` to suppress only that notice after accepting the risk. HTTPS remains recommended, and HTTP support neither disables HTTPS certificate validation nor changes scanner endpoint rules.
 
 Profile API tokens are encrypted with ASP.NET Core Data Protection before SQLite writes. The plaintext is never returned to the browser after saving. The settings page can reveal only a newly entered replacement while it is still browser-local; use the explicit replace/delete controls for rotation. Deployment tokens are read at process startup and never copied into SQLite. Scan-session download routes have a persisted profile owner and return not-found across profile boundaries; metadata/default records and service configuration are keyed by the same internal profile ID. Do not place sensitive values in logs.
 

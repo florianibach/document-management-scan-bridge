@@ -15,6 +15,7 @@ services:
       Paperless__BaseUrl: ${PAPERLESS_URL:-http://paperless:8000}
       Paperless__ApiToken: ${PAPERLESS_TOKEN:-}
       Paperless__TimeoutSeconds: ${PAPERLESS_TIMEOUT_SECONDS:-60}
+      Paperless__ShowHttpWarning: ${PAPERLESS_SHOW_HTTP_WARNING:-true}
       Scanner__DeviceId: ${SCANNER_DEVICE_ID:-}
       Scanner__TimeoutSeconds: ${SCANNER_TIMEOUT_SECONDS:-30}
       Scanner__ScanTimeoutSeconds: ${SCANNER_SCAN_TIMEOUT_SECONDS:-120}

@@ -1,6 +1,7 @@
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using PaperlessScanBridge.Application.Paperless;
+using PaperlessScanBridge.Application.Configuration;
 using PaperlessScanBridge.Application.Profiles;
 using PaperlessScanBridge.Application.Scanning;
 using PaperlessScanBridge.Web.Components.Pages;
@@ -12,6 +13,7 @@ public sealed class SettingsPageTests : BunitContext
     private readonly BunitJSModuleInterop notifications;
     public SettingsPageTests()
     {
+        Services.AddSingleton(new PaperlessOptions());
         notifications = JSInterop.SetupModule("./scanNotifications.js");
         notifications.Setup<string>("getState").SetResult("disabled");
         notifications.Setup<string>("enable").SetResult("enabled");
@@ -67,6 +69,22 @@ public sealed class SettingsPageTests : BunitContext
         AddAnonymousServices();
         var page = Render<Settings>();
         Assert.Empty(page.FindAll("#paperless-http-warning"));
+    }
+
+    [Fact]
+    public void DeploymentCanSuppressHttpWarningWithoutChangingHttpConfiguration()
+    {
+        Services.AddSingleton(new PaperlessOptions { ShowHttpWarning=false });
+        Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
+        Services.AddSingleton<IScannerDiscoveryService>(new DiscoveryStub());
+        Services.AddSingleton<IScanner>(new ScannerStub());
+        Services.AddSingleton<IProfileServiceConfigurationService>(new HttpConfigurationStub(true));
+        Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
+
+        var page = Render<Settings>();
+
+        Assert.Empty(page.FindAll("#paperless-http-warning"));
+        Assert.Equal("http://paperless.lan:8000", page.Find("#paperless-url-value").TextContent.Trim());
     }
 
     [Fact]

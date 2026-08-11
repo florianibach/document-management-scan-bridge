@@ -7,6 +7,7 @@
 @inject IProfileServiceConfigurationService ServiceConfiguration
 @inject IScannerDiscoveryService Discovery
 @inject IPaperlessClient Paperless
+@inject PaperlessOptions PaperlessConfiguration
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 @rendermode InteractiveServer
@@ -110,7 +111,7 @@
  private string? paperlessUrl, paperlessToken; private string notificationState = "disabled"; private IJSObjectReference? notificationModule; private ProfileServiceConfiguration serviceConfiguration = new(null,false,false,true,DateTimeOffset.MinValue); private EffectivePaperlessConfiguration? effective;
  private int? correspondentId, documentTypeId; private readonly HashSet<int> tagIds = []; private IReadOnlyList<string> errors = []; private IReadOnlyList<SelectedScanner> scanners = []; private PaperlessMetadata? metadata;
  private SelectedScanner? SelectedScanner => scanners.FirstOrDefault(value => value.Id == scannerId);
- private bool PaperlessUsesHttp => PaperlessUrlPolicy.IsUnencrypted(paperlessUrl) || PaperlessUrlPolicy.IsUnencrypted(effective?.BaseUrl);
+ private bool PaperlessUsesHttp => PaperlessConfiguration.ShowHttpWarning && (PaperlessUrlPolicy.IsUnencrypted(paperlessUrl) || PaperlessUrlPolicy.IsUnencrypted(effective?.BaseUrl));
  protected override async Task OnInitializedAsync() { scanners = await Discovery.GetSavedAsync(default); Apply(await Profiles.GetAsync()); serviceConfiguration = await ServiceConfiguration.GetAsync(); effective = await ServiceConfiguration.GetEffectiveAsync(); paperlessUrl=serviceConfiguration.BaseUrl; useDeploymentToken=serviceConfiguration.UseDeploymentToken; loading = false; }
  protected override async Task OnAfterRenderAsync(bool firstRender) { if (!firstRender) return; notificationModule = await JS.InvokeAsync<IJSObjectReference>("import", "./scanNotifications.js"); notificationState = await notificationModule.InvokeAsync<string>("getState"); StateHasChanged(); }
  private async Task EnableNotificationsAsync() { if (notificationModule is not null) notificationState = await notificationModule.InvokeAsync<string>("enable"); }

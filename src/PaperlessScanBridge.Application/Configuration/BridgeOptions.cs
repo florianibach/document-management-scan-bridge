@@ -26,6 +26,7 @@ public sealed class PaperlessOptions
     [Required, PaperlessBaseUrl] public string BaseUrl { get; init; } = "http://paperless:8000";
     public string? ApiToken { get; init; }
     [Range(1, 300)] public int TimeoutSeconds { get; init; } = 60;
+    public bool ShowHttpWarning { get; init; } = true;
 }
 
 public sealed class PaperlessBaseUrlAttribute : ValidationAttribute
