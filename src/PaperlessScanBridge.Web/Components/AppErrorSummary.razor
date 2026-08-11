@@ -1,0 +1,32 @@
+@if (Messages.Count > 0)
+{
+    <section class="app-error-summary" role="alert" aria-live="assertive">
+        <div class="app-error-summary__icon" aria-hidden="true">!</div>
+        <div class="app-error-summary__content">
+            <h2 class="app-error-summary__title">@Title</h2>
+            @if (Messages.Count == 1)
+            {
+                <p class="app-error-summary__message">@Messages[0]</p>
+            }
+            else
+            {
+                <ul class="app-error-summary__messages">
+                    @foreach (var message in Messages)
+                    {
+                        <li>@message</li>
+                    }
+                </ul>
+            }
+            @if (!string.IsNullOrWhiteSpace(Hint))
+            {
+                <p class="app-error-summary__hint">@Hint</p>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<string> Messages { get; set; } = [];
+    [Parameter] public string Title { get; set; } = "Something needs your attention";
+    [Parameter] public string? Hint { get; set; }
+}
