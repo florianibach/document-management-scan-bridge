@@ -39,6 +39,6 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-033](033-wake-sleeping-scanner-before-scan.md) | Wake a sleeping scanner before scanning | Scan startup prepares sleeping devices without losing the selected ADF source |
 | [US-034](034-runtime-defaults-without-compose-variables.md) | Safe runtime defaults without Compose variables | The image keeps safe documented defaults when optional Compose environment entries are omitted |
 | [US-035](035-publish-multi-architecture-docker-hub-images.md) | Publish multi-architecture Docker Hub images | Versioned images are published safely for Raspberry Pi and AMD64 deployments |
-| [US-036](036-profile-unsaved-changes-and-local-save-feedback.md) | Profile unsaved changes and local save feedback | Profile edits remain visible and every save action reports its result in place |
+| [US-036](done/036-profile-unsaved-changes-and-local-save-feedback.md) | Profile unsaved changes and local save feedback (done) | Profile edits remain visible and every save action reports its result in place |
 
 Every story is subject to the shared [Definition of Done](../definition-of-done.md). Explicitly deferred items are not implied by an acceptance criterion.

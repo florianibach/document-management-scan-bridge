@@ -1,0 +1,11 @@
+@if (State.Kind != ActionFeedbackKind.None)
+{
+ <div id="@Id" class="action-status @State.CssClass" role="@(State.Kind == ActionFeedbackKind.Error ? "alert" : "status")" aria-live="@(State.Kind == ActionFeedbackKind.Error ? "assertive" : "polite")" aria-atomic="true">
+  <span aria-hidden="true">@State.Symbol</span> @State.Message
+ </div>
+}
+
+@code {
+ [Parameter, EditorRequired] public string Id { get; set; } = null!;
+ [Parameter, EditorRequired] public ActionFeedback State { get; set; } = ActionFeedback.None;
+}

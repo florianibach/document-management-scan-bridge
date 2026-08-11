@@ -170,6 +170,72 @@ public sealed class SettingsPageTests : BunitContext
         Assert.Equal("Flatbed", page.Find("#default-source").GetAttribute("value"));
     }
 
+    [Fact]
+    public async Task EditingAndSavingDefaultsShowsGlobalDirtyStateAndLocalSuccess()
+    {
+        AddAnonymousServices();
+        var page = Render<Settings>();
+
+        await page.Find("#default-title").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value="Invoices" });
+        Assert.Contains("Unsaved profile changes", page.Find("#profile-unsaved-banner").TextContent);
+        Assert.Empty(page.FindAll("#defaults-save-status"));
+
+        await page.Find("#save-defaults").ClickAsync(new());
+
+        Assert.Empty(page.FindAll("#profile-unsaved-banner"));
+        var status=page.Find("#defaults-save-status");
+        Assert.Equal("status",status.GetAttribute("role"));
+        Assert.Equal("polite",status.GetAttribute("aria-live"));
+        Assert.Contains("Scan and upload defaults saved",status.TextContent);
+
+        await page.Find("#default-title").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value="Receipts" });
+        Assert.Empty(page.FindAll("#defaults-save-status"));
+        Assert.Single(page.FindAll("#profile-unsaved-banner"));
+    }
+
+    [Fact]
+    public async Task SavingOneOfTwoDirtySectionsLeavesTheOtherDirty()
+    {
+        Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
+        Services.AddSingleton<IScannerDiscoveryService>(new DiscoveryStub());
+        Services.AddSingleton<IScanner>(new ScannerStub());
+        Services.AddSingleton<IProfileServiceConfigurationService>(new SavingConfigurationStub());
+        Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
+        var page=Render<Settings>();
+
+        await page.Find("#paperless-url").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value="https://changed.test" });
+        await page.Find("#default-title").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value="Still dirty" });
+        await page.Find("#save-paperless").ClickAsync(new());
+
+        Assert.Single(page.FindAll("#profile-unsaved-banner"));
+        Assert.Contains("Paperless connection saved",page.Find("#paperless-save-status").TextContent);
+        Assert.Empty(page.FindAll("#defaults-save-status"));
+
+        await page.Find("#save-defaults").ClickAsync(new());
+        Assert.Empty(page.FindAll("#profile-unsaved-banner"));
+    }
+
+    [Fact]
+    public async Task PaperlessValidationFailureStaysBesideItsActionAndPreservesSecretInput()
+    {
+        Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
+        Services.AddSingleton<IScannerDiscoveryService>(new DiscoveryStub());
+        Services.AddSingleton<IScanner>(new ScannerStub());
+        Services.AddSingleton<IProfileServiceConfigurationService>(new SavingConfigurationStub(fail:true));
+        Services.AddSingleton<IPaperlessClient>(new PaperlessStub());
+        var page=Render<Settings>();
+
+        await page.Find("#paperless-token").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value="do-not-announce-me" });
+        await page.Find("#save-paperless").ClickAsync(new());
+
+        var status=page.Find("#paperless-save-status");
+        Assert.Equal("alert",status.GetAttribute("role"));
+        Assert.Contains("API token is invalid",status.TextContent);
+        Assert.DoesNotContain("do-not-announce-me",status.TextContent);
+        Assert.Equal("do-not-announce-me",page.Find("#paperless-token").GetAttribute("value"));
+        Assert.Single(page.FindAll("#profile-unsaved-banner"));
+    }
+
     private void AddAnonymousServices()
     {
         Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
@@ -206,6 +272,19 @@ public sealed class SettingsPageTests : BunitContext
         public Task<EffectivePaperlessConfiguration> GetEffectiveAsync(CancellationToken cancellationToken=default) => Task.FromResult(new EffectivePaperlessConfiguration("http://paperless.lan:8000", "environment-secret", readOnly ? PaperlessConfigurationSource.Deployment : PaperlessConfigurationSource.Profile, PaperlessConfigurationSource.Deployment));
         public Task<ProfileServiceConfigurationResult> ValidateAndSaveAsync(ProfileServiceConfigurationInput input,CancellationToken cancellationToken=default) => throw new NotSupportedException();
         public Task DeleteAsync(CancellationToken cancellationToken=default) => throw new NotSupportedException();
+    }
+    private sealed class SavingConfigurationStub(bool fail=false) : IProfileServiceConfigurationService
+    {
+        private ProfileServiceConfiguration configuration=new("https://profile.test",true,false,true,DateTimeOffset.UtcNow,ApiToken:"owner-secret");
+        public Task<ProfileServiceConfiguration> GetAsync(CancellationToken cancellationToken=default)=>Task.FromResult(configuration);
+        public Task<EffectivePaperlessConfiguration> GetEffectiveAsync(CancellationToken cancellationToken=default)=>Task.FromResult(new EffectivePaperlessConfiguration(configuration.BaseUrl,configuration.ApiToken,PaperlessConfigurationSource.Profile,PaperlessConfigurationSource.Profile));
+        public Task<ProfileServiceConfigurationResult> ValidateAndSaveAsync(ProfileServiceConfigurationInput input,CancellationToken cancellationToken=default)
+        {
+            if(fail)return Task.FromResult(new ProfileServiceConfigurationResult(false,["API token is invalid."],configuration,null));
+            configuration=configuration with { BaseUrl=input.BaseUrl, ApiToken=input.ApiToken, UpdatedAt=DateTimeOffset.UtcNow };
+            return Task.FromResult(new ProfileServiceConfigurationResult(true,[],configuration,new PaperlessMetadata([],[],[])));
+        }
+        public Task DeleteAsync(CancellationToken cancellationToken=default)=>Task.CompletedTask;
     }
     private sealed class DefaultsStub : IProfileDefaultsService
     {
