@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create User Story"
+  short_description: "Create repository-ready product user stories"
+  default_prompt: "Use $create-user-story to create a new paperless-scan-bridge story from the supplied requirement, asking focused clarification questions before writing it."
