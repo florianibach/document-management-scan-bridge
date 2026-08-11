@@ -26,6 +26,7 @@ services:
       Profiles__LegacyDefaultsMigration: ${PROFILE_LEGACY_DEFAULTS_MIGRATION:-MoveToAnonymous}
       Profiles__RemoteSignOutUrl: ${PROFILE_REMOTE_SIGNOUT_URL:-}
       ProfileServices__AllowProfileUrlOverride: ${PROFILE_ALLOW_PAPERLESS_URL_OVERRIDE:-true}
+      ProfileServices__AllowDeploymentTokenFallback: ${PROFILE_ALLOW_DEPLOYMENT_TOKEN_FALLBACK:-false}
       Authentication__Oidc__Authority: ${OIDC_AUTHORITY:-}
       Authentication__Oidc__ClientId: ${OIDC_CLIENT_ID:-}
       Authentication__Oidc__ClientSecret: ${OIDC_CLIENT_SECRET:-}

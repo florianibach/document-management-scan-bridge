@@ -8,12 +8,13 @@ namespace PaperlessScanBridge.UnitTests;
 public sealed class ProfileServiceConfigurationTests
 {
     [Fact]
-    public async Task ProfileTokenAndUrlOverrideDeploymentAndTokenIsNotReturned()
+    public async Task ProfileTokenAndUrlOverrideDeploymentAndTokenIsReturnedOnlyInOwnerView()
     {
         var repository = new Repository(); var service = Create(repository, new PaperlessOptions { BaseUrl="https://deployment.test", ApiToken="fallback" });
         var result = await service.ValidateAndSaveAsync(new("https://profile.test", "personal", true, false, false));
         Assert.True(result.Succeeded); Assert.True(result.Configuration.HasToken);
         Assert.DoesNotContain("personal", result.Configuration.ToString());
+        Assert.Equal("personal", (await service.GetAsync()).ApiToken);
         var effective = await service.GetEffectiveAsync();
         Assert.Equal("personal", effective.ApiToken); Assert.Equal(PaperlessConfigurationSource.Profile, effective.TokenSource); Assert.Equal("https://profile.test", effective.BaseUrl);
     }
@@ -83,8 +84,24 @@ public sealed class ProfileServiceConfigurationTests
         Assert.Null(await repository.GetSecretAsync("profile-a"));
     }
 
-    private static ProfileServiceConfigurationService Create(Repository repository, PaperlessOptions deployment, bool succeeds=true, ProfileOptions? profiles=null, Tester? tester=null) =>
-        new(repository, new Current(), deployment, profiles ?? new() { Mode=ProfileMode.OpenIdConnect }, new(), tester ?? new Tester(succeeds));
+    [Theory]
+    [InlineData(false, null, PaperlessConfigurationSource.None)]
+    [InlineData(true, "fallback", PaperlessConfigurationSource.Deployment)]
+    public async Task AuthenticatedDeploymentFallbackIsAdministratorControlled(bool enabled, string? expectedToken, PaperlessConfigurationSource source)
+    {
+        var service = Create(new Repository(), new PaperlessOptions { BaseUrl="https://deployment.test", ApiToken="fallback" },
+            serviceOptions: new ProfileServiceOptions { AllowDeploymentTokenFallback=enabled });
+        var effective = await service.GetEffectiveAsync();
+        Assert.Equal(expectedToken, effective.ApiToken);
+        Assert.Equal(source, effective.TokenSource);
+        var view = await service.GetAsync();
+        Assert.True(view.DeploymentTokenAvailable);
+        Assert.Equal(enabled, view.DeploymentTokenFallbackEnabled);
+        Assert.Null(view.ApiToken);
+    }
+
+    private static ProfileServiceConfigurationService Create(Repository repository, PaperlessOptions deployment, bool succeeds=true, ProfileOptions? profiles=null, Tester? tester=null, ProfileServiceOptions? serviceOptions=null) =>
+        new(repository, new Current(), deployment, profiles ?? new() { Mode=ProfileMode.OpenIdConnect }, serviceOptions ?? new(), tester ?? new Tester(succeeds));
     private sealed class Current : ICurrentProfileAccessor { public Task<UserProfile> GetRequiredAsync(CancellationToken cancellationToken=default) => Task.FromResult(new UserProfile("profile-a","issuer","subject","A",DateTimeOffset.UtcNow,DateTimeOffset.UtcNow)); }
     private sealed class Tester(bool succeeds) : IPaperlessConnectionTester { public string? LastUrl { get; private set; } public Task<(PaperlessResult Result, PaperlessMetadata? Metadata)> ValidateAsync(string url,string token,CancellationToken cancellationToken=default) { LastUrl=url; return Task.FromResult<(PaperlessResult,PaperlessMetadata?)>((new(succeeds,succeeds?"ok":"unreachable",succeeds?PaperlessFailure.None:PaperlessFailure.Network), succeeds?new([],[],[]):null)); } }
     private sealed class Repository : IProfileServiceConfigurationRepository

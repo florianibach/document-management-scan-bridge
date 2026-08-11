@@ -122,6 +122,10 @@ builder.Services.AddHealthChecks()
     .AddCheck<DeploymentReadinessHealthCheck>("deployment_readiness", tags: ["ready"]);
 
 var app = builder.Build();
+var paperlessOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaperlessOptions>>().Value;
+var profileServiceOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ProfileServiceOptions>>().Value;
+if (profileOptions.Mode == ProfileMode.OpenIdConnect && !string.IsNullOrWhiteSpace(paperlessOptions.ApiToken) && !profileServiceOptions.AllowDeploymentTokenFallback)
+    app.Logger.LogWarning("PAPERLESS_TOKEN is configured but authenticated-profile deployment-token fallback is disabled. The secret remains reserved and is not exposed; profile owners must save their own token.");
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

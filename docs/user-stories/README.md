@@ -35,7 +35,7 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-029](029-reset-workflow-after-final-upload.md) | Reset workflow after final upload | Returning to Scan after a completed batch starts with an empty workflow |
 | [US-030](done/030-paperless-http-connections.md) | Paperless HTTP connections (done) | Local Paperless deployments can use explicitly configured HTTP with clear security guidance |
 | [US-031](done/031-visible-paperless-operation-errors.md) | Visible Paperless operation errors (done) | Metadata and upload failures remain visible, actionable, safe, and document-specific |
-| [US-032](032-intuitive-profile-paperless-credentials.md) | Intuitive profile Paperless credentials | Profile owners get clear credential controls and operator-governed shared-token fallback |
+| [US-032](done/032-intuitive-profile-paperless-credentials.md) | Intuitive profile Paperless credentials (done) | Profile owners get clear credential controls and operator-governed shared-token fallback |
 | [US-033](033-wake-sleeping-scanner-before-scan.md) | Wake a sleeping scanner before scanning | Scan startup prepares sleeping devices without losing the selected ADF source |
 | [US-034](034-runtime-defaults-without-compose-variables.md) | Safe runtime defaults without Compose variables | The image keeps safe documented defaults when optional Compose environment entries are omitted |
 | [US-035](035-publish-multi-architecture-docker-hub-images.md) | Publish multi-architecture Docker Hub images | Versioned images are published safely for Raspberry Pi and AMD64 deployments |
