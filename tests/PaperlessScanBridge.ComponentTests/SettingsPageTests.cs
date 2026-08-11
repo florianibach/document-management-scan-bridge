@@ -115,7 +115,7 @@ public sealed class SettingsPageTests : BunitContext
     }
 
     [Fact]
-    public async Task AuthenticatedUserCanRevealOnlyNewTokenBeforeSaving()
+    public async Task AuthenticatedOwnerCanRevealStoredTokenWithSessionWarning()
     {
         Services.AddSingleton<IProfileDefaultsService>(new DefaultsStub());
         Services.AddSingleton<IScannerDiscoveryService>(new DiscoveryStub());
@@ -125,12 +125,13 @@ public sealed class SettingsPageTests : BunitContext
         var page = Render<Settings>();
         var token = page.Find("#paperless-token");
         Assert.Equal("password", token.GetAttribute("type"));
-        await token.ChangeAsync("new-visible-token");
         Assert.DoesNotContain("stored-secret-never-rendered", page.Markup);
         await page.Find("#toggle-paperless-token").ClickAsync(new());
         Assert.Equal("text", page.Find("#paperless-token").GetAttribute("type"));
-        Assert.Equal("new-visible-token", page.Find("#paperless-token").GetAttribute("value"));
-        Assert.Contains("cannot be displayed again", page.Markup);
+        Assert.Equal("owner-secret", page.Find("#paperless-token").GetAttribute("value"));
+        Assert.Contains("active signed-in browser session", page.Markup);
+        Assert.Empty(page.FindAll("#replace-token"));
+        Assert.Empty(page.FindAll("#deployment-token"));
     }
 
     [Fact]
@@ -186,7 +187,7 @@ public sealed class SettingsPageTests : BunitContext
 
     private sealed class AuthenticatedConfigurationStub : IProfileServiceConfigurationService
     {
-        public Task<ProfileServiceConfiguration> GetAsync(CancellationToken cancellationToken=default) => Task.FromResult(new ProfileServiceConfiguration("https://profile.test", true, false, true, DateTimeOffset.UtcNow));
+        public Task<ProfileServiceConfiguration> GetAsync(CancellationToken cancellationToken=default) => Task.FromResult(new ProfileServiceConfiguration("https://profile.test", true, false, true, DateTimeOffset.UtcNow, ApiToken: "owner-secret"));
         public Task<EffectivePaperlessConfiguration> GetEffectiveAsync(CancellationToken cancellationToken=default) => Task.FromResult(new EffectivePaperlessConfiguration("https://profile.test", "stored-secret-never-rendered", PaperlessConfigurationSource.Profile, PaperlessConfigurationSource.Profile));
         public Task<ProfileServiceConfigurationResult> ValidateAndSaveAsync(ProfileServiceConfigurationInput input,CancellationToken cancellationToken=default) => throw new NotSupportedException();
         public Task DeleteAsync(CancellationToken cancellationToken=default) => throw new NotSupportedException();

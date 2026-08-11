@@ -35,6 +35,6 @@ The stories below form the planned MVP roadmap. Implement them in order unless n
 | [US-029](029-reset-workflow-after-final-upload.md) | Reset workflow after final upload | Returning to Scan after a completed batch starts with an empty workflow |
 | [US-030](done/030-paperless-http-connections.md) | Paperless HTTP connections (done) | Local Paperless deployments can use explicitly configured HTTP with clear security guidance |
 | [US-031](done/031-visible-paperless-operation-errors.md) | Visible Paperless operation errors (done) | Metadata and upload failures remain visible, actionable, safe, and document-specific |
-| [US-032](032-intuitive-profile-paperless-credentials.md) | Intuitive profile Paperless credentials | Profile owners get clear credential controls and operator-governed shared-token fallback |
+| [US-032](done/032-intuitive-profile-paperless-credentials.md) | Intuitive profile Paperless credentials (done) | Profile owners get clear credential controls and operator-governed shared-token fallback |
 
 Every story is subject to the shared [Definition of Done](../definition-of-done.md). Explicitly deferred items are not implied by an acceptance criterion.
