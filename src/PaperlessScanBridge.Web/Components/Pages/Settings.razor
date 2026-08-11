@@ -24,7 +24,7 @@
   {
    @if (errors.Count > 0) { <div class="alert alert-warning" role="alert"><strong>Please correct:</strong><ul class="mb-0">@foreach (var item in errors) { <li>@item</li> }</ul></div> }
    @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-success" role="status">@message</div> }
-   <fieldset><legend class="h4">Paperless connection</legend>
+   <fieldset id="paperless-connection"><legend class="h4">Paperless connection</legend>
     <p class="text-muted">Effective source: URL <strong>@SourceName(effective?.UrlSource)</strong>, Token <strong>@SourceName(effective?.TokenSource)</strong>. A stored token is never displayed again.</p>
     @if (PaperlessUsesHttp)
     {

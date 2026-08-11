@@ -266,6 +266,24 @@ public sealed class HomePageTests : BunitContext
     }
 
     [Fact]
+    public async Task MetadataConfigurationErrorIsVisibleActionablePersistentAndDismissible()
+    {
+        var editor = new PageEditorStub(new(Guid.NewGuid(), [new(Guid.NewGuid(), 1, "page.png", 0, true, null)]));
+        var failure = new PaperlessResult(false, "The effective Paperless API token is missing.", PaperlessFailure.Configuration, DiagnosticId: "CFG123");
+        AddServices(new DiscoveryStub(new([], [])), editor: editor, paperless: new PaperlessStub(metadataResult: (failure, null)));
+        var page = Render<Home>();
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue with document")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue to PDF")).ClickAsync(new());
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Continue to Send")).ClickAsync(new());
+        await page.Find("button.btn-outline-primary").ClickAsync(new());
+        Assert.Contains("Metadata for document 1 could not be loaded", page.Markup); Assert.Contains("CFG123", page.Markup);
+        Assert.Equal("/settings#paperless-connection", page.Find("a[href^='/settings']").GetAttribute("href"));
+        page.Render(); Assert.Contains("CFG123", page.Markup);
+        await page.FindAll("button").Single(button => button.TextContent.Contains("Dismiss")).ClickAsync(new());
+        Assert.DoesNotContain("CFG123", page.Markup);
+    }
+
+    [Fact]
     public async Task StartsSimplexScanAndReportsCompletion()
     {
         AddServices(new DiscoveryStub(new([], [])));
@@ -504,11 +522,11 @@ public sealed class HomePageTests : BunitContext
         { Current = new(session.SessionId, PdfCreationState.Completed, "PDF vollständig erstellt.", "document.pdf"); Changed?.Invoke(); return Task.CompletedTask; }
         public Task CancelAsync() => Task.CompletedTask;
     }
-    private sealed class PaperlessStub(Task<PaperlessResult>? uploadResult = null) : IPaperlessClient
+    private sealed class PaperlessStub(Task<PaperlessResult>? uploadResult = null, (PaperlessResult Result, PaperlessMetadata? Metadata)? metadataResult = null) : IPaperlessClient
     {
         public int UploadCalls { get; private set; }
         public Task<PaperlessResult> CheckConnectivityAsync(CancellationToken cancellationToken = default) => Task.FromResult(new PaperlessResult(true, "Verbindung gültig."));
-        public Task<(PaperlessResult Result, PaperlessMetadata? Metadata)> GetMetadataAsync(CancellationToken cancellationToken = default) => Task.FromResult<(PaperlessResult, PaperlessMetadata?)>((new(true, "Metadaten wurden geladen."), new([new(1, "Example GmbH")], [new(2, "Rechnung")], [new(3, "Eingang")])));
+        public Task<(PaperlessResult Result, PaperlessMetadata? Metadata)> GetMetadataAsync(CancellationToken cancellationToken = default) => Task.FromResult(metadataResult ?? (new(true, "Metadata loaded."), new([new(1, "Example GmbH")], [new(2, "Rechnung")], [new(3, "Eingang")])));
         public async Task<PaperlessResult> UploadAsync(PaperlessUploadRequest request, IProgress<int>? progress = null, CancellationToken cancellationToken = default) { UploadCalls++; var result = uploadResult is null ? new PaperlessResult(true, "Paperless hat das Dokument angenommen.", TaskId: "task-1") : await uploadResult.WaitAsync(cancellationToken); if (result.Succeeded) progress?.Report(100); return result; }
     }
 }

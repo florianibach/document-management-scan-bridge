@@ -2,8 +2,8 @@ namespace PaperlessScanBridge.Application.Paperless;
 
 public sealed record PaperlessChoice(int Id, string Name);
 public sealed record PaperlessMetadata(IReadOnlyList<PaperlessChoice> Correspondents, IReadOnlyList<PaperlessChoice> DocumentTypes, IReadOnlyList<PaperlessChoice> Tags);
-public enum PaperlessFailure { None, Configuration, Authentication, Authorization, Network, Server, InvalidResponse, FileMissing, Cancelled, Unknown }
-public sealed record PaperlessResult(bool Succeeded, string Message, PaperlessFailure Failure = PaperlessFailure.None, string? TaskId = null);
+public enum PaperlessFailure { None, Configuration, Authentication, Authorization, Network, Timeout, Server, InvalidResponse, FileMissing, Cancelled, Unknown }
+public sealed record PaperlessResult(bool Succeeded, string Message, PaperlessFailure Failure = PaperlessFailure.None, string? TaskId = null, string? DiagnosticId = null);
 public sealed record PaperlessUploadRequest(Guid SessionId, string? Title, int? CorrespondentId, int? DocumentTypeId, IReadOnlyList<int> TagIds);
 
 public interface IPaperlessClient
@@ -14,7 +14,7 @@ public interface IPaperlessClient
 }
 
 public enum PaperlessUploadState { Idle, Uploading, Accepted, Failed, Cancelled }
-public sealed record PaperlessUploadSnapshot(Guid SessionId, PaperlessUploadState State, int ProgressPercent, string Message, string? TaskId = null)
+public sealed record PaperlessUploadSnapshot(Guid SessionId, PaperlessUploadState State, int ProgressPercent, string Message, string? TaskId = null, PaperlessFailure Failure = PaperlessFailure.None, string? DiagnosticId = null)
 { public bool IsActive => State == PaperlessUploadState.Uploading; }
 
 public interface IPaperlessUploadWorkflow
@@ -23,6 +23,7 @@ public interface IPaperlessUploadWorkflow
     event Action? Changed;
     Task UploadAsync(PaperlessUploadRequest request, CancellationToken cancellationToken = default);
     Task CancelAsync();
+    void DismissError();
 }
 
 public sealed class PaperlessUploadWorkflow(IPaperlessClient client) : IPaperlessUploadWorkflow, IDisposable
@@ -45,13 +46,14 @@ public sealed class PaperlessUploadWorkflow(IPaperlessClient client) : IPaperles
             });
             var result = await client.UploadAsync(request, progress, active.Token);
             Set(new(request.SessionId, result.Succeeded ? PaperlessUploadState.Accepted : PaperlessUploadState.Failed,
-                result.Succeeded ? 100 : Current?.ProgressPercent ?? 0, result.Message, result.TaskId));
+                result.Succeeded ? 100 : Current?.ProgressPercent ?? 0, result.Message, result.TaskId, result.Failure, result.DiagnosticId));
         }
         catch (OperationCanceledException) { Set(new(request.SessionId, PaperlessUploadState.Cancelled, Current?.ProgressPercent ?? 0, "Upload cancelled; the PDF remains available for another attempt.")); }
         finally { active?.Dispose(); active = null; }
     }
 
     public Task CancelAsync() { active?.Cancel(); return Task.CompletedTask; }
+    public void DismissError() { if (Current?.State == PaperlessUploadState.Failed) { Current = null; Changed?.Invoke(); } }
     private void Set(PaperlessUploadSnapshot value) { Current = value; Changed?.Invoke(); }
     public void Dispose() => active?.Dispose();
     private sealed class InlineProgress(Action<int> report) : IProgress<int> { public void Report(int value) => report(value); }

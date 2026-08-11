@@ -27,3 +27,11 @@
 - US-016
 - US-017
 - US-019
+
+## Completion evidence
+
+- `PaperlessClient` maps configuration, authentication, authorization, network, timeout, invalid-response, server, file, cancellation, and unexpected failures to safe messages and correlation IDs. Structured logs contain only the failure category, scan-session identifier on success, and diagnostic ID.
+- `PaperlessUploadWorkflow` and `ScanBatchWorkflow` preserve failed state, diagnostic context, retry transitions, accepted-upload idempotency, per-document metadata, and split-document isolation. Unit and integration tests cover the category mapping and transitions.
+- The Send UI renders persistent metadata and upload alerts with retry, settings, dismiss, diagnostic-ID, and batch-local document-number context. Component tests cover configuration errors, persistence across rendering, dismissal, actions, failed-upload state, and success-only processing hints.
+- No persistence migration, Compose variable, external dependency, scanner behavior, PDF format, or automatic retry policy was introduced. Hardware verification is not applicable because this change affects the Paperless HTTP boundary and Blazor workflow state only.
+- Repository restore, Release build, full automated tests, repository validation, vulnerability audit, and secret/diff review are recorded in the pull request verification. The responsive UI behavior is covered by bUnit component rendering; Docker/Compose startup and screenshot capture were unavailable in this environment and are recorded as limitations.
