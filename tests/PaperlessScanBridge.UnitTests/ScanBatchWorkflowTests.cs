@@ -87,6 +87,8 @@ public sealed class ScanBatchWorkflowTests
         Assert.Equal(BatchDocumentState.Failed, workflow.Current.Documents[1].State);
         Assert.Equal("Invoice", workflow.Current.Documents[0].Metadata.Title);
         Assert.Equal("Letter", workflow.Current.Documents[1].Metadata.Title);
+        Assert.Equal(PaperlessFailure.Server, workflow.Current.Documents[1].Failure);
+        Assert.Equal("DOC2", workflow.Current.Documents[1].DiagnosticId);
         Assert.Equal(2, processor.UploadCalls);
     }
 
@@ -112,6 +114,6 @@ public sealed class ScanBatchWorkflowTests
     {
         public int UploadCalls { get; private set; }
         public Task CreatePdfAsync(Guid sessionId, BatchDocument document, CancellationToken token) => Task.CompletedTask;
-        public Task<PaperlessResult> UploadAsync(Guid sessionId, BatchDocument document, CancellationToken token) { UploadCalls++; return Task.FromResult(document.Number == failDocumentNumber ? new PaperlessResult(false, "retry") : new PaperlessResult(true, "accepted", TaskId: $"task-{document.Number}")); }
+        public Task<PaperlessResult> UploadAsync(Guid sessionId, BatchDocument document, CancellationToken token) { UploadCalls++; return Task.FromResult(document.Number == failDocumentNumber ? new PaperlessResult(false, "retry", PaperlessFailure.Server, DiagnosticId: $"DOC{document.Number}") : new PaperlessResult(true, "accepted", TaskId: $"task-{document.Number}")); }
     }
 }

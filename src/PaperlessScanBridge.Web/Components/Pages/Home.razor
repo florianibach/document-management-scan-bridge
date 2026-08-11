@@ -247,7 +247,9 @@ else if (CurrentWorkflowStep == "PDF" && PdfWorkflow.Current is { } currentPdf)
   {
    <a class="btn btn-outline-success btn-lg w-100" href="@BatchPdfUrl(PageEditor.Current!.SessionId, batchSend.Id)">Download PDF</a>
    @if (paperlessMetadata is null) { <button class="btn btn-outline-primary btn-lg w-100 mt-2" @onclick="LoadPaperlessAsync">Load Paperless metadata</button> }
-   else
+   @if (paperlessError && !string.IsNullOrWhiteSpace(paperlessMessage))
+   { <div class="alert alert-danger mt-3 paperless-operation-error" role="alert" aria-live="assertive"><strong>Metadata for document @batchSend.Number could not be loaded.</strong> @paperlessMessage @if (!string.IsNullOrWhiteSpace(paperlessDiagnosticId)) { <div class="mt-2">Diagnostic ID: <code>@paperlessDiagnosticId</code></div> }<div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-danger" @onclick="LoadPaperlessAsync">Retry metadata</button>@if (NeedsPaperlessSettings(paperlessFailure)) { <a class="btn btn-outline-danger" href="/settings#paperless-connection">Open Paperless settings</a> }<button class="btn btn-outline-secondary" @onclick="DismissMetadataError">Dismiss</button></div></div> }
+   else if (paperlessMetadata is not null)
    {
     <label class="form-label mt-3" for="batch-title-@batchSend.Id">Title (optional)</label><input id="batch-title-@batchSend.Id" class="form-control form-control-lg" value="@batchSend.Metadata.Title" @onchange="args => SetBatchTitleAsync(batchSend.Id, args.Value?.ToString())" />
     <label class="form-label mt-3" for="batch-correspondent-@batchSend.Id">Correspondent</label><select id="batch-correspondent-@batchSend.Id" class="form-select form-select-lg" value="@batchSend.Metadata.CorrespondentId" @onchange="args => SetBatchCorrespondentAsync(batchSend.Id, args.Value?.ToString())"><option value="">Do not set</option>@foreach (var choice in paperlessMetadata.Correspondents) { <option value="@choice.Id">@choice.Name</option> }</select>
@@ -255,7 +257,15 @@ else if (CurrentWorkflowStep == "PDF" && PdfWorkflow.Current is { } currentPdf)
     <fieldset class="mt-3"><legend class="h6">Tags</legend>@foreach (var choice in paperlessMetadata.Tags) { <label class="form-check"><input class="form-check-input" type="checkbox" checked="@batchSend.Metadata.Tags.Contains(choice.Id)" @onchange="args => ToggleBatchTagAsync(batchSend.Id, choice.Id, args.Value is true)" /> @choice.Name</label> }</fieldset>
     <button class="btn btn-success btn-lg w-100 mt-3" @onclick="() => UploadBatchAsync(batchSend.Id)">@(batchSend.State == BatchDocumentState.Failed ? "Retry send" : "Send to Paperless")</button>
    }
-   @if (!string.IsNullOrWhiteSpace(batchSend.Message)) { <div class="alert @(batchSend.State == BatchDocumentState.Failed ? "alert-danger" : "alert-info") mt-3">@batchSend.Message</div> }
+   @if (batchSend.State == BatchDocumentState.Failed && !string.IsNullOrWhiteSpace(batchSend.Message))
+   {
+    <div class="alert alert-danger mt-3 paperless-operation-error" role="alert" aria-live="assertive">
+     <strong>Document @batchSend.Number was not sent.</strong> @batchSend.Message
+     @if (!string.IsNullOrWhiteSpace(batchSend.DiagnosticId)) { <div class="mt-2">Diagnostic ID: <code>@batchSend.DiagnosticId</code></div> }
+     <div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-danger" @onclick="() => UploadBatchAsync(batchSend.Id)">Retry send</button>@if (NeedsPaperlessSettings(batchSend.Failure)) { <a class="btn btn-outline-danger" href="/settings#paperless-connection">Open Paperless settings</a> }<button class="btn btn-outline-secondary" @onclick="() => BatchWorkflow.DismissUploadErrorAsync(batchSend.Id)">Dismiss</button></div>
+    </div>
+   }
+   else if (!string.IsNullOrWhiteSpace(batchSend.Message)) { <div class="alert alert-info mt-3">@batchSend.Message</div> }
    <button class="btn btn-outline-secondary btn-lg w-100 mt-2" @onclick="ShowBatchReview">Back to review</button>
   }
  </div></section>
@@ -283,7 +293,14 @@ else if (CurrentWorkflowStep == "Send" && PdfWorkflow.Current is { State: PdfCre
   {
   <a class="btn btn-outline-success btn-lg w-100" href="@PdfUrl(completedPdf.SessionId)">Download PDF</a>
   <button class="btn btn-outline-primary btn-lg w-100 mt-2" @onclick="LoadPaperlessAsync" disabled="@paperlessLoading">@(paperlessLoading ? "Checking connection …" : "Check connection and load metadata")</button>
-  @if (!string.IsNullOrWhiteSpace(paperlessMessage)) { <div class="alert @(paperlessError ? "alert-danger" : "alert-success") mt-2" role="status">@paperlessMessage</div> }
+  @if (paperlessError && !string.IsNullOrWhiteSpace(paperlessMessage))
+  {
+   <div class="alert alert-danger mt-2 paperless-operation-error" role="alert" aria-live="assertive"><strong>Paperless metadata could not be loaded.</strong> @paperlessMessage
+    @if (!string.IsNullOrWhiteSpace(paperlessDiagnosticId)) { <div class="mt-2">Diagnostic ID: <code>@paperlessDiagnosticId</code></div> }
+    <div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-danger" @onclick="LoadPaperlessAsync">Retry metadata</button>@if (NeedsPaperlessSettings(paperlessFailure)) { <a class="btn btn-outline-danger" href="/settings#paperless-connection">Open Paperless settings</a> }<button class="btn btn-outline-secondary" @onclick="DismissMetadataError">Dismiss</button></div>
+   </div>
+  }
+  else if (!string.IsNullOrWhiteSpace(paperlessMessage)) { <div class="alert alert-success mt-2" role="status">@paperlessMessage</div> }
   @if (paperlessMetadata is not null)
   {
    <div class="mt-3"><label class="form-label" for="paperless-title">Title (optional)</label><input id="paperless-title" class="form-control form-control-lg" maxlength="256" @bind="paperlessTitle" /></div>
@@ -292,7 +309,9 @@ else if (CurrentWorkflowStep == "Send" && PdfWorkflow.Current is { State: PdfCre
    <fieldset class="mt-3"><legend class="h6">Tags (optional)</legend>@foreach (var choice in paperlessMetadata.Tags) { <div class="form-check"><input class="form-check-input" id="send-tag-@choice.Id" type="checkbox" checked="@paperlessTags.Contains(choice.Id)" @onchange="args => ToggleTag(choice.Id, args)" /><label class="form-check-label" for="send-tag-@choice.Id">@choice.Name</label></div> }</fieldset>
    <button class="btn btn-success btn-lg w-100 mt-3" @onclick="() => UploadAsync(completedPdf.SessionId)" disabled="@(UploadWorkflow.Current?.IsActive == true || UploadWorkflow.Current is { State: PaperlessUploadState.Accepted, SessionId: var acceptedSession } && acceptedSession == completedPdf.SessionId)">Send to Paperless</button>
   }
-  @if (UploadWorkflow.Current is { } upload) { <div class="alert @(upload.State == PaperlessUploadState.Accepted ? "alert-success" : upload.State == PaperlessUploadState.Failed ? "alert-danger" : "alert-info") mt-3" role="status">@upload.Message</div> }
+  @if (UploadWorkflow.Current is { State: PaperlessUploadState.Failed } upload)
+  { <div class="alert alert-danger mt-3 paperless-operation-error" role="alert" aria-live="assertive"><strong>The document was not sent.</strong> @upload.Message @if (!string.IsNullOrWhiteSpace(upload.DiagnosticId)) { <div class="mt-2">Diagnostic ID: <code>@upload.DiagnosticId</code></div> }<div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-danger" @onclick="() => UploadAsync(completedPdf.SessionId)">Retry send</button>@if (NeedsPaperlessSettings(upload.Failure)) { <a class="btn btn-outline-danger" href="/settings#paperless-connection">Open Paperless settings</a> }<button class="btn btn-outline-secondary" @onclick="UploadWorkflow.DismissError">Dismiss</button></div></div> }
+  else if (UploadWorkflow.Current is { } uploadStatus) { <div class="alert @(uploadStatus.State == PaperlessUploadState.Accepted ? "alert-success" : "alert-info") mt-3" role="status">@uploadStatus.Message</div> }
   <button class="btn btn-outline-secondary btn-lg w-100 mt-3" @onclick="ShowReview">Back to review</button>
   @if (UploadWorkflow.Current?.IsActive == true) { <button class="btn btn-outline-danger btn-lg w-100 mt-2" @onclick="UploadWorkflow.CancelAsync">Send abbrechen</button> }
   }
@@ -330,6 +349,8 @@ else if (CurrentWorkflowStep == "Send" && PdfWorkflow.Current is { State: PdfCre
     private PaperlessMetadata? paperlessMetadata;
     private string? paperlessMessage;
     private bool paperlessError;
+    private PaperlessFailure paperlessFailure;
+    private string? paperlessDiagnosticId;
     private bool paperlessLoading;
     private Guid? cancellingScanSessionId;
     private Guid? cancellingDuplexSessionId;
@@ -395,9 +416,11 @@ else if (CurrentWorkflowStep == "Send" && PdfWorkflow.Current is { State: PdfCre
     private async Task LoadPaperlessAsync()
     {
         paperlessLoading = true;
-        try { var loaded = await PaperlessClient.GetMetadataAsync(); paperlessMetadata = loaded.Metadata; paperlessMessage = loaded.Result.Message; paperlessError = !loaded.Result.Succeeded; }
+        try { var loaded = await PaperlessClient.GetMetadataAsync(); paperlessMetadata = loaded.Metadata; paperlessMessage = loaded.Result.Message; paperlessError = !loaded.Result.Succeeded; paperlessFailure = loaded.Result.Failure; paperlessDiagnosticId = loaded.Result.DiagnosticId; }
         finally { paperlessLoading = false; }
     }
+    private void DismissMetadataError() { paperlessMessage = null; paperlessDiagnosticId = null; paperlessError = false; }
+    private static bool NeedsPaperlessSettings(PaperlessFailure failure) => failure is PaperlessFailure.Configuration or PaperlessFailure.Authentication or PaperlessFailure.Authorization;
     private void ToggleTag(int id, ChangeEventArgs args) { if (args.Value is true) paperlessTags.Add(id); else paperlessTags.Remove(id); }
     private Task UploadAsync(Guid sessionId) => UploadWorkflow.UploadAsync(new(sessionId, paperlessTitle, paperlessCorrespondent, paperlessDocumentType, paperlessTags.ToArray()));
     private static string PageUrl(Guid sessionId, string fileName) => $"/api/scan-sessions/{sessionId:D}/pages/{Uri.EscapeDataString(fileName)}";

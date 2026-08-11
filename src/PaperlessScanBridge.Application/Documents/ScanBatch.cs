@@ -13,7 +13,8 @@ public sealed record BatchDocumentMetadata(string? Title = null, int? Correspond
 
 public sealed record BatchDocument(Guid Id, int Number, IReadOnlyList<EditablePage> Pages,
     BatchDocumentMetadata Metadata, BatchDocumentState State = BatchDocumentState.Pending,
-    string? Message = null, string? TaskId = null);
+    string? Message = null, string? TaskId = null, PaperlessFailure Failure = PaperlessFailure.None,
+    string? DiagnosticId = null);
 
 public sealed record ScanBatchSnapshot(Guid SessionId, IReadOnlyList<int> SplitPoints,
     IReadOnlyList<BatchDocument> Documents)
@@ -43,6 +44,7 @@ public interface IScanBatchWorkflow
     Task SetMetadataAsync(Guid documentId, BatchDocumentMetadata metadata, CancellationToken token = default);
     Task CreatePdfAsync(Guid documentId, CancellationToken token = default);
     Task UploadAsync(Guid documentId, CancellationToken token = default);
+    Task DismissUploadErrorAsync(Guid documentId, CancellationToken token = default);
 }
 
 public sealed class ScanBatchWorkflow(IScanBatchStore store, IScanBatchProcessor processor) : IScanBatchWorkflow
@@ -99,10 +101,15 @@ public sealed class ScanBatchWorkflow(IScanBatchStore store, IScanBatchProcessor
         try
         {
             var result = await processor.UploadAsync(Current!.SessionId, Find(documentId), token);
-            await MutateAsync(documentId, value => value with { State = result.Succeeded ? BatchDocumentState.Uploaded : BatchDocumentState.Failed, Message = result.Message, TaskId = result.TaskId }, token);
+            await MutateAsync(documentId, value => value with { State = result.Succeeded ? BatchDocumentState.Uploaded : BatchDocumentState.Failed, Message = result.Message, TaskId = result.TaskId, Failure = result.Failure, DiagnosticId = result.DiagnosticId }, token);
         }
         catch (OperationCanceledException) { await SetStateAsync(documentId, BatchDocumentState.Failed, "Upload cancelled; the PDF remains available for retry.", CancellationToken.None); }
     }
+
+    public Task DismissUploadErrorAsync(Guid documentId, CancellationToken token = default) =>
+        MutateAsync(documentId, document => document.State == BatchDocumentState.Failed && document.Failure != PaperlessFailure.None
+            ? document with { Message = null, DiagnosticId = null }
+            : document, token);
 
     private async Task MutateAsync(Guid id, Func<BatchDocument, BatchDocument> change, CancellationToken token)
     {

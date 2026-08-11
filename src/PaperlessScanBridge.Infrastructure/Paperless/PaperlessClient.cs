@@ -14,14 +14,15 @@ public sealed class PaperlessClient(HttpClient http, IProfileServiceConfiguratio
     public async Task<PaperlessResult> CheckConnectivityAsync(CancellationToken cancellationToken = default)
     {
         var options = await configurations.GetEffectiveAsync(cancellationToken);
-        if (!options.IsConfigured) return new(false, "No effective Paperless configuration is available.", PaperlessFailure.Configuration);
+        if (!options.IsConfigured) return ConfigurationFailure(options);
         try
         {
             using var response = await SendAsync(options, HttpMethod.Get, "api/documents/?page_size=1", null, cancellationToken);
             return response.IsSuccessStatusCode ? new(true, "Connection and API permission are valid.") : Failure(response.StatusCode);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(false, "Paperless hat nicht rechtzeitig geantwortet.", PaperlessFailure.Network); }
-        catch (HttpRequestException) { return new(false, "Paperless cannot be reached over the network.", PaperlessFailure.Network); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return Failure(PaperlessFailure.Timeout, "Paperless did not respond before the timeout."); }
+        catch (HttpRequestException) { return Failure(PaperlessFailure.Network, "Paperless cannot be reached over the network."); }
+        catch (Exception exception) { return Unexpected(exception); }
     }
 
     public async Task<(PaperlessResult Result, PaperlessMetadata? Metadata)> GetMetadataAsync(CancellationToken cancellationToken = default)
@@ -34,11 +35,13 @@ public sealed class PaperlessClient(HttpClient http, IProfileServiceConfiguratio
             var correspondents = await GetChoicesAsync(options, "api/correspondents/?page_size=100000", cancellationToken);
             var types = await GetChoicesAsync(options, "api/document_types/?page_size=100000", cancellationToken);
             var tags = await GetChoicesAsync(options, "api/tags/?page_size=100000", cancellationToken);
-            return (new(true, "Metadaten wurden geladen."), new(correspondents, types, tags));
+            return (new(true, "Paperless metadata was loaded."), new(correspondents, types, tags));
         }
         catch (PaperlessHttpException exception) { return (Failure(exception.StatusCode), null); }
-        catch (HttpRequestException) { return (new(false, "Metadaten konnten wegen eines Netzwerkfehlers nicht geladen werden.", PaperlessFailure.Network), null); }
-        catch (JsonException) { return (new(false, "Paperless returned invalid metadata.", PaperlessFailure.InvalidResponse), null); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return (Failure(PaperlessFailure.Timeout, "Paperless metadata did not arrive before the timeout."), null); }
+        catch (HttpRequestException) { return (Failure(PaperlessFailure.Network, "Paperless metadata could not be loaded because of a network failure."), null); }
+        catch (JsonException exception) { return (Failure(PaperlessFailure.InvalidResponse, "Paperless returned an invalid or unexpected metadata response.", exception), null); }
+        catch (Exception exception) { return (Unexpected(exception), null); }
     }
 
     public async Task<PaperlessResult> UploadAsync(PaperlessUploadRequest request, IProgress<int>? progress = null, CancellationToken cancellationToken = default)
@@ -46,7 +49,7 @@ public sealed class PaperlessClient(HttpClient http, IProfileServiceConfiguratio
         var path = Path.Combine(Path.GetFullPath(storage.Path), request.SessionId.ToString("N"), "document.pdf");
         if (!File.Exists(path)) return new(false, "The generated PDF is no longer available. Create it again.", PaperlessFailure.FileMissing);
         var options = await configurations.GetEffectiveAsync(cancellationToken);
-        if (!options.IsConfigured) return new(false, "No effective Paperless configuration is available.", PaperlessFailure.Configuration);
+        if (!options.IsConfigured) return ConfigurationFailure(options);
         try
         {
             await using var stream = File.OpenRead(path);
@@ -60,11 +63,14 @@ public sealed class PaperlessClient(HttpClient http, IProfileServiceConfiguratio
             using var response = await SendAsync(options, HttpMethod.Post, "api/documents/post_document/", content, cancellationToken);
             if (!response.IsSuccessStatusCode) return Failure(response.StatusCode);
             var taskId = (await response.Content.ReadAsStringAsync(cancellationToken)).Trim().Trim('"');
+            if (string.IsNullOrWhiteSpace(taskId)) return Failure(PaperlessFailure.InvalidResponse, "Paperless returned an invalid upload acceptance response. The document was not marked as sent.");
             logger.LogInformation("Paperless accepted upload for scan session {SessionId}.", request.SessionId);
             return new(true, "Paperless accepted the document and is processing it now.", TaskId: string.IsNullOrWhiteSpace(taskId) ? null : taskId);
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return Failure(PaperlessFailure.Timeout, "The upload timed out; the PDF remains available for retry."); }
         catch (OperationCanceledException) { throw; }
-        catch (HttpRequestException) { return new(false, "Upload wegen eines Netzwerkfehlers fehlgeschlagen; die PDF bleibt erhalten.", PaperlessFailure.Network); }
+        catch (HttpRequestException) { return Failure(PaperlessFailure.Network, "The upload failed because of a network error; the PDF remains available for retry."); }
+        catch (Exception exception) { return Unexpected(exception, "The upload failed unexpectedly; the PDF remains available for retry."); }
     }
 
     private async Task<IReadOnlyList<PaperlessChoice>> GetChoicesAsync(EffectivePaperlessConfiguration options, string uri, CancellationToken token)
@@ -81,13 +87,27 @@ public sealed class PaperlessClient(HttpClient http, IProfileServiceConfiguratio
         request.Headers.Authorization = new("Token", options.ApiToken);
         return await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
     }
-    private static PaperlessResult Failure(HttpStatusCode status) => status switch
+    private PaperlessResult Failure(HttpStatusCode status) => status switch
     {
-        HttpStatusCode.Unauthorized => new(false, "Authentication failed. Check the API token.", PaperlessFailure.Authentication),
-        HttpStatusCode.Forbidden => new(false, "Authentifiziert, aber die erforderliche Berechtigung fehlt.", PaperlessFailure.Authorization),
-        >= HttpStatusCode.InternalServerError => new(false, $"Paperless meldet einen Serverfehler ({(int)status}).", PaperlessFailure.Server),
-        _ => new(false, $"Paperless hat die Anfrage abgelehnt (HTTP {(int)status}).", PaperlessFailure.Unknown)
+        HttpStatusCode.Unauthorized => Failure(PaperlessFailure.Authentication, "Paperless authentication failed. Check the API token."),
+        HttpStatusCode.Forbidden => Failure(PaperlessFailure.Authorization, "Paperless denied the required permission. Check the token user's permissions."),
+        >= HttpStatusCode.InternalServerError => Failure(PaperlessFailure.Server, "Paperless reported a server failure. Try again later."),
+        _ => Failure(PaperlessFailure.InvalidResponse, "Paperless rejected the operation with an unexpected response.")
     };
+    private PaperlessResult ConfigurationFailure(EffectivePaperlessConfiguration options)
+    {
+        var missing = !PaperlessUrlPolicy.TryParse(options.BaseUrl, out _) ? "URL" : "API token";
+        return Failure(PaperlessFailure.Configuration, $"The effective Paperless {missing} is missing or invalid. Open Paperless settings to configure it.");
+    }
+    private PaperlessResult Failure(PaperlessFailure category, string message, Exception? exception = null)
+    {
+        var id = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+        logger.LogWarning("Paperless operation failed ({Failure}); diagnostic ID {DiagnosticId}; exception type {ExceptionType}.",
+            category, id, exception?.GetType().Name ?? "none");
+        return new(false, message, category, DiagnosticId: id);
+    }
+    private PaperlessResult Unexpected(Exception exception, string message = "The Paperless operation failed unexpectedly. Try again.") =>
+        Failure(PaperlessFailure.Unknown, message, exception);
     private sealed class PaperlessHttpException(HttpStatusCode statusCode) : Exception { public HttpStatusCode StatusCode { get; } = statusCode; }
 }
 
