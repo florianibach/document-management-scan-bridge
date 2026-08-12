@@ -29,6 +29,19 @@ public sealed class ProfileServiceConfigurationTests
         Assert.Null(await repository.GetSecretAsync("profile-a"));
     }
 
+    [Fact]
+    public async Task ValidConfigurationCanBeSavedWhilePaperlessIsOffline()
+    {
+        var tester=new Tester(false); var repository=new Repository();
+        var service=Create(repository,new PaperlessOptions { BaseUrl="https://deployment.test" },tester:tester);
+
+        var result=await service.ValidateAndSaveAsync(new("https://offline.test","secret",true,false,false,ValidateConnection:false));
+
+        Assert.True(result.Succeeded);
+        Assert.Null(tester.LastUrl);
+        Assert.Equal("https://offline.test",(await service.GetEffectiveAsync()).BaseUrl);
+    }
+
     [Theory]
     [InlineData("http://paperless.lan:8000")]
     [InlineData("https://paperless.example.test")]
