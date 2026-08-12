@@ -12,7 +12,7 @@ public sealed record EffectivePaperlessConfiguration(string? BaseUrl, string? Ap
 {
     public bool IsConfigured => PaperlessScanBridge.Application.Configuration.PaperlessUrlPolicy.TryParse(BaseUrl, out _) && !string.IsNullOrWhiteSpace(ApiToken);
 }
-public sealed record ProfileServiceConfigurationInput(string? BaseUrl, string? ApiToken, bool ReplaceToken, bool DeleteToken, bool UseDeploymentToken);
+public sealed record ProfileServiceConfigurationInput(string? BaseUrl, string? ApiToken, bool ReplaceToken, bool DeleteToken, bool UseDeploymentToken, bool ValidateConnection = true);
 public sealed record ProfileServiceConfigurationResult(bool Succeeded, IReadOnlyList<string> Errors, ProfileServiceConfiguration Configuration, PaperlessMetadata? Metadata = null);
 
 public sealed class ProfileServiceOptions
@@ -89,7 +89,7 @@ public sealed class ProfileServiceConfigurationService(
         var effectiveToken = token ?? (options.AllowDeploymentTokenFallback ? deployment.ApiToken : null);
         if (string.IsNullOrWhiteSpace(effectiveToken)) errors.Add("Enter a profile API token. An administrator-managed fallback is not available.");
         PaperlessMetadata? metadata = null;
-        if (errors.Count == 0)
+        if (errors.Count == 0 && input.ValidateConnection)
         {
             var check = await tester.ValidateAsync(effectiveUrl, effectiveToken!, cancellationToken);
             if (!check.Result.Succeeded) errors.Add(check.Result.Message); else metadata = check.Metadata;

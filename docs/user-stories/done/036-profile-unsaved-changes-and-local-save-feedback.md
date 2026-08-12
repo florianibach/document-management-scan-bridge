@@ -33,10 +33,10 @@
 
 ## Implementation and verification record
 
-- The settings component compares the editable Paperless and defaults sections with their last loaded or successfully persisted snapshots. Saving one snapshot cannot clear a different dirty section, and a response to an older submission cannot clear newer edits.
-- A persistent, text-and-icon unsaved banner and action-local live regions report progress, success, validation errors, and operational failures. Validation preserves entered values and moves focus to the relevant Paperless field or defaults form.
+- The settings component compares the editable Paperless and defaults sections with their last loaded or successfully persisted snapshots. One general save action persists every dirty section, reports partial persistence explicitly if a later repository fails, and a response to an older submission cannot clear newer edits.
+- A persistent, text-and-icon unsaved banner and action-local live regions report progress, success, validation errors, and operational failures. Starting a new action clears obsolete success messages so contradictory duplicate results cannot accumulate. Validation preserves entered values and moves focus to the relevant Paperless field or defaults form.
 - Blazor's navigation lock covers browser reload/close and internal navigation. Internal navigation uses an explicit discard confirmation; cancellation prevents the route change and confirmation never saves implicitly. Account/profile departures use the same navigation path.
-- Component coverage verifies a single dirty section, two independently dirty sections and partial success, edit-after-success, actionable validation failure, secret-safe announcements, and field focus behavior. The navigation lock is rendered from the same dirty predicate used by the banner; browser confirmation itself is native platform behavior.
+- Component coverage verifies a single dirty section, the general save across both dirty sections, removal of obsolete results, edit-after-success, actionable validation failure, secret-safe announcements, and compact multi-tag selection. Unit coverage verifies that a syntactically valid Paperless configuration can be persisted while the service is offline. The navigation lock is rendered from the same dirty predicate used by the banner; browser confirmation itself is native platform behavior.
 - Responsive review: action/status pairs stack at phone widths and become two columns from 768 px; the sticky banner and semantic live regions use text and symbols in addition to color. Keyboard operation uses native buttons, fields, links, focus, and browser confirmation controls.
 
 ### Definition of Done disposition

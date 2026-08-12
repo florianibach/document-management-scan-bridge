@@ -52,6 +52,7 @@ h1:focus {
 .action-status-progress { background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); }
 .action-status-success { background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); }
 .action-status-error { background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); }
+.profile-tags-select { min-height: 12rem; }
 
 @media (min-width: 768px) {
   .settings-action { grid-template-columns: minmax(16rem, 1fr) minmax(16rem, 1fr); align-items: center; }
